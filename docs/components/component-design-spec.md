@@ -90,7 +90,20 @@
 | **受控與非受控並存** | 有內部狀態的元件(input / select / checkbox / dialog / disclosure)同時支援 v-model(受控)與 defaultValue / defaultOpen prop(非受控)。caller 沒給 v-model 時元件內部自治,給了就完全交出控制權。defineModel 在沒綁定時會回傳獨立 ref,天然支援|
 | **必要時 expose imperative API** | 用 defineExpose 把關鍵方法 / ref 暴露給 caller:input 類 { focus, blur, inputRef }、dialog { open, close }、scrollable list { scrollToIndex }。避免父元件無法控制原生行為 |
 
-### 7. SSR 與跨平台
+### 7. 列表渲染(`v-for` key 選擇)
+
+key 用錯不會炸,但中段刪插 / 重排時會讓 DOM 節點就地 patch — slot 內的 input 值、focus、`<transition-group>` 動畫會錯位到別筆資料上,debug 成本高。
+
+| 優先序 | 候選 | 範例 |
+|---|---|---|
+| 1 | 業務唯一 ID | `:key="user.id"` |
+| 2 | 內容穩定欄位(label / name / path) | `:key="item.label"` |
+| 3 | 複合 key(撞名保險) | `` :key="`${index}-${item.label}`" `` |
+| 4 | `index`(僅在下表全否時可用) | `:key="index"` |
+
+**任一情境成立就不可用 `index`**:列表會排序 / 篩選 / 重排、會中段刪插、slot 含 `<input>` / focus / 自管狀態、開放 slot 的通用元件(控制不了 caller 放什麼)、使用 `<transition-group>` / FLIP / `<KeepAlive>`。
+
+### 8. SSR 與跨平台
 
 | 項目 | 注意 |
 |---|---|
@@ -100,7 +113,7 @@
 | **RTL 友善** | padding / margin 用 logical properties(`padding-inline-start`),Tailwind 用 `ps-*` / `pe-*` |
 | **不依賴 ResizeObserver / IntersectionObserver 等 API 在 SSR** | 用 `import.meta.client` 包起來 |
 
-### 8. 跨專案落地
+### 9. 跨專案落地
 
 | 項目 | 建議 |
 |---|---|
@@ -119,7 +132,7 @@
 
 寫每個新 `Base*` 元件時,依下面三階段逐項對照。
 
-### 9. 設計階段(寫第一行 code 前)
+### 10. 設計階段(寫第一行 code 前)
 
 - [ ] 列出元件的「正交維度」 — 哪些屬性可以獨立組合(variant / color / size / state)
 - [ ] 列 P0 props(沒它就不能用) — 限 5–8 個
@@ -132,7 +145,7 @@
 - [ ] Review 反模式 — 是否落入「把語意塞進 variant」「icon 用 prop」等陷阱
 - [ ] 對齊 Figma / 設計系統 — variant 名稱、互動狀態跟設計師一致
 
-### 10. 實作階段
+### 11. 實作階段
 
 - [ ] TypeScript strict,公開 `export interface XxxProps`
 - [ ] 預設值安全(`type='button'`、`disabled=false`)
@@ -149,8 +162,9 @@
 - [ ] 透傳 attrs(`data-testid` / `aria-*` / `class` 都能往下傳)
 - [ ] 點擊 handler 處理 disabled / loading 狀況
 - [ ] Loading 不造成 layout shift
+- [ ] **`v-for` key 用穩定欄位** — 業務 ID / `label` 等;`index` 僅在「靜態 + 不重排 + slot 無 stateful 內容」三條全成立時可用(見 §7)
 
-### 11. 驗收階段
+### 12. 驗收階段
 
 - [ ] Storybook / Histoire 列出所有 variant × color × size × state 組合
 - [ ] 鍵盤實測:Tab / Shift+Tab / Enter / Space / Esc / 方向鍵(視元件適用)
