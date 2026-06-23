@@ -71,8 +71,6 @@ interface BaseAccordionPanelProps {
    * @default false
    */
   lazy?: boolean
-  /** 無父層 BaseAccordion 時的 standalone 受控狀態（單獨使用時的 `v-model`） */
-  modelValue?: boolean
 }
 
 const props = withDefaults(defineProps<BaseAccordionPanelProps>(), {
@@ -80,13 +78,13 @@ const props = withDefaults(defineProps<BaseAccordionPanelProps>(), {
   summary: undefined,
   disabled: false,
   lazy: false,
-  modelValue: undefined,
 })
 
-const emit = defineEmits<{
-  /** standalone 模式下展開狀態變更 */
-  (event: 'update:modelValue', value: boolean): void
-}>()
+/**
+ * standalone（無父層 BaseAccordion）時的展開狀態 `v-model`；context 模式不使用此值，
+ * 由注入的 context 決定展開與否。
+ */
+const model = defineModel<boolean>({ default: false })
 
 // 父層 context；單獨使用（無 BaseAccordion）時為 null，退化成自管狀態的獨立面板。
 const context = inject(BASE_ACCORDION_INJECT_KEY, null)
@@ -101,31 +99,23 @@ const standalone = computed(
 const headingLevel = computed(() => context?.headingLevel.value ?? 3)
 const isDisabled = computed(() => props.disabled || !!context?.disabled.value)
 
-const internal = ref(!!props.modelValue)
-
 const isActive = computed<boolean>({
   get() {
-    if (standalone.value) return internal.value
+    // standalone 直接讀 model（defineModel 已處理 v-model 進出與 unbound 本地狀態）；
+    // context 模式則以注入的 active 集合為準。
+    if (standalone.value) return model.value
     return context!.active.value.includes(props.value as T)
   },
   set(value) {
     if (isDisabled.value) return
     if (standalone.value) {
-      internal.value = value
-      emit('update:modelValue', value)
+      // 寫回 model，defineModel 自動 emit update:modelValue（受控）/ 更新本地（非受控）。
+      model.value = value
       return
     }
     context!.toggle(props.value as T)
   },
 })
-
-// standalone 受控：外部 modelValue 變動同步回內部。
-watch(
-  () => props.modelValue,
-  (value) => {
-    if (standalone.value) internal.value = !!value
-  },
-)
 
 function onSummaryClick() {
   isActive.value = !isActive.value

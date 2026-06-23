@@ -40,10 +40,6 @@ import toArray from '~/utils/toArray'
 
 interface BaseAccordionProps {
   /**
-   * 展開中的 value。單開模式傳單值、多開模式傳陣列；內部一律收斂成陣列處理。
-   */
-  modelValue?: T | T[]
-  /**
    * 是否允許同時展開多個 panel。
    * - `false`（預設）：互斥，展開新的會收合其它；`v-model` 進出皆為單值。
    * - `true`：可同時展開多個；`v-model` 進出皆為陣列。
@@ -64,23 +60,23 @@ interface BaseAccordionProps {
 }
 
 const props = withDefaults(defineProps<BaseAccordionProps>(), {
-  modelValue: undefined,
   multiple: false,
   headingLevel: 3,
   disabled: false,
 })
 
-const emit = defineEmits<{
-  /** 展開狀態變更。multiple 時送陣列、否則送單值（無展開為 undefined） */
-  (event: 'update:modelValue', value: T | T[] | undefined): void
-}>()
+/**
+ * 展開中的 value（`v-model`）。單開模式進出皆為單值、多開模式為陣列；內部一律收斂成
+ * 陣列處理，commit 時依 `multiple` 寫回對應型別（無展開為 `undefined`）。
+ */
+const model = defineModel<T | T[]>()
 
 // 內部一律以陣列保存展開中的 value，省去到處 Array.isArray 分支。
-const active = ref(toArray(props.modelValue ?? [])) as ToRef<T[]>
+const active = ref(toArray(model.value ?? [])) as ToRef<T[]>
 
 // 外部 v-model 變動時同步回內部（受控情境）。
 watch(
-  () => props.modelValue,
+  model,
   (value) => {
     const next = toArray(value ?? [])
     // 跳過 v-model echo-back：點擊已先更新 active 並 emit，父層回寫同內容時不必再重建陣列，
@@ -98,7 +94,7 @@ watch(
 // 寫回時依 multiple 決定 emit 單值或陣列：對齊 caller 傳入的型別語意。
 function commit(next: T[]) {
   active.value = next
-  emit('update:modelValue', props.multiple ? next : next[0])
+  model.value = props.multiple ? next : next[0]
 }
 
 function toggle(value: T) {

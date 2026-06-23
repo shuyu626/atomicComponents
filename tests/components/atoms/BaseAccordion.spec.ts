@@ -352,6 +352,24 @@ describe('BaseAccordion', () => {
       expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([true])
     })
 
+    it('reacts to external v-model changes (controlled open from parent)', async () => {
+      // 守住 defineModel 遷移：isActive 直接讀 model，外部改 modelValue 應驅動展開，
+      // 不再依賴已移除的 sync watch。
+      const wrapper = mount(BaseAccordionPanel, {
+        props: { modelValue: false, summary: '受控區塊' },
+        slots: { default: () => 'controlled-content' },
+        attachTo: document.body,
+      })
+      const btn = wrapper.find('button[data-accordion-summary]')
+      expect(btn.attributes('aria-expanded')).toBe('false')
+
+      await wrapper.setProps({ modelValue: true })
+      expect(btn.attributes('aria-expanded')).toBe('true')
+
+      await wrapper.setProps({ modelValue: false })
+      expect(btn.attributes('aria-expanded')).toBe('false')
+    })
+
     it('still wires summary / region a11y relationship', () => {
       const wrapper = mount(BaseAccordionPanel, {
         props: { summary: 'S' },
