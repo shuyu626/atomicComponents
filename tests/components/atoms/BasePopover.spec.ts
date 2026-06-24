@@ -125,6 +125,19 @@ describe('BasePopover', () => {
       const wrapper = track(mountPopover({ role: 'tooltip', trigger: 'hover' }))
       expect(wrapper.find('.trigger').attributes('aria-haspopup')).toBeUndefined()
     })
+
+    // tooltip role 走 describedby 語意（而非 disclosure 的 controls/expanded）。
+    it('wires aria-describedby and omits controls/expanded for a tooltip role', async () => {
+      const wrapper = track(mountPopover({ role: 'tooltip', trigger: 'hover' }))
+      const trigger = wrapper.find('.trigger')
+      expect(trigger.attributes('aria-controls')).toBeUndefined()
+      expect(trigger.attributes('aria-expanded')).toBeUndefined()
+
+      const describedby = trigger.attributes('aria-describedby')
+      expect(describedby).toBeTruthy()
+      await trigger.trigger('mouseenter')
+      expect(popoverEl()?.id).toBe(describedby)
+    })
   })
 
   // ── click trigger ───────────────────────────────────────────────────────────

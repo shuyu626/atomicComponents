@@ -2,9 +2,10 @@
   <ReferenceComponent
     v-if="$slots.reference"
     class="base-popover__reference"
-    :aria-controls="id"
+    :aria-controls="ariaControls"
+    :aria-describedby="ariaDescribedby"
     :aria-disabled="disabled || undefined"
-    :aria-expanded="open"
+    :aria-expanded="ariaExpanded"
     :aria-haspopup="ariaHasPopup"
     @click="onClick"
     @keydown="onKeydown"
@@ -255,6 +256,29 @@ const ariaHasPopup = computed<string | boolean | undefined>(() => {
       return true
   }
 })
+
+/**
+ * tooltip 與 disclosure（menu/dialog…）的 ARIA 模式不同：
+ * - disclosure：reference 用 `aria-controls`（指向浮層）+ `aria-expanded`（開合狀態）
+ * - tooltip：reference 改用 `aria-describedby`（把提示當「描述」連上），且**不**標 expanded
+ *   —— tooltip 非可展開 widget，標 expanded 會被螢幕閱讀器誤念「已摺疊」。
+ */
+const isTooltip = computed(() => props.role === 'tooltip')
+
+/** reference 的 `aria-controls`：disclosure 用（指向浮層 id）；tooltip 省略。 */
+const ariaControls = computed<string | undefined>(() =>
+  isTooltip.value ? undefined : id,
+)
+
+/** reference 的 `aria-describedby`：僅 tooltip 用，聚焦時螢幕閱讀器念出提示內容。 */
+const ariaDescribedby = computed<string | undefined>(() =>
+  isTooltip.value ? id : undefined,
+)
+
+/** reference 的 `aria-expanded`：disclosure 的開合狀態；tooltip 省略（回傳 undefined）。 */
+const ariaExpanded = computed<boolean | undefined>(() =>
+  isTooltip.value ? undefined : open.value,
+)
 
 /** 是否該渲染浮層：未禁用、有兩端 slot、且為開啟狀態。 */
 const shouldRenderPopover = computed(

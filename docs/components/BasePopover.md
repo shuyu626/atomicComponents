@@ -33,7 +33,7 @@ BasePopover 是「錨定式浮層」元件：以使用者傳入的 `#reference` 
 | `arrow` | `{ element: HTMLElement \| null; padding?: number }` | — | 啟用箭頭定位；元件回傳 `arrowStyle` 經 slot 給你套用 |
 | `autoFit` | `boolean` | `false` | 垂直放置時讓浮層寬度貼齊 reference（dropdown / select 用） |
 | `disabled` | `boolean` | `false` | 整體禁用：不可觸發、不渲染浮層 |
-| `role` | `string` | — | 浮層 ARIA role（`menu`/`listbox`/`dialog`/`tooltip`…），並推導 reference 的 `aria-haspopup` |
+| `role` | `string` | — | 浮層 ARIA role（`menu`/`listbox`/`dialog`/`tooltip`…），並推導 reference 的 `aria-haspopup`。`tooltip` 特判：reference 改用 `aria-describedby`、省略 `aria-expanded`/`aria-controls`（見 §7） |
 | `disableFocusTrap` | `boolean` | `false` | 關閉焦點陷阱（預設僅在浮層內有可聚焦元素時才啟用） |
 | `hoverCloseDelay` | `number` | `120` | hover 觸發時滑出到關閉的延遲（ms），吃掉跨間隙的 `mouseleave` |
 
@@ -205,8 +205,9 @@ const arrow = computed(() => ({ element: arrowEl.value, padding: 8 }))
 
 | 對象 | 必做 |
 |---|---|
-| reference | `aria-haspopup`（由 `role` 推導：popup widget role 用該 role、`tooltip` 不設、其餘預設 `true`）、`aria-expanded`（跟隨開關）、`aria-controls`（指向浮層 id）；`disabled` 時 `aria-disabled` |
-| 浮層 | `id`（`useId()`，與 `aria-controls` 配對）、`role`（由 prop 指定，如 `menu`/`dialog`/`tooltip`） |
+| reference（disclosure：menu/dialog/listbox…） | `aria-haspopup`（由 `role` 推導：popup widget role 用該 role、其餘預設 `true`）、`aria-expanded`（跟隨開關）、`aria-controls`（指向浮層 id）；`disabled` 時 `aria-disabled` |
+| reference（`role="tooltip"`） | 改走 tooltip 語意：`aria-describedby`（指向浮層 id）；**不設** `aria-expanded` / `aria-controls` / `aria-haspopup`（tooltip 非可展開 widget，標 expanded 會被誤念「已摺疊」） |
+| 浮層 | `id`（`useId()`，與 reference 的 `aria-controls`／`aria-describedby` 配對）、`role`（由 prop 指定，如 `menu`/`dialog`/`tooltip`） |
 | 鍵盤 | `click` 觸發支援 Enter/Space；Esc 關閉；focus-trap 鎖 Tab（有可聚焦內容時） |
 | 焦點 | 浮層內有可聚焦元素 → 啟用 trap；純提示 → 不干擾焦點 |
 | 觸發語意 | 純文字 reference 自動補 `role="button" tabindex="0"` |
