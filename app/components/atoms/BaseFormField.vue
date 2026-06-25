@@ -203,6 +203,7 @@ const rootStyle = computed<CSSProperties | undefined>(() =>
   --field-label-color: #374151; // 標籤文字色（gray-700，對齊庫內文字色）
   --field-message-font-size: 0.75rem;
   --field-message-color: #6b7280;
+  --field-message-gap-y: 6px; // 控制項與訊息列的垂直間距
   --field-danger-color: #dc2626;
 }
 
@@ -288,6 +289,7 @@ const rootStyle = computed<CSSProperties | undefined>(() =>
 
   &__message {
     display: flex;
+    margin-top: var(--field-message-gap-y);
     padding-right: 4px;
     padding-left: 4px;
     font-size: var(--field-message-font-size);
