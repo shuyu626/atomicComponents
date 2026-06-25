@@ -1,6 +1,8 @@
 import { ref } from 'vue'
 import type { StoryObj } from '@storybook/vue3-vite'
 import BaseTextField from '~/components/atoms/BaseTextField.vue'
+import { required, email, minLength } from '~/utils/validators'
+import type { ValidationRule } from '~/utils/validators'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Meta
@@ -193,6 +195,32 @@ export const LabelPlacement: Story = {
   }),
   parameters: {
     docs: { description: { story: '`labelPlacement` 由 BaseFormField 提供：`left`（並排，寬度 `labelWidth`）/ `top`（置頂）。' } },
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Validation —— rules + touched-gated 即時驗證
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const Validation: Story = {
+  render: () => ({
+    components: { BaseTextField },
+    setup() {
+      const acc = ref('')
+      const mail = ref('')
+      const emailRules: ValidationRule<string | number>[] = [required('請輸入電子郵件'), email()]
+      const accRules: ValidationRule<string | number>[] = [required('請輸入帳號'), minLength(4, '帳號至少 4 碼')]
+      return { acc, mail, emailRules, accRules }
+    },
+    template: WRAP(`
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <BaseTextField v-model="acc" label="帳號" label-placement="top" :rules="accRules" placeholder="先 blur 一次,之後逐字即時驗" />
+        <BaseTextField v-model="mail" label="電子郵件" label-placement="top" type="email" :rules="emailRules" placeholder="you@example.com" />
+      </div>
+    `),
+  }),
+  parameters: {
+    docs: { description: { story: '`rules` 為規則陣列(每條回傳 `true` 或錯誤字串);採 **touched-gated**——第一次 blur 後才開始逐字即時驗證,避免使用者還沒打完就滿江紅。常用規則 helper 見 `~/utils/validators`(`required` / `email` / `minLength` / `maxLength` / `pattern` / `sameAs`)。父層可用模板 ref 呼叫 `validate()` 在 submit 時強制驗證。' } },
   },
 }
 

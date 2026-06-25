@@ -52,7 +52,7 @@
           @compositionstart="onCompositionStart"
           @compositionend="onCompositionEnd"
           @focus="emit('focus', $event)"
-          @blur="emit('blur', $event)"
+          @blur="onBlur"
         >
 
         <span
@@ -75,15 +75,15 @@
       的訊息區（含 aria-describedby 參照）只在有內容時出現。計數為裝飾性資訊，標 aria-hidden。
     -->
     <template
-      v-if="message || $slots.message || shouldShowCount"
+      v-if="displayMessage || $slots.message || shouldShowCount"
       #message="{ error }"
     >
       <span class="base-text-field__message">
         <slot
           name="message"
           :error="error"
-          :message="message"
-        >{{ message }}</slot>
+          :message="displayMessage"
+        >{{ displayMessage }}</slot>
       </span>
       <span
         v-if="shouldShowCount"
@@ -103,7 +103,9 @@ import BaseFormField from '~/components/atoms/BaseFormField.vue'
 import type { BaseFormFieldProps } from '~/components/atoms/BaseFormField.vue'
 import useFormFieldProps from '~/composables/useFormFieldProps'
 import useStringLength from '~/composables/useStringLength'
+import useValidation from '~/composables/useValidation'
 import isComponent from '~/utils/isComponent'
+import type { ValidationRule } from '~/utils/validators'
 
 export interface BaseTextFieldProps extends BaseFormFieldProps {
   /** 輸入框型別。`number` 會自動把值轉成數字（等同 `.number` modifier），並停用字數計數。 @default 'text' */
@@ -126,6 +128,12 @@ export interface BaseTextFieldProps extends BaseFormFieldProps {
   inputmode?: InputHTMLAttributes['inputmode']
   /** 顯示字數計數（以 grapheme cluster 計，emoji / 中日韓算 1 字）；`type="number"` 或 `.number` modifier 時自動關閉。 @default false */
   showCount?: boolean
+  /**
+   * 驗證規則陣列；每條規則回傳 `true`（通過）或字串（錯誤訊息）。採 touched-gated：
+   * 第一次 blur 後才開始逐字即時驗證。常用規則見 `~/utils/validators`（`required` / `email`…）。
+   * 父層可透過模板 ref 呼叫 `validate()` / `reset()`（如表單 submit 時強制驗證）。
+   */
+  rules?: ValidationRule<string | number>[]
 }
 
 const props = withDefaults(defineProps<BaseTextFieldProps>(), {
@@ -139,6 +147,7 @@ const props = withDefaults(defineProps<BaseTextFieldProps>(), {
   autocomplete: undefined,
   inputmode: undefined,
   showCount: false,
+  rules: undefined,
 })
 
 defineSlots<{
@@ -237,8 +246,44 @@ watchEffect(() => {
   if (el.value !== next) el.value = next
 })
 
-/** 從完整 props 收斂出欄位語意（label / error / required…），一鍵轉發給 BaseFormField。 */
-const fieldProps = useFormFieldProps(() => props)
+/**
+ * 驗證：用 `useValidation` 把 `rules` 套在目前值上（touched-gated）。值以 `?? ''` 收斂，
+ * 讓未輸入時走規則的「空值」分支（如 required 報錯、其餘規則放行）。
+ */
+const validation = useValidation<string | number>(
+  () => model.value ?? '',
+  () => props.rules,
+)
+
+// blur 標記 touched（之後逐字即時驗），再轉發原生 blur 事件。
+function onBlur(event: FocusEvent) {
+  validation.touch()
+  emit('blur', event)
+}
+
+// 對外暴露：讓父表單 submit 時能強制驗證 / 重置此欄位。
+defineExpose({
+  /** 強制驗證（會顯示錯誤即使尚未 blur）；回傳是否通過。 */
+  validate: validation.validate,
+  /** 重置驗證顯示狀態（清掉錯誤，不動值）。 */
+  reset: validation.reset,
+})
+
+/**
+ * 合併「外部 props」與「驗證結果」後再轉發給 BaseFormField：
+ * - error：`props.error` 或驗證失敗任一為真即錯誤（讓父層仍可用 error prop 強制錯誤，如 server 端驗證）。
+ * - message：驗證**錯誤訊息優先**（讓使用者看到「為何不合規」）；無驗證錯誤時退回 `props.message`
+ *   靜態提示（如說明文字）。沒有 rules 時 validation.message 恆為 undefined，等同只顯示 `props.message`。
+ */
+const displayError = computed(() => props.error || validation.error.value)
+const displayMessage = computed(() => validation.message.value ?? props.message)
+
+/** 從完整 props 收斂出欄位語意（label / error / required…），並以合併後的 error / message 覆寫，轉發給 BaseFormField。 */
+const fieldProps = useFormFieldProps(() => ({
+  ...props,
+  error: displayError.value,
+  message: displayMessage.value,
+}))
 
 // 數字輸入沒有「字數」概念，停用計數（對齊參考實作）。
 const shouldShowCount = computed(

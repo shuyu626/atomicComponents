@@ -7,7 +7,7 @@ BaseTextField 是 **文字輸入控制項**：包在 [`BaseFormField`](./BaseFor
 
 v-model 採 Vue 3.4+ 的 `defineModel()`，原生處理受控 / 非受控，並支援 `.trim` / `.number` / `.lazy` modifier。
 
-> 本元件改寫自 Mini-ghost/16th-ithelp-vue-components 的 [`AtomicTextField`](https://github.com/Mini-ghost/16th-ithelp-vue-components/blob/main/src/components/AtomicTextField.vue)（及其 [`useControlled`](https://github.com/Mini-ghost/16th-ithelp-vue-components/blob/main/src/composables/useControlled.ts) / [`useStringLength`](https://github.com/Mini-ghost/16th-ithelp-vue-components/blob/main/src/composables/useStringLength.ts) / [`isComponent`](https://github.com/Mini-ghost/16th-ithelp-vue-components/blob/main/src/utils/isComponent.ts)），並針對本專案規範做了修正與優化（見 §6）。
+> 本元件改寫自 Mini-ghost/16th-ithelp-vue-components 的 [`AtomicTextField`](https://github.com/Mini-ghost/16th-ithelp-vue-components/blob/main/src/components/AtomicTextField.vue)（及其 [`useControlled`](https://github.com/Mini-ghost/16th-ithelp-vue-components/blob/main/src/composables/useControlled.ts) / [`useStringLength`](https://github.com/Mini-ghost/16th-ithelp-vue-components/blob/main/src/composables/useStringLength.ts) / [`isComponent`](https://github.com/Mini-ghost/16th-ithelp-vue-components/blob/main/src/utils/isComponent.ts)），並針對本專案規範做了修正與優化（見 §7）。
 
 ---
 
@@ -28,6 +28,14 @@ BaseTextField 額外的控制項 props，加上**全部** [`BaseFormField` 的�
 | `autocomplete` | `string` | — | input `autocomplete`（如 `'email'`、`'current-password'`、`'off'`） |
 | `inputmode` | `string` | — | input `inputmode`（行動裝置鍵盤型別，如 `'numeric'`、`'tel'`） |
 | `showCount` | `boolean` | `false` | 顯示字數計數（grapheme 計）；`type="number"` 或 `.number` 時自動關閉 |
+| `rules` | `ValidationRule<string \| number>[]` | — | 驗證規則陣列；touched-gated（首次 blur 後逐字即時驗）。見 §6 |
+
+**Methods（透過模板 ref 取得）**
+
+| Method | 回傳 | 說明 |
+|---|---|---|
+| `validate()` | `boolean` | 強制驗證（即使尚未 blur 也顯示錯誤）；回傳是否全部通過。表單 submit 時呼叫 |
+| `reset()` | `void` | 清掉驗證錯誤顯示（不動值） |
 
 **v-model modifiers**
 
@@ -138,7 +146,63 @@ const bio = ref('')
 
 ---
 
-## 6. 對參考實作的修正與優化
+## 6. 驗證（rules）
+
+傳入 `rules`（規則陣列）即啟用驗證；每條規則是純函式，回傳 `true`（通過）或字串（錯誤訊息）。驗證邏輯抽在 [`useValidation`](../../app/composables/useValidation.ts) composable，規則 helper 放 [`~/utils/validators`](../../app/utils/validators.ts)，元件本身保持純呈現。
+
+**觸發時機（touched-gated）**：第一次 `blur`（碰過欄位）後才開始顯示錯誤；此後值一變動就**逐字即時重驗**，兼顧「即時回饋」與「不打斷正在輸入的人」。多條規則時顯示**第一條失敗**的訊息。
+
+**與 `error` / `message` prop 的合併**：
+
+- `error`：`props.error || 驗證失敗` 任一為真即錯誤——父層仍可用 `error` prop 強制錯誤（如 server 端驗證結果）。
+- `message`：**驗證錯誤訊息優先**（讓使用者看到「為何不合規」）；無驗證錯誤時退回 `props.message` 靜態提示。沒有 `rules` 時等同只顯示 `props.message`。
+
+**常用規則 helper**（皆可傳自訂訊息；除 `required` / `sameAs` 外，空值自動通過，交給 `required` 把關）：
+
+| Helper | 簽章 | 預設訊息 |
+|---|---|---|
+| `required` | `required(message?)` | `此欄位為必填` |
+| `email` | `email(message?)` | `電子郵件格式不正確` |
+| `minLength` | `minLength(min, message?)` | `至少需 N 個字` |
+| `maxLength` | `maxLength(max, message?)` | `不可超過 N 個字` |
+| `pattern` | `pattern(regex, message?)` | `格式不正確` |
+| `sameAs` | `sameAs(getter, message?)` | `兩次輸入不一致` |
+
+```vue
+<script setup lang="ts">
+import { ref, useTemplateRef } from 'vue'
+import { required, email, minLength, sameAs } from '~/utils/validators'
+import type { ValidationRule } from '~/utils/validators'
+
+const account = ref('')
+const password = ref('')
+const confirm = ref('')
+
+const accountRules: ValidationRule<string | number>[] = [required('請輸入帳號'), minLength(4, '帳號至少 4 碼')]
+const confirmRules: ValidationRule<string | number>[] = [required(), sameAs(() => password.value, '兩次密碼不一致')]
+
+// 表單 submit 時強制驗證所有欄位
+const accountField = useTemplateRef('accountField')
+function onSubmit() {
+  const ok = accountField.value?.validate()
+  if (!ok) return
+  // …送出
+}
+</script>
+
+<template>
+  <form @submit.prevent="onSubmit">
+    <BaseTextField ref="accountField" v-model="account" label="帳號" :rules="accountRules" />
+    <BaseTextField v-model="confirm" type="password" label="確認密碼" :rules="confirmRules" />
+  </form>
+</template>
+```
+
+> 目前僅支援**同步**規則。非同步驗證（如打 API 查帳號是否重複）暫不在範圍內——可在父層自行處理後用 `error` / `message` prop 餵回。
+
+---
+
+## 7. 對參考實作的修正與優化
 
 | # | 參考實作 | 問題 | 本元件作法 |
 |---|---|---|---|
@@ -156,8 +220,9 @@ const bio = ref('')
 
 ---
 
-## 7. 測試與 Storybook
+## 8. 測試與 Storybook
 
-- [x] **Vitest**：`tests/components/atoms/BaseTextField.spec.ts`（結構與欄位轉發、`<label for>` 關聯、原生屬性透傳、v-model 雙向與 `.trim` / `.number` / `.lazy` modifier、IME 組字不提交中途值 / 失焦正規化、`focus` / `blur` 事件轉發、`prepend` / `append` 字串與元件與 slot、`showCount` 計數 / `count/maxlength` / number 時關閉 / grapheme 計數、a11y `aria-describedby` / `aria-invalid` / `aria-required` / `disabled` / `readonly`）— 27 cases
-- [x] **Vitest**：`tests/composables/useStringLength.spec.ts`（ASCII / 空字串 / CJK / astral emoji / ZWJ 組合 / ref / getter）— 7 cases；`tests/utils/isComponent.spec.ts`（functional / options-render / setup / defineComponent / 字串 / 數字 / 純物件 / null-undefined）— 8 cases
-- [x] **Storybook**：`stories/components/atoms/BaseTextField.stories.ts`（Playground / Types / PrependAppend / ShowCount / States / LabelPlacement / Themed）
+- [x] **Vitest**：`tests/components/atoms/BaseTextField.spec.ts`（結構與欄位轉發、`<label for>` 關聯、原生屬性透傳、v-model 雙向與 `.trim` / `.number` / `.lazy` modifier、IME 組字不提交中途值 / 失焦正規化、`focus` / `blur` 事件轉發、`prepend` / `append` 字串與元件與 slot、`showCount` 計數 / `count/maxlength` / number 時關閉 / grapheme 計數、a11y `aria-describedby` / `aria-invalid` / `aria-required` / `disabled` / `readonly`、**驗證 rules**：touched-gated 不提早報錯 / blur 後顯示 / 逐字即時重驗 / `error` prop 強制錯誤 / `message` prop 優先 / `validate()` / `reset()` expose）
+- [x] **Vitest**：`tests/composables/useValidation.spec.ts`（touched-gated、首條失敗訊息、即時重驗、`validate` / `reset`、空規則、動態規則）；`tests/utils/validators.spec.ts`（`required` / `email` / `minLength` / `maxLength` / `pattern` / `sameAs` 與空值放行）
+- [x] **Vitest**：`tests/composables/useStringLength.spec.ts`（ASCII / 空字串 / CJK / astral emoji / ZWJ 組合 / ref / getter）；`tests/utils/isComponent.spec.ts`（functional / options-render / setup / defineComponent / 字串 / 數字 / 純物件 / null-undefined）
+- [x] **Storybook**：`stories/components/atoms/BaseTextField.stories.ts`（Playground / Types / PrependAppend / ShowCount / States / LabelPlacement / Validation / Themed）

@@ -241,4 +241,67 @@ describe('BaseTextField', () => {
       expect(input.attributes('readonly')).toBeDefined()
     })
   })
+
+  // ── validation (rules) ─────────────────────────────────────────────────────────
+  describe('validation (rules)', () => {
+    const required = (msg = '必填') => (v: string | number) =>
+      (v != null && String(v).trim() !== '') || msg
+
+    it('does not show an error before the first blur (touched-gated)', async () => {
+      const w = mountField({ rules: [required()], modelValue: '' })
+      await nextTick()
+      expect(w.find('.base-form-field').classes()).not.toContain('base-form-field--error')
+      expect(w.find('.base-form-field__message').text()).toBe('')
+    })
+
+    it('shows the rule error after blur when invalid', async () => {
+      const w = mountField({ rules: [required('此欄位必填')], modelValue: '' })
+      await w.find('input').trigger('blur')
+      expect(w.find('.base-form-field').classes()).toContain('base-form-field--error')
+      expect(w.find('.base-form-field__message').text()).toContain('此欄位必填')
+    })
+
+    it('re-validates live on input once touched', async () => {
+      const w = mountField({ rules: [required('必填')], modelValue: '' })
+      await w.find('input').trigger('blur')
+      expect(w.find('.base-form-field__message').text()).toContain('必填')
+
+      await w.find('input').setValue('hello')
+      expect(w.find('.base-form-field').classes()).not.toContain('base-form-field--error')
+    })
+
+    it('an explicit error prop forces the error state regardless of rules', () => {
+      const w = mountField({ error: true, message: 'server says no' })
+      expect(w.find('.base-form-field').classes()).toContain('base-form-field--error')
+      expect(w.find('.base-form-field__message').text()).toContain('server says no')
+    })
+
+    it('surfaces the rule error over a static helper message, then falls back to the hint when valid', async () => {
+      const w = mountField({ rules: [required('rule msg')], message: 'hint', modelValue: '' })
+      // 未碰過：顯示靜態提示
+      expect(w.find('.base-form-field__message').text()).toContain('hint')
+
+      // blur 後失敗：驗證訊息取代提示
+      await w.find('input').trigger('blur')
+      expect(w.find('.base-form-field__message').text()).toContain('rule msg')
+      expect(w.find('.base-form-field__message').text()).not.toContain('hint')
+
+      // 修正後通過：退回靜態提示
+      await w.find('input').setValue('ok')
+      expect(w.find('.base-form-field__message').text()).toContain('hint')
+    })
+
+    it('exposes validate() that forces errors and reports validity', async () => {
+      const w = mountField({ rules: [required('必填')], modelValue: '' })
+      const vm = w.vm as unknown as { validate: () => boolean; reset: () => void }
+
+      expect(vm.validate()).toBe(false)
+      await nextTick()
+      expect(w.find('.base-form-field').classes()).toContain('base-form-field--error')
+
+      vm.reset()
+      await nextTick()
+      expect(w.find('.base-form-field').classes()).not.toContain('base-form-field--error')
+    })
+  })
 })
