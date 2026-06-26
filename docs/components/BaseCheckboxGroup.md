@@ -37,6 +37,7 @@ BaseCheckboxGroup 管理一組 [`BaseCheckbox`](./BaseCheckbox.md)：`v-model` �
 interface BaseCheckboxGroupContext<Value> {
   isSelected: (value: Value) => boolean   // 封裝 Array / Set 判斷
   toggle: (value: Value) => void          // 加入 / 移除並 touch 驗證
+  touch: () => void                       // 標記群組碰過（子框失焦時呼叫）
   name: ComputedRef<string | undefined>
   color: ComputedRef<BaseCheckboxColor | undefined>
   disabled: ComputedRef<boolean>
@@ -80,7 +81,7 @@ const fruits = [
 
 ## 5. 驗證（rules）
 
-`rules` 套在**整個集合**上，邏輯抽在 [`useValidation`](../../app/composables/useValidation.ts)；每次 toggle 後 `touch`，touched 後即時顯示。常見「至少選一項」：
+`rules` 套在**整個集合**上，邏輯抽在 [`useValidation`](../../app/composables/useValidation.ts)。觸發 `touch`（碰過）有兩個時機：**每次 toggle 後**，或**子框失焦離開群組後**（子框 blur 透過 context 的 `touch()` 標記群組）；touched 後即時顯示。常見「至少選一項」：
 
 ```vue
 <script setup lang="ts">

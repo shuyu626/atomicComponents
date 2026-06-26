@@ -83,6 +83,15 @@ describe('BaseCheckboxGroup', () => {
     expect(wrapper.text()).toContain('至少選一項')
   })
 
+  it('shows the group error when a child is blurred without changing (touch)', async () => {
+    const atLeastOne: ValidationRule<unknown> = (v) =>
+      (Array.isArray(v) ? v.length > 0 : (v as Set<unknown>)?.size > 0) || '至少選一項'
+    const wrapper = mountGroup({ modelValue: [], rules: [atLeastOne] })
+    await boxes(wrapper)[0].trigger('blur')
+    await nextTick()
+    expect(wrapper.text()).toContain('至少選一項')
+  })
+
   it('exposes validate() and reset()', async () => {
     const atLeastOne: ValidationRule<unknown> = (v) =>
       (Array.isArray(v) ? v.length > 0 : (v as Set<unknown>)?.size > 0) || '至少選一項'

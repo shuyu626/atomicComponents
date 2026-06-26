@@ -45,6 +45,8 @@ export interface BaseCheckboxGroupContext<Value = unknown> {
   isSelected: (value: Value) => boolean
   /** 切換某值（加入 / 移除，維持原容器型別）。 */
   toggle: (value: Value) => void
+  /** 標記群組為「碰過」（供子框失焦時呼叫，讓未變動就離開也顯示驗證錯誤）。 */
+  touch: () => void
   /** 廣播給子框的 name。 */
   name: ComputedRef<string | undefined>
   /** 廣播給子框的勾選色（子框可自行覆寫）。 */
@@ -143,6 +145,7 @@ const fieldProps = useFormFieldProps(() => ({
 provide(BASE_CHECKBOX_GROUP_INJECT_KEY, {
   isSelected: isSelected as (value: unknown) => boolean,
   toggle: toggle as (value: unknown) => void,
+  touch: validation.touch,
   name: toRef(() => props.name),
   color: toRef(() => props.color),
   disabled: toRef(() => !!props.disabled),

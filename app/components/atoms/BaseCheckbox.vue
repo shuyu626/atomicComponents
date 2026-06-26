@@ -215,7 +215,9 @@ function onChange(event: Event) {
 }
 
 function onBlur() {
-  validation.touch()
+  // 群組模式：touch 群組（rules 設在群組層），讓未變動就離開也顯示錯誤；獨立模式 touch 自己。
+  if (group) group.touch()
+  else validation.touch()
 }
 
 defineExpose({
