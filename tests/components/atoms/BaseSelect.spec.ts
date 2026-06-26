@@ -1,0 +1,560 @@
+import { describe, it, expect, afterEach } from 'vitest'
+import { h, nextTick } from 'vue'
+import { mount } from '@vue/test-utils'
+
+import BaseSelect from '~/components/atoms/BaseSelect.vue'
+import type { BaseSelectOption } from '~/components/atoms/BaseSelect.vue'
+import { required } from '~/utils/validators'
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+//
+// 浮層內容（.base-select__menu）由 BasePopover Teleport 到 <body>，需直接查 document。
+// 控制項（reference，role="combobox"）就地渲染，可用 wrapper.find。
+// happy-dom 無版面 → tabbable 視元素不可見回空陣列 → focus-trap 不啟用；
+// 因此鍵盤焦點測試採「手動 focus + 同步 dispatch 方向鍵」。
+
+const defaultOptions: BaseSelectOption<string>[] = [
+  { label: '蘋果', value: 'apple' },
+  { label: '香蕉', value: 'banana' },
+  { label: '櫻桃', value: 'cherry' },
+]
+
+interface MountOptions {
+  options?: BaseSelectOption<string>[]
+  modelValue?: unknown
+  multiple?: boolean
+  filterable?: boolean
+  chips?: boolean
+  placeholder?: string
+  label?: string
+  name?: string
+  disabled?: boolean
+  required?: boolean
+  error?: boolean
+  message?: string
+  emptyText?: string
+  clearable?: boolean
+  rules?: unknown
+  slots?: Record<string, unknown>
+}
+
+function mountSelect(options: MountOptions = {}) {
+  const { slots, ...props } = options
+  return mount(BaseSelect, {
+    props: { options: defaultOptions, ...props } as never,
+    slots: slots as never,
+    attachTo: document.body,
+  })
+}
+
+function controlEl(wrapper: ReturnType<typeof mountSelect>) {
+  return wrapper.find('.base-select__control')
+}
+
+function menuEl(): HTMLElement | null {
+  return document.body.querySelector('.base-select__menu')
+}
+
+function searchEl(): HTMLInputElement | null {
+  return document.body.querySelector('.base-select__search')
+}
+
+function optionEls(): HTMLElement[] {
+  return Array.from(document.body.querySelectorAll<HTMLElement>('.base-select__option'))
+}
+
+/** 在 teleport 出去的搜尋框上輸入（wrapper.find 觸不到 teleport 內容）。 */
+async function typeSearch(value: string) {
+  const el = searchEl()
+  if (!el) throw new Error('searchbox not found')
+  el.value = value
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+  await nextTick()
+}
+
+function isOpen(): boolean {
+  return menuEl() !== null
+}
+
+function fireKeydown(el: HTMLElement, key: string) {
+  el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+}
+
+function fireClick(el: HTMLElement) {
+  el.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+}
+
+async function open(wrapper: ReturnType<typeof mountSelect>) {
+  await controlEl(wrapper).trigger('click')
+  await nextTick()
+}
+
+let active: ReturnType<typeof mountSelect> | null = null
+
+function track(wrapper: ReturnType<typeof mountSelect>) {
+  active = wrapper
+  return wrapper
+}
+
+afterEach(() => {
+  active?.unmount()
+  active = null
+  document.body.querySelectorAll('.base-popover').forEach((el) => el.remove())
+})
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+describe('BaseSelect', () => {
+  // ── 渲染與開合 ────────────────────────────────────────────────────────────────
+  describe('rendering', () => {
+    it('renders a role="combobox" control', () => {
+      const wrapper = track(mountSelect())
+      expect(controlEl(wrapper).attributes('role')).toBe('combobox')
+    })
+
+    it('shows the placeholder when there is no value', () => {
+      const wrapper = track(mountSelect({ placeholder: '請選擇' }))
+      expect(wrapper.find('.base-select__placeholder').text()).toBe('請選擇')
+    })
+
+    it('does not render the menu until opened, then teleports it to <body>', async () => {
+      const wrapper = track(mountSelect())
+      expect(isOpen()).toBe(false)
+      await open(wrapper)
+      expect(isOpen()).toBe(true)
+      expect(menuEl()?.closest('.base-popover')).toBeTruthy()
+    })
+
+    it('renders options with role="option" and labels', async () => {
+      const wrapper = track(mountSelect())
+      await open(wrapper)
+      const els = optionEls()
+      expect(els).toHaveLength(3)
+      expect(els.map((el) => el.getAttribute('role'))).toEqual(['option', 'option', 'option'])
+      expect(els.map((el) => el.textContent?.trim())).toEqual(['蘋果', '香蕉', '櫻桃'])
+    })
+
+    it('reflects open state via aria-expanded on the control', async () => {
+      const wrapper = track(mountSelect())
+      expect(controlEl(wrapper).attributes('aria-expanded')).toBe('false')
+      await open(wrapper)
+      expect(controlEl(wrapper).attributes('aria-expanded')).toBe('true')
+    })
+  })
+
+  // ── 單選 ──────────────────────────────────────────────────────────────────────
+  describe('single select', () => {
+    it('emits update:modelValue with the option value on click', async () => {
+      const wrapper = track(mountSelect())
+      await open(wrapper)
+      fireClick(optionEls()[1])
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['banana'])
+    })
+
+    it('closes the menu after selecting', async () => {
+      const wrapper = track(mountSelect())
+      await open(wrapper)
+      fireClick(optionEls()[0])
+      await nextTick()
+      expect(isOpen()).toBe(false)
+    })
+
+    it('displays the selected label', () => {
+      const wrapper = track(mountSelect({ modelValue: 'cherry' }))
+      expect(wrapper.find('.base-select__value').text()).toBe('櫻桃')
+    })
+
+    it('marks the selected option with aria-selected', async () => {
+      const wrapper = track(mountSelect({ modelValue: 'banana' }))
+      await open(wrapper)
+      const els = optionEls()
+      expect(els.map((el) => el.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false'])
+    })
+  })
+
+  // ── 多選（Array）──────────────────────────────────────────────────────────────
+  describe('multiple (array)', () => {
+    it('adds a value to the array and keeps the menu open', async () => {
+      const wrapper = track(mountSelect({ multiple: true, modelValue: [] }))
+      await open(wrapper)
+      fireClick(optionEls()[0])
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['apple']])
+      expect(isOpen()).toBe(true)
+    })
+
+    it('toggles an already-selected value off', async () => {
+      const wrapper = track(mountSelect({ multiple: true, modelValue: ['apple', 'banana'] }))
+      await open(wrapper)
+      fireClick(optionEls()[0])
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['banana']])
+    })
+
+    it('displays selected labels joined by a comma', () => {
+      const wrapper = track(mountSelect({ multiple: true, modelValue: ['apple', 'cherry'] }))
+      expect(wrapper.find('.base-select__value').text()).toBe('蘋果, 櫻桃')
+    })
+  })
+
+  // ── 多選（Set）────────────────────────────────────────────────────────────────
+  describe('multiple (set)', () => {
+    it('keeps the container a Set when the model is a Set', async () => {
+      const wrapper = track(mountSelect({ multiple: true, modelValue: new Set(['apple']) }))
+      await open(wrapper)
+      fireClick(optionEls()[1])
+      await nextTick()
+      const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0]
+      expect(emitted).toBeInstanceOf(Set)
+      expect([...(emitted as Set<string>)]).toEqual(['apple', 'banana'])
+    })
+  })
+
+  // ── disabled ──────────────────────────────────────────────────────────────────
+  describe('disabled', () => {
+    it('does not open when the whole select is disabled', async () => {
+      const wrapper = track(mountSelect({ disabled: true }))
+      await open(wrapper)
+      expect(isOpen()).toBe(false)
+    })
+
+    it('does not select a disabled option', async () => {
+      const options: BaseSelectOption<string>[] = [
+        { label: '可選', value: 'a' },
+        { label: '停用', value: 'b', disabled: true },
+      ]
+      const wrapper = track(mountSelect({ options }))
+      await open(wrapper)
+      const [, disabled] = optionEls()
+      expect(disabled.getAttribute('aria-disabled')).toBe('true')
+      fireClick(disabled)
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    })
+  })
+
+  // ── filterable（搜尋欄在浮層上方、選項在下方）──────────────────────────────────
+  describe('filterable', () => {
+    it('does not render the searchbox in the control before opening', () => {
+      const wrapper = track(mountSelect({ filterable: true }))
+      expect(wrapper.find('.base-select__search').exists()).toBe(false)
+    })
+
+    it('renders the searchbox inside the panel above the options after opening', async () => {
+      const wrapper = track(mountSelect({ filterable: true }))
+      await open(wrapper)
+      const search = searchEl()
+      expect(search?.getAttribute('role')).toBe('searchbox')
+      // 搜尋框與選單都在 teleport 出去的浮層內
+      expect(search?.closest('.base-popover')).toBeTruthy()
+      expect(menuEl()?.closest('.base-popover')).toBeTruthy()
+      // 搜尋框在選單之前（上方）
+      const panel = search?.closest('.base-popover') as HTMLElement
+      const nodes = Array.from(panel.querySelectorAll('.base-select__search, .base-select__menu'))
+      expect(nodes[0]?.classList.contains('base-select__search')).toBe(true)
+    })
+
+    it('filters options by label (case-insensitive)', async () => {
+      const options: BaseSelectOption<string>[] = [
+        { label: 'Apple', value: 'a' },
+        { label: 'Banana', value: 'b' },
+        { label: 'Apricot', value: 'c' },
+      ]
+      const wrapper = track(mountSelect({ options, filterable: true }))
+      await open(wrapper)
+      await typeSearch('ap')
+      expect(optionEls().map((el) => el.textContent?.trim())).toEqual(['Apple', 'Apricot'])
+    })
+
+    it('shows the empty text when nothing matches', async () => {
+      const wrapper = track(mountSelect({ filterable: true, emptyText: '沒有結果' }))
+      await open(wrapper)
+      await typeSearch('zzz')
+      expect(optionEls()).toHaveLength(0)
+      expect(menuEl()?.querySelector('.base-select__empty')?.textContent?.trim()).toBe('沒有結果')
+    })
+
+    it('does not pre-highlight any option on open (no active descendant until navigation)', async () => {
+      const wrapper = track(mountSelect({ filterable: true, modelValue: 'banana' }))
+      await open(wrapper)
+      expect(searchEl()!.getAttribute('aria-activedescendant')).toBeNull()
+    })
+
+    it('sets aria-activedescendant and selects the active option on Enter', async () => {
+      const wrapper = track(mountSelect({ filterable: true }))
+      await open(wrapper)
+      const search = searchEl()!
+      // 開啟時沒有作用中項，方向鍵後才出現
+      expect(search.getAttribute('aria-activedescendant')).toBeNull()
+      fireKeydown(search, 'ArrowDown')
+      await nextTick()
+      const activeId = search.getAttribute('aria-activedescendant')
+      expect(activeId).toBeTruthy()
+      expect(document.getElementById(activeId as string)).toBeTruthy()
+      fireKeydown(search, 'Enter')
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')).toBeTruthy()
+    })
+  })
+
+  // ── clearable（叉叉清除）──────────────────────────────────────────────────────
+  describe('clearable', () => {
+    it('renders a clear button when there is a value', () => {
+      const wrapper = track(mountSelect({ modelValue: 'apple' }))
+      expect(wrapper.find('.base-select__clear').exists()).toBe(true)
+    })
+
+    it('does not render the clear button when empty', () => {
+      const wrapper = track(mountSelect())
+      expect(wrapper.find('.base-select__clear').exists()).toBe(false)
+    })
+
+    it('clears a single value to undefined', async () => {
+      const wrapper = track(mountSelect({ modelValue: 'apple' }))
+      await wrapper.find('.base-select__clear').trigger('click')
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([undefined])
+    })
+
+    it('clears a multiple array to an empty array', async () => {
+      const wrapper = track(mountSelect({ multiple: true, modelValue: ['apple', 'banana'] }))
+      await wrapper.find('.base-select__clear').trigger('click')
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([[]])
+    })
+
+    it('clears a multiple set to an empty Set', async () => {
+      const wrapper = track(mountSelect({ multiple: true, modelValue: new Set(['apple']) }))
+      await wrapper.find('.base-select__clear').trigger('click')
+      const value = wrapper.emitted('update:modelValue')?.at(-1)?.[0]
+      expect(value).toBeInstanceOf(Set)
+      expect((value as Set<string>).size).toBe(0)
+    })
+
+    it('does not open the popover when clicking clear', async () => {
+      const wrapper = track(mountSelect({ modelValue: 'apple' }))
+      await wrapper.find('.base-select__clear').trigger('click')
+      await nextTick()
+      expect(isOpen()).toBe(false)
+    })
+
+    it('hides the clear button when disabled', () => {
+      const wrapper = track(mountSelect({ modelValue: 'apple', disabled: true }))
+      expect(wrapper.find('.base-select__clear').exists()).toBe(false)
+    })
+
+    it('can be turned off via clearable=false', () => {
+      const wrapper = track(mountSelect({ modelValue: 'apple', clearable: false }))
+      expect(wrapper.find('.base-select__clear').exists()).toBe(false)
+    })
+
+    it('keeps the clear button keyboard-focusable (not tabindex -1)', () => {
+      const wrapper = track(mountSelect({ modelValue: 'apple' }))
+      expect(wrapper.find('.base-select__clear').attributes('tabindex')).not.toBe('-1')
+    })
+  })
+
+  // ── a11y / 表單 ───────────────────────────────────────────────────────────────
+  describe('a11y & form', () => {
+    it('names the focusable combobox via aria-labelledby pointing at the field label', () => {
+      const wrapper = track(mountSelect({ label: '水果', required: true }))
+      const control = controlEl(wrapper)
+      const labelledby = control.attributes('aria-labelledby')
+      expect(labelledby).toBeTruthy()
+      // aria-labelledby 指向實際 label 元素，文字為「水果」（單一名稱來源，無重複代理）
+      expect(wrapper.find(`#${labelledby}`).text()).toBe('水果')
+      expect(control.attributes('aria-required')).toBe('true')
+      // 不再用 aria-label（名稱改由 labelledby 提供）
+      expect(control.attributes('aria-label')).toBeUndefined()
+    })
+
+    it('marks the combobox aria-invalid on error', () => {
+      const wrapper = track(mountSelect({ label: '水果', error: true }))
+      expect(controlEl(wrapper).attributes('aria-invalid')).toBe('true')
+    })
+
+    it('does not render a focusable proxy input in the a11y tree', () => {
+      const wrapper = track(mountSelect({ name: 'fruit', modelValue: 'apple' }))
+      expect(wrapper.find('.base-select__proxy').exists()).toBe(false)
+    })
+
+    it('submits the serialized value via a hidden input (single)', () => {
+      const wrapper = track(mountSelect({ name: 'fruit', modelValue: 'apple' }))
+      const hidden = wrapper.find('input[type="hidden"]')
+      expect(hidden.attributes('name')).toBe('fruit')
+      expect((hidden.element as HTMLInputElement).value).toBe('apple')
+    })
+
+    it('serializes multiple values comma-joined', () => {
+      const wrapper = track(mountSelect({ name: 'fruit', multiple: true, modelValue: ['apple', 'banana'] }))
+      expect((wrapper.find('input[type="hidden"]').element as HTMLInputElement).value).toBe('apple,banana')
+    })
+  })
+
+  // ── chips（多選 chip 顯示）────────────────────────────────────────────────────
+  describe('chips (multiple display)', () => {
+    it('renders selected options as deletable chips in the control', () => {
+      const wrapper = track(mountSelect({ multiple: true, chips: true, modelValue: ['apple', 'banana'] }))
+      const chips = wrapper.findAll('.base-select__control .base-chip')
+      expect(chips).toHaveLength(2)
+      expect(chips.map((c) => c.text())).toEqual(['蘋果', '香蕉'])
+      expect(wrapper.find('.base-select__control .base-chip__delete').exists()).toBe(true)
+    })
+
+    it('removes a single value when its chip delete is clicked', async () => {
+      const wrapper = track(mountSelect({ multiple: true, chips: true, modelValue: ['apple', 'banana'] }))
+      await wrapper.findAll('.base-select__control .base-chip__delete')[0].trigger('click')
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['banana']])
+    })
+
+    it('keeps the Set container when removing a chip', async () => {
+      const wrapper = track(mountSelect({ multiple: true, chips: true, modelValue: new Set(['apple', 'banana']) }))
+      await wrapper.findAll('.base-select__control .base-chip__delete')[0].trigger('click')
+      const value = wrapper.emitted('update:modelValue')?.at(-1)?.[0]
+      expect(value).toBeInstanceOf(Set)
+      expect([...(value as Set<string>)]).toEqual(['banana'])
+    })
+
+    it('does not open the popover when deleting a chip', async () => {
+      const wrapper = track(mountSelect({ multiple: true, chips: true, modelValue: ['apple'] }))
+      await wrapper.find('.base-select__control .base-chip__delete').trigger('click')
+      await nextTick()
+      expect(isOpen()).toBe(false)
+    })
+
+    it('shows the placeholder (no chips) when empty', () => {
+      const wrapper = track(mountSelect({ multiple: true, chips: true, modelValue: [], placeholder: '請選擇' }))
+      expect(wrapper.find('.base-select__placeholder').text()).toBe('請選擇')
+      expect(wrapper.find('.base-chip').exists()).toBe(false)
+    })
+
+    it('ignores chips for single select (falls back to text)', () => {
+      const wrapper = track(mountSelect({ chips: true, modelValue: 'apple' }))
+      expect(wrapper.find('.base-chip').exists()).toBe(false)
+      expect(wrapper.find('.base-select__value').text()).toBe('蘋果')
+    })
+  })
+
+  // ── 選中打勾 ──────────────────────────────────────────────────────────────────
+  describe('selected check mark', () => {
+    it('renders a check icon on the selected option only', async () => {
+      const wrapper = track(mountSelect({ modelValue: 'banana' }))
+      await open(wrapper)
+      const els = optionEls()
+      expect(els[0].querySelector('.base-select__check')).toBeNull()
+      expect(els[1].querySelector('.base-select__check')).toBeTruthy()
+      expect(els[2].querySelector('.base-select__check')).toBeNull()
+    })
+  })
+
+  // ── 鍵盤導覽（非 filterable）───────────────────────────────────────────────────
+  describe('keyboard navigation', () => {
+    it('gives each option tabindex=0', async () => {
+      const wrapper = track(mountSelect())
+      await open(wrapper)
+      expect(optionEls().map((el) => el.getAttribute('tabindex'))).toEqual(['0', '0', '0'])
+    })
+
+    it('ArrowDown / ArrowUp move focus between options', async () => {
+      const wrapper = track(mountSelect())
+      await open(wrapper)
+      const els = optionEls()
+      els[0].focus()
+      fireKeydown(menuEl()!, 'ArrowDown')
+      expect(document.activeElement).toBe(els[1])
+      fireKeydown(menuEl()!, 'ArrowUp')
+      expect(document.activeElement).toBe(els[0])
+    })
+
+    it('selects the focused option on Enter', async () => {
+      const wrapper = track(mountSelect())
+      await open(wrapper)
+      const els = optionEls()
+      els[2].focus()
+      fireKeydown(els[2], 'Enter')
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['cherry'])
+    })
+
+    it('closes on Escape and Tab', async () => {
+      const wrapper = track(mountSelect())
+      await open(wrapper)
+      fireKeydown(menuEl()!, 'Escape')
+      await nextTick()
+      expect(isOpen()).toBe(false)
+
+      await open(wrapper)
+      fireKeydown(menuEl()!, 'Tab')
+      await nextTick()
+      expect(isOpen()).toBe(false)
+    })
+  })
+
+  // ── 驗證 ──────────────────────────────────────────────────────────────────────
+  describe('validation', () => {
+    it('does not show an error before being touched', () => {
+      const wrapper = track(mountSelect({ rules: [required('必選')] }))
+      expect(wrapper.find('.base-form-field--error').exists()).toBe(false)
+    })
+
+    it('shows the error after the menu closes (touch)', async () => {
+      const wrapper = track(mountSelect({ rules: [required('必選')] }))
+      await open(wrapper)
+      // 關閉但未選任何值 → touch 後顯示錯誤
+      fireKeydown(menuEl()!, 'Escape')
+      await nextTick()
+      await nextTick()
+      expect(wrapper.text()).toContain('必選')
+    })
+
+    it('exposes validate() and reset()', async () => {
+      const wrapper = track(mountSelect({ rules: [required('必選')] }))
+      const vm = wrapper.vm as unknown as { validate: () => boolean; reset: () => void }
+      expect(vm.validate()).toBe(false)
+      await nextTick()
+      expect(wrapper.text()).toContain('必選')
+      vm.reset()
+      await nextTick()
+      expect(wrapper.find('.base-form-field--error').exists()).toBe(false)
+    })
+  })
+
+  // ── slots ─────────────────────────────────────────────────────────────────────
+  describe('slots', () => {
+    it('renders a custom option slot', async () => {
+      const wrapper = track(
+        mountSelect({
+          slots: {
+            option: (props: { label: string; selected: boolean }) =>
+              h('span', { class: 'custom-option' }, `${props.label}${props.selected ? '*' : ''}`),
+          },
+        }),
+      )
+      await open(wrapper)
+      expect(menuEl()?.querySelector('.custom-option')?.textContent).toBe('蘋果')
+    })
+
+    it('renders a custom display slot', () => {
+      const wrapper = track(
+        mountSelect({
+          modelValue: 'apple',
+          slots: {
+            display: (props: { selected: BaseSelectOption<string> }) =>
+              h('span', { class: 'custom-display' }, `已選：${props.selected.label}`),
+          },
+        }),
+      )
+      expect(wrapper.find('.custom-display').text()).toBe('已選：蘋果')
+    })
+
+    it('renders a custom empty slot', async () => {
+      const wrapper = track(
+        mountSelect({
+          options: [],
+          slots: { empty: () => h('span', { class: 'custom-empty' }, '空空如也') },
+        }),
+      )
+      await open(wrapper)
+      expect(menuEl()?.querySelector('.custom-empty')?.textContent).toBe('空空如也')
+    })
+  })
+})
