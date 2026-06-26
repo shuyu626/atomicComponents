@@ -11,6 +11,7 @@
         class="base-form-field__label"
       >
         <label
+          :id="labelId"
           class="base-form-field__label-content"
           :for="fieldId"
         >
@@ -31,6 +32,7 @@
         <div class="base-form-field__control">
           <slot
             :id="fieldId"
+            :labelledby="(label || $slots.label) ? labelId : undefined"
             :describedby="(message || $slots.message) ? messageId : undefined"
             :invalid="error || undefined"
             :required="required || undefined"
@@ -137,6 +139,7 @@ defineSlots<{
    */
   default?: (props: {
     id: string
+    labelledby: string | undefined
     describedby: string | undefined
     invalid: true | undefined
     required: true | undefined
@@ -149,6 +152,9 @@ defineSlots<{
 
 const _id = useId()
 const fieldId = computed(() => props.id || `field-${_id}`)
+
+/** 標籤元素 id；供 div 型控制項（如 BaseSelect 的 combobox）以 `aria-labelledby` 取名。 */
+const labelId = computed(() => `${fieldId.value}-label`)
 
 /** 訊息容器 id；同時給控制項的 aria-describedby 參照（見 template）。 */
 const messageId = computed(() => `${fieldId.value}-message`)

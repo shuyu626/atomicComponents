@@ -32,7 +32,7 @@ BaseFormField 是 **表單欄位容器**：統一「標籤 + 控制項 + 訊息�
 
 | Slot | Scoped props | 說明 |
 |---|---|---|
-| `#default` | `id`, `describedby`, `invalid`, `required`, `disabled`, `readonly` | 控制項插槽；把這些值綁到實際的 input / select 上（見 §4） |
+| `#default` | `id`, `labelledby`, `describedby`, `invalid`, `required`, `disabled`, `readonly` | 控制項插槽；把這些值綁到實際的 input / select 上（見 §4） |
 | `#label` | `label` | 標籤內容，取代 `label` prop |
 | `#message` | `error`, `message` | 訊息內容，取代 `message` prop |
 
@@ -159,6 +159,7 @@ const fieldProps = useFormFieldProps(props)
 ## 5. A11y
 
 - **標籤關聯**：`<label for>` 對應控制項 `id`，點標籤聚焦控制項、SR 朗讀標籤。使用端必須把 slot `id` 綁上控制項才成立。
+- **非原生控制項取名（`labelledby`）**：若控制項是 `<div role="combobox/...">` 這類**無法被 `<label for>` 命名**的元素（如 BaseSelect），請改綁 slot prop `labelledby` 到控制項的 `aria-labelledby`——它指向 BaseFormField 內 `<label>` 的 id，讓控制項用同一個可見標籤取名，不必另立 `aria-label`。有 `label` 或 `#label` slot 時才有值、否則 `undefined`。
 - **錯誤提示**：`error` 時請把 slot prop `invalid` 綁到控制項的 `aria-invalid`，並用 `message` 描述錯誤；訊息區 `aria-live="polite"` 會在訊息變動時朗讀。
 - **必填**：視覺星號（CSS content）部分 SR 不一定朗讀，故另把 slot prop `required` 傳出，請綁到控制項 `aria-required`，確保 SR 使用者知道為必填。
 - **隱藏標籤**：`hideLabel` 用 sr-only 技巧（非 `display:none`），標籤仍保留給 SR；此情境建議搭配 `placeholder` 或 `aria-label` 維持視覺使用者的可辨識度。
