@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { defineComponent, h, ref } from 'vue'
 
 import BaseTable from '~/components/atoms/BaseTable.vue'
 import type { TableColumn, TableSort } from '~/components/atoms/BaseTable.vue'
@@ -310,10 +311,190 @@ describe('BaseTable', () => {
       expect(header.checked).toBe(false)
     })
 
+    // 真實 v-model 回歸：父層用 ref 雙向綁定時，selected 內元素會被深層包成 reactive proxy，
+    // 與 items prop 的原始物件參照不同。若選取以物件參照比對，全選 / 取消 / 列勾選狀態會失準
+    // （列 checkbox 不跟著表頭一起勾選）。元件改以 toRaw 正規化比對後修正。
+    describe('reactivity with real v-model (toRaw identity)', () => {
+      function makeHost(initial: Row[] = []) {
+        const Host = defineComponent({
+          setup() {
+            const selected = ref<Row[]>(initial)
+            return { selected }
+          },
+          render() {
+            return h(BaseTable, {
+              'columns': columns,
+              'items': items,
+              'selected': this.selected,
+              'onUpdate:selected': (v: Row[]) => { this.selected = v },
+            })
+          },
+        })
+        return mount(Host)
+      }
+
+      const rowStates = (w: ReturnType<typeof mount>) =>
+        w.findAll('tbody .base-table__checkbox').map(
+          (r) => (r.element as HTMLInputElement).checked,
+        )
+
+      it('header select-all checks every row checkbox', async () => {
+        const w = makeHost()
+        await w.find('thead .base-table__checkbox').setValue(true)
+        await w.vm.$nextTick()
+        expect(rowStates(w)).toEqual([true, true, true])
+      })
+
+      it('header clear unchecks every row checkbox', async () => {
+        const w = makeHost(items.slice())
+        expect(rowStates(w)).toEqual([true, true, true])
+        await w.find('thead .base-table__checkbox').setValue(false)
+        await w.vm.$nextTick()
+        expect(rowStates(w)).toEqual([false, false, false])
+      })
+
+      it('single-row toggle add then remove reflects on that row', async () => {
+        const w = makeHost()
+        await w.findAll('tbody .base-table__checkbox')[1].setValue(true)
+        await w.vm.$nextTick()
+        expect(rowStates(w)).toEqual([false, true, false])
+        await w.findAll('tbody .base-table__checkbox')[1].setValue(false)
+        await w.vm.$nextTick()
+        expect(rowStates(w)).toEqual([false, false, false])
+      })
+    })
+
     it('row clicks on the select cell do not bubble to click:row', async () => {
       const w = mountTable({ selected: [] })
       await w.find('tbody .base-table__cell--select').trigger('click')
       expect(w.emitted('click:row')).toBeFalsy()
+    })
+  })
+
+  // ── 列鍵盤可達性 ───────────────────────────────────────────────────────────────
+  describe('row keyboard accessibility', () => {
+    it('omits tabindex/role and keyboard activation when click:row is not bound', async () => {
+      const w = mountTable()
+      const row = w.findAll('tbody tr')[0]
+      expect(row.attributes('tabindex')).toBeUndefined()
+      expect(row.attributes('role')).toBeUndefined()
+      await row.trigger('keydown', { key: 'Enter' })
+      expect(w.emitted('click:row')).toBeFalsy()
+    })
+
+    it('adds tabindex=0 and role=button when click:row is bound', () => {
+      const w = mountTable({ 'onClick:row': () => {} })
+      const row = w.findAll('tbody tr')[1]
+      expect(row.attributes('tabindex')).toBe('0')
+      expect(row.attributes('role')).toBe('button')
+    })
+
+    it('activates click:row on Enter', async () => {
+      const w = mountTable({ 'onClick:row': () => {} })
+      await w.findAll('tbody tr')[1].trigger('keydown', { key: 'Enter' })
+      expect(w.emitted('click:row')![0]).toEqual([items[1], 1])
+    })
+
+    it('activates click:row on Space', async () => {
+      const w = mountTable({ 'onClick:row': () => {} })
+      await w.findAll('tbody tr')[2].trigger('keydown', { key: ' ' })
+      expect(w.emitted('click:row')![0]).toEqual([items[2], 2])
+    })
+
+    it('ignores other keys', async () => {
+      const w = mountTable({ 'onClick:row': () => {} })
+      await w.findAll('tbody tr')[0].trigger('keydown', { key: 'a' })
+      expect(w.emitted('click:row')).toBeFalsy()
+    })
+  })
+
+  // ── 文案（i18n labels）─────────────────────────────────────────────────────────
+  describe('labels (i18n)', () => {
+    it('defaults all aria / empty text to Traditional Chinese', () => {
+      const w = mountTable({ items: [], selected: [], sort: {} as TableSort })
+      expect(w.find('thead .base-table__checkbox').attributes('aria-label')).toBe('全選')
+      expect(w.find('.base-table__sort').attributes('aria-label')).toBe('依「姓名」排序')
+      expect(w.find('.base-table__empty').text()).toBe('暫無資料')
+    })
+
+    it('uses the default selectRow label per row', () => {
+      const w = mountTable({ selected: [] })
+      const boxes = w.findAll('tbody .base-table__checkbox')
+      expect(boxes[0].attributes('aria-label')).toBe('選取第 1 列')
+      expect(boxes[2].attributes('aria-label')).toBe('選取第 3 列')
+    })
+
+    it('overrides selectAll / sortBy / empty with strings', () => {
+      const w = mountTable({
+        items: [],
+        selected: [],
+        sort: {} as TableSort,
+        labels: { selectAll: 'Select all', sortBy: 'Sort', empty: 'No data' },
+      })
+      expect(w.find('thead .base-table__checkbox').attributes('aria-label')).toBe('Select all')
+      expect(w.find('.base-table__sort').attributes('aria-label')).toBe('Sort')
+      expect(w.find('.base-table__empty').text()).toBe('No data')
+    })
+
+    it('overrides selectRow with a string applied to every row', () => {
+      const w = mountTable({ selected: [], labels: { selectRow: 'Select this row' } })
+      const boxes = w.findAll('tbody .base-table__checkbox')
+      expect(boxes[0].attributes('aria-label')).toBe('Select this row')
+      expect(boxes[1].attributes('aria-label')).toBe('Select this row')
+    })
+
+    it('overrides sortBy / selectRow with functions', () => {
+      const w = mountTable({
+        selected: [],
+        sort: {} as TableSort,
+        labels: {
+          sortBy: (label: string) => `Sort by ${label}`,
+          selectRow: (index: number) => `Row ${index}`,
+        },
+      })
+      expect(w.find('.base-table__sort').attributes('aria-label')).toBe('Sort by 姓名')
+      expect(w.findAll('tbody .base-table__checkbox')[0].attributes('aria-label')).toBe('Row 0')
+    })
+
+    it('falls back per-field when only partial labels are given', () => {
+      const w = mountTable({ items: [], labels: { empty: '查無資料' } })
+      expect(w.find('.base-table__empty').text()).toBe('查無資料')
+    })
+  })
+
+  // ── 跨頁選取邊界 ───────────────────────────────────────────────────────────────
+  describe('cross-page selection boundary', () => {
+    const stale = (n: number): Row[] =>
+      Array.from({ length: n }, (_, i) => ({ id: 100 + i, name: `S${i}`, age: i }))
+
+    it('is neither checked nor indeterminate when only off-page items are selected', () => {
+      // 兩個非當頁殘留項目，當頁三項皆未選 → 不應誤判為半選
+      const w = mountTable({ selected: stale(2) })
+      const header = w.find('thead .base-table__checkbox').element as HTMLInputElement
+      expect(header.checked).toBe(false)
+      expect(header.indeterminate).toBe(false)
+    })
+
+    it('does not break when selected size exceeds current items', () => {
+      // 殘留 4 項 > 當頁 3 項，當頁皆未選
+      const w = mountTable({ selected: stale(4) })
+      const header = w.find('thead .base-table__checkbox').element as HTMLInputElement
+      expect(header.checked).toBe(false)
+      expect(header.indeterminate).toBe(false)
+    })
+
+    it('is indeterminate when some current items are selected alongside off-page extras', () => {
+      const w = mountTable({ selected: [...stale(2), items[0]] })
+      const header = w.find('thead .base-table__checkbox').element as HTMLInputElement
+      expect(header.checked).toBe(false)
+      expect(header.indeterminate).toBe(true)
+    })
+
+    it('is fully checked when all current items are selected despite off-page extras', () => {
+      const w = mountTable({ selected: [...stale(2), ...items] })
+      const header = w.find('thead .base-table__checkbox').element as HTMLInputElement
+      expect(header.checked).toBe(true)
+      expect(header.indeterminate).toBe(false)
     })
   })
 })

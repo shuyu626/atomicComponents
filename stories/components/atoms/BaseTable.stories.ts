@@ -153,6 +153,81 @@ export const Selectable: Story = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ClickableRows —— click:row + 鍵盤可達性
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ClickableRows: Story = {
+  render: () => ({
+    components: { BaseTable },
+    setup() {
+      const lastClicked = ref<string>('（尚未點擊）')
+      const onRow = (user: User) => {
+        lastClicked.value = `${user.name}（${user.email}）`
+      }
+      return { columns: COLUMNS, items: USERS, lastClicked, onRow }
+    },
+    template: WRAP(`
+      <BaseTable :columns="columns" :items="items" @click:row="onRow" />
+      <pre style="margin-top:12px;font-size:12px;color:#666">最後點擊：{{ lastClicked }}</pre>
+    `),
+  }),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          '綁定 `@click:row` 後，每列會自動補上 `tabindex="0"`、`role="button"`，並可用 `Tab` 聚焦、`Enter` / `Space` 觸發（等同點擊）。未綁定 `@click:row` 時不會加上這些屬性，維持純展示。',
+      },
+    },
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Localized —— labels（i18n 文案覆寫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const Localized: Story = {
+  render: () => ({
+    components: { BaseTable },
+    setup() {
+      const columns: TableColumn<User>[] = [
+        { key: 'name', label: 'Name', sortable: true },
+        { key: 'email', label: 'Email' },
+        { key: 'age', label: 'Age', align: 'right' },
+      ]
+      const selected = ref<User[]>([])
+      const sort = ref<TableSort>({})
+      const labels = {
+        selectAll: 'Select all rows',
+        sortBy: (label: string) => `Sort by ${label}`,
+        selectRow: (index: number) => `Select row ${index + 1}`,
+        empty: 'No data available',
+      }
+      return { columns, items: USERS, selected, sort, labels }
+    },
+    template: WRAP(`
+      <BaseTable
+        :columns="columns"
+        :items="items"
+        :labels="labels"
+        v-model:selected="selected"
+        v-model:sort="sort"
+      />
+      <p style="margin-top:12px;font-size:12px;color:#666">
+        所有 aria-label 與空狀態文字皆來自 <code>labels</code> prop（預設為繁體中文）。
+      </p>
+    `),
+  }),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          '透過 `labels` prop 覆寫無障礙文案與空狀態文字（`selectAll` / `sortBy` / `selectRow` / `empty`）。`sortBy` 可為函式（接收欄位標題）、`selectRow` 可為函式（接收 0-based 列索引）。未傳入時逐欄位 fallback 回預設繁體中文。',
+      },
+    },
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CustomCell —— render 與具名 slot
 // ─────────────────────────────────────────────────────────────────────────────
 

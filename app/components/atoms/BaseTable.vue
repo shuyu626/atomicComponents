@@ -54,10 +54,31 @@ export interface TableSort {
 export type TableItemKey<Item extends TableItem = TableItem> =
   | string
   | ((item: Item, index: number) => PropertyKey)
+
+/**
+ * a11y / 空狀態文案（含 i18n 逃生口）。
+ * 每個欄位預設值為目前的繁體中文，未傳入時行為不變。
+ */
+export interface BaseTableLabels {
+  /** 表頭「全選」checkbox 的 aria-label。@default '全選' */
+  selectAll?: string
+  /**
+   * 排序按鈕 aria-label：字串（原樣使用）或接受欄位標題回傳字串的函式。
+   * @default label => `依「${label}」排序`
+   */
+  sortBy?: string | ((label: string) => string)
+  /**
+   * 列選取 checkbox 的 aria-label：字串（原樣使用）或接受列索引（0-based）回傳字串的函式。
+   * @default index => `選取第 ${index + 1} 列`
+   */
+  selectRow?: string | ((index: number) => string)
+  /** 無資料時的空狀態文字。@default '暫無資料' */
+  empty?: string
+}
 </script>
 
 <script setup lang="ts" generic="Item extends TableItem = TableItem">
-import { computed } from 'vue'
+import { computed, getCurrentInstance, toRaw } from 'vue'
 
 import isFunction from '~/utils/isFunction'
 import toUnit from '~/utils/toUnit'
@@ -85,6 +106,8 @@ interface BaseTableProps {
   headRowClass?: TableClass
   /** 套用到內容列的 class（可為函式）。 */
   bodyRowClass?: TableBodyRowClass<Item>
+  /** a11y / 空狀態文案（含 i18n / 自訂模板逃生口）。 */
+  labels?: BaseTableLabels
 }
 
 /**
@@ -115,6 +138,7 @@ const props = withDefaults(defineProps<BaseTableProps>(), {
   stickyHeader: false,
   headRowClass: undefined,
   bodyRowClass: undefined,
+  labels: () => ({}),
 })
 
 const slots = defineSlots<BaseTableSlots>()
@@ -123,6 +147,25 @@ const emit = defineEmits<{
   /** 點擊整列時觸發。 */
   'click:row': [item: Item, index: number]
 }>()
+
+// ── 列點擊可達性 ─────────────────────────────────────────────
+// `click:row` 被 defineEmits 宣告後，其 listener 不會出現在 $attrs，
+// 改由 vnode.props 偵測父層是否綁定 `@click:row`。
+const instance = getCurrentInstance()
+
+/** 父層是否綁定 `@click:row`（決定是否補鍵盤可達性屬性）。 */
+const isRowClickable = computed(() =>
+  Boolean(instance?.vnode.props?.['onClick:row']),
+)
+
+/** 可點擊列的鍵盤路徑：Enter / Space 觸發同樣的 click:row。 */
+const onRowKeydown = (event: KeyboardEvent, item: Item, index: number) => {
+  if (!isRowClickable.value) return
+  if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+    event.preventDefault()
+    emit('click:row', item, index)
+  }
+}
 
 /**
  * 選取資料（`v-model:selected`）。支援 `Array` 或 `Set`；
@@ -137,56 +180,81 @@ const sort = defineModel<TableSort>('sort')
 /** 是否啟用選取欄（父層綁了 `v-model:selected`）。 */
 const isSelectable = computed(() => selected.value !== undefined)
 
-/** 目前選取筆數（相容 Array / Set）。 */
-const selectedSize = computed(() => {
-  const value = selected.value
-  if (!value) return 0
-  return Array.isArray(value) ? value.length : value.size
-})
-
-/** 全選（資料非空且全部選取）。 */
-const isAllChecked = computed(
-  () => props.items.length > 0 && selectedSize.value === props.items.length,
-)
-
-/** 部分選取（用於表頭 checkbox 的 indeterminate 狀態）。 */
-const isIndeterminate = computed(
-  () => selectedSize.value > 0 && selectedSize.value < props.items.length,
-)
-
 /**
- * 選取查找表：把當前選取整理成 Set，讓每列 `isRowSelected` 為 O(1)，
+ * 選取查找表：把當前選取整理成「原始物件」的 Set，讓每列 `isRowSelected` 為 O(1)，
  * 避免陣列模式下整表渲染變成 O(n²)。
+ *
+ * ⚠️ 一律用 `toRaw` 正規化後再比對 —— 父層以 `v-model:selected="ref([])"` 雙向綁定時，
+ * `selected` 內的元素會被 ref 深層包成 reactive proxy，與 `items` prop 的原始物件
+ * **參照不同**；若直接以物件參照比對（`Set.has(item)`），全選 / 取消 / 列勾選狀態都會失準。
+ * `toRaw` 會把 proxy 還原成同一個原始物件（reactive 代理有快取），兩邊正規化後即可正確比對。
  */
 const selectedLookup = computed<Set<Item>>(() => {
   const value = selected.value
   if (!value) return new Set()
-  return value instanceof Set ? value : new Set(value)
+  const set = new Set<Item>()
+  for (const it of value) set.add(toRaw(it))
+  return set
 })
 
-const isRowSelected = (item: Item): boolean => selectedLookup.value.has(item)
+/**
+ * 「當前 items」中被選取的筆數。
+ * 只統計當頁命中的項目，避免 `selected` 含跨頁 / 非當頁項目時
+ * `selectedSize > items.length` 造成全選與半選同時 false 的誤判。
+ */
+const selectedOnPageCount = computed(() => {
+  const lookup = selectedLookup.value
+  let count = 0
+  for (const item of props.items) {
+    if (lookup.has(toRaw(item))) count++
+  }
+  return count
+})
 
-/** 切換單列選取，依原集合型別整體取代寫回。 */
+/** 全選（資料非空且當頁全部選取）。 */
+const isAllChecked = computed(
+  () => props.items.length > 0 && selectedOnPageCount.value === props.items.length,
+)
+
+/** 部分選取（用於表頭 checkbox 的 indeterminate 狀態）。 */
+const isIndeterminate = computed(
+  () =>
+    selectedOnPageCount.value > 0 &&
+    selectedOnPageCount.value < props.items.length,
+)
+
+const isRowSelected = (item: Item): boolean => selectedLookup.value.has(toRaw(item))
+
+/**
+ * 切換單列選取，依原集合型別整體取代寫回。
+ * 比對 / 寫回一律用 `toRaw`（理由見 {@link selectedLookup}）：避免 proxy 與原始物件
+ * 參照不一致導致「取消勾選刪不掉」「重複加入」。
+ */
 const toggleRow = (item: Item, checked: boolean) => {
   const value = selected.value
   if (!value) return
+  const raw = toRaw(item)
 
   if (value instanceof Set) {
-    const next = new Set(value)
-    if (checked) next.add(item)
-    else next.delete(item)
+    const next = new Set<Item>()
+    for (const it of value) {
+      if (toRaw(it) !== raw) next.add(it)
+    }
+    if (checked) next.add(raw)
     selected.value = next
     return
   }
 
-  selected.value = checked ? [...value, item] : value.filter((it) => it !== item)
+  selected.value = checked
+    ? [...value.filter((it) => toRaw(it) !== raw), raw]
+    : value.filter((it) => toRaw(it) !== raw)
 }
 
-/** 全選 / 取消全選。 */
+/** 全選 / 取消全選。寫回原始物件，避免把 proxy 漏給父層。 */
 const toggleAll = (checked: boolean) => {
   const value = selected.value
   if (!value) return
-  const next = checked ? props.items.slice() : []
+  const next = checked ? props.items.map((it) => toRaw(it)) : []
   selected.value = value instanceof Set ? new Set(next) : next
 }
 
@@ -258,6 +326,35 @@ const bodyCellClass = (
   index: number,
 ): TableClass => resolveClass(column.bodyCellClass, [item[column.key], item, index])
 
+// ── 文案（a11y / 空狀態）─────────────────────────────────────
+const DEFAULT_LABELS: Required<BaseTableLabels> = {
+  selectAll: '全選',
+  sortBy: (label) => `依「${label}」排序`,
+  selectRow: (index) => `選取第 ${index + 1} 列`,
+  empty: '暫無資料',
+}
+
+// 逐欄位 fallback，避免 caller 傳入 `undefined` 時把預設值覆蓋掉。
+const mergedLabels = computed<Required<BaseTableLabels>>(() => ({
+  selectAll: props.labels.selectAll ?? DEFAULT_LABELS.selectAll,
+  sortBy: props.labels.sortBy ?? DEFAULT_LABELS.sortBy,
+  selectRow: props.labels.selectRow ?? DEFAULT_LABELS.selectRow,
+  empty: props.labels.empty ?? DEFAULT_LABELS.empty,
+}))
+
+/** 排序按鈕 aria-label（字串原樣 / 函式接收欄位標題）。 */
+const sortAriaLabel = (column: TableColumn<Item>): string => {
+  const value = mergedLabels.value.sortBy
+  const title = column.label ?? column.key
+  return isFunction(value) ? value(title) : value
+}
+
+/** 列選取 checkbox aria-label（字串原樣 / 函式接收列索引）。 */
+const selectRowAriaLabel = (index: number): string => {
+  const value = mergedLabels.value.selectRow
+  return isFunction(value) ? value(index) : value
+}
+
 /** 設定原生 checkbox 的 indeterminate（DOM property，無法用 attribute 綁定）。 */
 const vIndeterminate = {
   mounted: (el: HTMLInputElement, binding: { value: boolean }) => {
@@ -309,7 +406,7 @@ const vIndeterminate = {
               v-indeterminate="isIndeterminate"
               class="base-table__checkbox"
               type="checkbox"
-              aria-label="全選"
+              :aria-label="mergedLabels.selectAll"
               :checked="isAllChecked"
               @change="toggleAll(($event.target as HTMLInputElement).checked)"
             >
@@ -340,7 +437,7 @@ const vIndeterminate = {
                     sort?.column === column.key && sort?.direction,
                 }"
                 type="button"
-                :aria-label="`依「${column.label ?? column.key}」排序`"
+                :aria-label="sortAriaLabel(column)"
                 @click="onSort(column.key)"
               >
                 <svg
@@ -381,7 +478,10 @@ const vIndeterminate = {
           :key="keyOf(item, index)"
           class="base-table__row"
           :class="rowClass(item, index)"
+          :tabindex="isRowClickable ? 0 : undefined"
+          :role="isRowClickable ? 'button' : undefined"
           @click="emit('click:row', item, index)"
+          @keydown="onRowKeydown($event, item, index)"
         >
           <td
             v-if="isSelectable"
@@ -391,7 +491,7 @@ const vIndeterminate = {
             <input
               class="base-table__checkbox"
               type="checkbox"
-              :aria-label="`選取第 ${index + 1} 列`"
+              :aria-label="selectRowAriaLabel(index)"
               :checked="isRowSelected(item)"
               @change="toggleRow(item, ($event.target as HTMLInputElement).checked)"
             >
@@ -421,7 +521,7 @@ const vIndeterminate = {
       v-if="items.length === 0"
       class="base-table__empty"
     >
-      <slot name="empty">暫無資料</slot>
+      <slot name="empty">{{ mergedLabels.empty }}</slot>
     </div>
   </div>
 </template>
