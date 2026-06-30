@@ -73,7 +73,7 @@ const plan = ref('pro')
 
 - **內容優先序**：`#label` slot > `#default` slot > `label` prop；`#message` slot > `message` prop。
 - **獨立模式**：v-model 綁 `value`，`isChecked = model === value`；radio 為單選且**無法靠點擊取消**（`change` 只在變成選中時觸發）。
-- **群組模式**：偵測到注入的群組 context（在 `BaseRadioGroup` 內）即啟用——`isChecked = value === 群組值`，點擊呼叫群組 `select(value)`；`name` / `color` / `disabled` 繼承群組（個別 prop 可覆寫）；個別訊息 / 驗證交給群組。
+- **群組模式**：偵測到注入的群組 context（在 `BaseRadioGroup` 內）即啟用——`isChecked = value === 群組值`，點擊呼叫群組 `select(value)`；`name` / `color` / `disabled` 繼承群組（個別 prop 可覆寫）；個別訊息 / 驗證交給群組（子元件**不建立** child-level 驗證、**不暴露** `validate()` / `reset()`，避免回傳無意義且誤導的驗證結果）。
 - **停用**：`--radio-color` 轉灰、input `disabled`、cursor `not-allowed`。
 
 ---
@@ -83,7 +83,7 @@ const plan = ref('pro')
 - 原生 `<input type="radio">` 提供完整鍵盤 / 表單語意；視覺以自繪 `__circle` 呈現，input 採 sr-only（非 `display:none`，保留可聚焦 / 可點 / 表單送出 / 方向鍵巡覽）。
 - `<label>` 包住 input，點標籤即選取、SR 朗讀標籤。
 - 同 `name` 的原生 radio 自動形成單選群，可用方向鍵巡覽並移動選取（群組模式由 BaseRadioGroup 廣播共用 `name`）。
-- 有訊息時 input 綁 `aria-describedby` 指向訊息區（`aria-live="polite"`）、錯誤時 `aria-invalid`。
+- 有訊息時 input 綁 `aria-describedby` 指向訊息區（`aria-live="polite"` + `aria-atomic="true"`，且以 `v-show` 常駐 DOM 而非 `v-if`，確保動態出現 / 變動的訊息整段被朗讀，對齊 `BaseFormField`）、錯誤時 `aria-invalid`。
 - 鍵盤聚焦於 `__circle` 顯示 `outline`（`:focus-visible`）。
 
 ---

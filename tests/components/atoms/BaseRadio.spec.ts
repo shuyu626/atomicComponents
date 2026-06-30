@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { ref } from 'vue'
 
 import BaseRadio from '~/components/atoms/BaseRadio.vue'
+import { BASE_RADIO_GROUP_INJECT_KEY } from '~/components/atoms/BaseRadioGroup.vue'
 import type { ValidationRule } from '~/utils/validators'
 
 function mountRadio(props: Record<string, unknown> = {}, slots: Record<string, unknown> = {}) {
@@ -105,5 +107,41 @@ describe('BaseRadio (standalone)', () => {
       await wrapper.vm.$nextTick()
       expect(wrapper.find('.base-radio--error').exists()).toBe(false)
     })
+  })
+})
+
+// ── 群組模式：rules 交給群組，子元件不建立 / 不暴露 child-level validation ──────────
+describe('BaseRadio (group mode)', () => {
+  function mountInGroup(props: Record<string, unknown> = {}) {
+    return mount(BaseRadio, {
+      props,
+      attachTo: document.body,
+      global: {
+        provide: {
+          [BASE_RADIO_GROUP_INJECT_KEY as symbol]: {
+            isSelected: () => false,
+            select: () => {},
+            touch: () => {},
+            name: ref('group'),
+            color: ref('primary'),
+            disabled: ref(false),
+          },
+        },
+      },
+    })
+  }
+
+  it('does not expose validate() / reset() (rules handled by the group)', () => {
+    const wrapper = mountInGroup({ value: 'a', rules: [() => '必選'] })
+    const vm = wrapper.vm as unknown as { validate?: unknown; reset?: unknown }
+    expect(vm.validate).toBeUndefined()
+    expect(vm.reset).toBeUndefined()
+  })
+
+  it('does not surface its own error / message in group mode', () => {
+    const wrapper = mountInGroup({ value: 'a', message: '個別訊息', error: true })
+    expect(wrapper.find('.base-radio--error').exists()).toBe(false)
+    // 訊息區常駐 DOM（v-show），但群組模式下隱藏且無內容。
+    expect(wrapper.find('.base-radio__message').isVisible()).toBe(false)
   })
 })

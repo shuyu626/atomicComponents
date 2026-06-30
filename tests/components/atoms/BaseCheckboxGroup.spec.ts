@@ -73,6 +73,25 @@ describe('BaseCheckboxGroup', () => {
     expect(wrapper.find('.base-form-field__label').text()).toContain('選擇水果')
   })
 
+  it('marks the group container aria-invalid on error', () => {
+    const wrapper = mountGroup({ modelValue: [], error: true })
+    expect(wrapper.find('[role="group"]').attributes('aria-invalid')).toBe('true')
+  })
+
+  it('omits aria-invalid when there is no error', () => {
+    const wrapper = mountGroup({ modelValue: [] })
+    expect(wrapper.find('[role="group"]').attributes('aria-invalid')).toBeUndefined()
+  })
+
+  it('marks the group container aria-invalid when a rule fails (touch)', async () => {
+    const atLeastOne: ValidationRule<unknown> = (v) =>
+      (Array.isArray(v) ? v.length > 0 : (v as Set<unknown>)?.size > 0) || '至少選一項'
+    const wrapper = mountGroup({ modelValue: ['apple'], rules: [atLeastOne] })
+    await boxes(wrapper)[0].setValue(false)
+    await nextTick()
+    expect(wrapper.find('[role="group"]').attributes('aria-invalid')).toBe('true')
+  })
+
   it('shows a group-level validation error after a toggle (touch)', async () => {
     const atLeastOne: ValidationRule<unknown> = (v) =>
       (Array.isArray(v) ? v.length > 0 : (v as Set<unknown>)?.size > 0) || '至少選一項'

@@ -76,7 +76,7 @@ const consent = ref('no')
 
 - **內容優先序**：`#label` slot > `#default` slot > `label` prop；`#message` slot > `message` prop。
 - **獨立模式**：v-model 綁 `boolean`，或以 `trueValue`/`falseValue` 綁自訂值；`isChecked = model === trueValue`。
-- **群組模式**：偵測到注入的群組 context（在 `BaseCheckboxGroup` 內）即啟用——`isChecked = value ∈ 群組值`（用 `isSet` 判斷 Array / Set），點擊呼叫群組 `toggle(value)`；`name` / `color` / `disabled` 繼承群組（個別 prop 可覆寫）；個別訊息 / 驗證交給群組。
+- **群組模式**：偵測到注入的群組 context（在 `BaseCheckboxGroup` 內）即啟用——`isChecked = value ∈ 群組值`（用 `isSet` 判斷 Array / Set），點擊呼叫群組 `toggle(value)`；`name` / `color` / `disabled` 繼承群組（個別 prop 可覆寫）；個別訊息 / 驗證交給群組（子元件**不建立** child-level 驗證、**不暴露** `validate()` / `reset()`，避免回傳無意義且誤導的驗證結果）。
 - **indeterminate**：HTML 無對應 attribute，故以 DOM property 設定（`onMounted` 同步 + `watch`），並標 `aria-checked="mixed"`。
 - **停用**：`--checkbox-color` 轉灰、input `disabled`、cursor `not-allowed`。
 
@@ -87,7 +87,7 @@ const consent = ref('no')
 - 原生 `<input type="checkbox">` 提供完整鍵盤 / 表單語意；視覺以自繪 `__box` 呈現，input 採 sr-only（非 `display:none`，保留可聚焦 / 可點 / 表單送出）。
 - `<label>` 包住 input，點標籤即切換、SR 朗讀標籤。
 - `indeterminate` 標 `aria-checked="mixed"`。
-- 有訊息時 input 綁 `aria-describedby` 指向訊息區（`aria-live="polite"`）、錯誤時 `aria-invalid`。
+- 有訊息時 input 綁 `aria-describedby` 指向訊息區（`aria-live="polite"` + `aria-atomic="true"`，且以 `v-show` 常駐 DOM 而非 `v-if`，確保動態出現 / 變動的訊息整段被朗讀，對齊 `BaseFormField`）、錯誤時 `aria-invalid`。
 - 鍵盤聚焦於 `__box` 顯示 `outline`（`:focus-visible`）。
 
 ---

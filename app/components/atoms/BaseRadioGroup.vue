@@ -10,13 +10,17 @@
       <slot name="label" />
     </template>
 
-    <!-- 控制項：一組 radio。role="radiogroup" 把它們語意化為單選群；標籤 / 描述關聯由 BaseFormField 傳入。 -->
+    <!--
+      控制項：一組 radio。role="radiogroup" 把它們語意化為單選群；標籤 / 描述關聯由 BaseFormField 傳入。
+      錯誤狀態時於群組容器補 aria-invalid（不只靠視覺色傳達），非錯誤時省略屬性。
+    -->
     <template #default="{ labelledby, describedby }">
       <div
         class="base-radio-group__items"
         role="radiogroup"
         :aria-labelledby="labelledby"
         :aria-describedby="describedby"
+        :aria-invalid="displayError || undefined"
       >
         <slot />
       </div>

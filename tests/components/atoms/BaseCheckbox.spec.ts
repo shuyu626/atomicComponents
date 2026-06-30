@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { ref } from 'vue'
 
 import BaseCheckbox from '~/components/atoms/BaseCheckbox.vue'
+import { BASE_CHECKBOX_GROUP_INJECT_KEY } from '~/components/atoms/BaseCheckboxGroup.vue'
 import type { ValidationRule } from '~/utils/validators'
 
 function mountCheckbox(props: Record<string, unknown> = {}, slots: Record<string, unknown> = {}) {
@@ -123,5 +125,41 @@ describe('BaseCheckbox (standalone)', () => {
       await wrapper.vm.$nextTick()
       expect(wrapper.find('.base-checkbox--error').exists()).toBe(false)
     })
+  })
+})
+
+// ── 群組模式：rules 交給群組，子元件不建立 / 不暴露 child-level validation ──────────
+describe('BaseCheckbox (group mode)', () => {
+  function mountInGroup(props: Record<string, unknown> = {}) {
+    return mount(BaseCheckbox, {
+      props,
+      attachTo: document.body,
+      global: {
+        provide: {
+          [BASE_CHECKBOX_GROUP_INJECT_KEY as symbol]: {
+            isSelected: () => false,
+            toggle: () => {},
+            touch: () => {},
+            name: ref('group'),
+            color: ref('primary'),
+            disabled: ref(false),
+          },
+        },
+      },
+    })
+  }
+
+  it('does not expose validate() / reset() (rules handled by the group)', () => {
+    const wrapper = mountInGroup({ value: 'a', rules: [() => '必須勾選'] })
+    const vm = wrapper.vm as unknown as { validate?: unknown; reset?: unknown }
+    expect(vm.validate).toBeUndefined()
+    expect(vm.reset).toBeUndefined()
+  })
+
+  it('does not surface its own error / message in group mode', () => {
+    const wrapper = mountInGroup({ value: 'a', message: '個別訊息', error: true })
+    expect(wrapper.find('.base-checkbox--error').exists()).toBe(false)
+    // 訊息區常駐 DOM（v-show），但群組模式下隱藏且無內容。
+    expect(wrapper.find('.base-checkbox__message').isVisible()).toBe(false)
   })
 })

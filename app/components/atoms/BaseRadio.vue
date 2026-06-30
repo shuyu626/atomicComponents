@@ -34,12 +34,17 @@
       </span>
     </label>
 
-    <!-- 訊息區（獨立模式）：驗證錯誤優先、否則 message prop。 -->
+    <!--
+      訊息區（獨立模式）：驗證錯誤優先、否則 message prop。
+      以 v-show 常駐 DOM（而非 v-if 動態插入）+ aria-atomic，
+      讓動態出現 / 變動的驗證訊息整段被螢幕閱讀器朗讀（對齊 BaseFormField）。
+    -->
     <div
-      v-if="displayMessage"
+      v-show="displayMessage"
       :id="messageId"
       class="base-radio__message"
       aria-live="polite"
+      aria-atomic="true"
     >
       <slot
         name="message"
@@ -134,10 +139,14 @@ const isChecked = computed(() =>
   (group ? group.isSelected(props.value) : model.value === props.value),
 )
 
-const validation = useValidation<Value | undefined>(
-  () => model.value,
-  () => props.rules,
-)
+// 只有 standalone（非群組）模式才建立 child-level validation；
+// 群組模式 rules 由 BaseRadioGroup 統一處理，子元件不另建驗證（否則回傳無意義且誤導的結果）。
+const validation = group
+  ? null
+  : useValidation<Value | undefined>(
+      () => model.value,
+      () => props.rules,
+    )
 
 function onChange(event: Event) {
   // radio 只在「變成選中」時觸發 change，故一律 select（無法靠點擊取消）。
@@ -145,7 +154,7 @@ function onChange(event: Event) {
     group.select(props.value)
   } else {
     model.value = props.value
-    validation.touch()
+    validation?.touch()
   }
   emit('change', event)
 }
@@ -153,20 +162,25 @@ function onChange(event: Event) {
 function onBlur() {
   // 群組模式：touch 群組（rules 設在群組層），讓未選取就離開也顯示錯誤；獨立模式 touch 自己。
   if (group) group.touch()
-  else validation.touch()
+  else validation?.touch()
 }
 
-defineExpose({
-  /** 強制驗證（即使尚未 touch 也顯示錯誤）；回傳是否通過。 */
-  validate: validation.validate,
-  /** 重置驗證顯示狀態（不動值）。 */
-  reset: validation.reset,
-})
+// 群組模式不暴露 validate / reset（rules 由群組處理，子層驗證無意義）；standalone 模式才暴露。
+defineExpose(
+  validation
+    ? {
+        /** 強制驗證（即使尚未 touch 也顯示錯誤）；回傳是否通過。 */
+        validate: validation.validate,
+        /** 重置驗證顯示狀態（不動值）。 */
+        reset: validation.reset,
+      }
+    : {},
+)
 
 // 訊息 / 錯誤只在獨立模式呈現；群組模式由 BaseRadioGroup 統一處理。
-const displayError = computed(() => !group && (props.error || validation.error.value))
+const displayError = computed(() => !group && (props.error || (validation?.error.value ?? false)))
 const displayMessage = computed(() =>
-  group ? undefined : (validation.message.value ?? props.message),
+  group ? undefined : (validation?.message.value ?? props.message),
 )
 
 const rootClass = computed(() => [

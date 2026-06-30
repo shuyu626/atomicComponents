@@ -90,7 +90,7 @@ const status = ref('off')
 - 原生 `<input type="checkbox" role="switch">` 提供完整鍵盤 / 表單語意；視覺以自繪軌道呈現，input 採 sr-only（非 `display:none`，保留可聚焦 / 可點 / 表單送出）。
 - `<label>` 包住 input，點標籤即切換、SR 朗讀標籤。
 - 開 / 關狀態由原生 `<input type="checkbox" role="switch">` 的 `checked` 自動映射到無障礙樹，**不另加冗餘 `aria-checked`**（避免兩處狀態來源不同步）。
-- 有訊息時 input 綁 `aria-describedby` 指向訊息區（`aria-live="polite"`）、錯誤時 `aria-invalid`。
+- 有訊息時 input 綁 `aria-describedby` 指向訊息區（`aria-live="polite"` + `aria-atomic="true"`，且以 `v-show` 常駐 DOM 而非 `v-if`，確保動態出現 / 變動的訊息整段被朗讀，對齊 `BaseFormField`）、錯誤時 `aria-invalid`。
 - 狀態文字（`activeText` / `inactiveText`）為純裝飾，兩側皆標 `aria-hidden`；鍵盤聚焦於 `__track` 顯示 `outline`（`:focus-visible`）。
 
 ---

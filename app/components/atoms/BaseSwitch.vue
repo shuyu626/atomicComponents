@@ -57,12 +57,17 @@
       </span>
     </label>
 
-    <!-- 訊息區：驗證錯誤優先、否則 message prop。 -->
+    <!--
+      訊息區：驗證錯誤優先、否則 message prop。
+      以 v-show 常駐 DOM（而非 v-if 動態插入）+ aria-atomic，
+      讓動態出現 / 變動的驗證訊息整段被螢幕閱讀器朗讀（對齊 BaseFormField）。
+    -->
     <div
-      v-if="displayMessage"
+      v-show="displayMessage"
       :id="messageId"
       class="base-switch__message"
       aria-live="polite"
+      aria-atomic="true"
     >
       <slot
         name="message"

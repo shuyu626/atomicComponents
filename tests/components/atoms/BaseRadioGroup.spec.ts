@@ -82,6 +82,25 @@ describe('BaseRadioGroup', () => {
     expect(wrapper.find('.base-form-field__label').text()).toContain('選擇方案')
   })
 
+  it('marks the radiogroup container aria-invalid on error', () => {
+    const wrapper = mountGroup({ modelValue: undefined, error: true })
+    expect(wrapper.find('[role="radiogroup"]').attributes('aria-invalid')).toBe('true')
+  })
+
+  it('omits aria-invalid when there is no error', () => {
+    const wrapper = mountGroup({ modelValue: undefined })
+    expect(wrapper.find('[role="radiogroup"]').attributes('aria-invalid')).toBeUndefined()
+  })
+
+  it('marks the radiogroup container aria-invalid when a rule fails (touch)', async () => {
+    const required: ValidationRule<unknown> = (v) => v != null || '請選擇一項'
+    const wrapper = mountGroup({ modelValue: undefined, rules: [required] })
+    const vm = wrapper.vm as unknown as { validate: () => boolean }
+    vm.validate()
+    await nextTick()
+    expect(wrapper.find('[role="radiogroup"]').attributes('aria-invalid')).toBe('true')
+  })
+
   it('shows a group-level validation error after select (touch)', async () => {
     const required: ValidationRule<unknown> = (v) => v != null || '請選擇一項'
     const wrapper = mountGroup({ modelValue: undefined, rules: [required] })

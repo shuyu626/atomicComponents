@@ -140,7 +140,11 @@ describe('BaseSwitch', () => {
       expect(inputEl(wrapper).attributes('aria-invalid')).toBe('true')
       const describedby = inputEl(wrapper).attributes('aria-describedby')
       expect(describedby).toBeTruthy()
-      expect(wrapper.find(`#${describedby}`).text()).toBe('請開啟')
+      const messageEl = wrapper.find(`#${describedby}`)
+      expect(messageEl.text()).toBe('請開啟')
+      // live region 常駐 DOM（v-show）+ aria-atomic，整段被朗讀（對齊 BaseFormField）。
+      expect(messageEl.attributes('aria-live')).toBe('polite')
+      expect(messageEl.attributes('aria-atomic')).toBe('true')
     })
   })
 })

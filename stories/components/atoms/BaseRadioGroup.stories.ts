@@ -108,6 +108,6 @@ export const Validation: Story = {
     `),
   }),
   parameters: {
-    docs: { description: { story: '`rules` 套在選取值上（touched 於每次 select）。「必選一項」用自訂規則檢查是否為 null。' } },
+    docs: { description: { story: '`rules` 套在選取值上（touched 於每次 select）。「必選一項」用自訂規則檢查是否為 null。錯誤狀態（`error` prop 或驗證失敗）時，`role="radiogroup"` 容器會補上 `aria-invalid="true"`（不只靠視覺色傳達）。' } },
   },
 }

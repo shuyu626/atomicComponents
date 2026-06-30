@@ -11,7 +11,7 @@ BaseCheckboxGroup 管理一組 [`BaseCheckbox`](./BaseCheckbox.md)：`v-model` �
 
 ## 1. Props
 
-元件為**泛型** `BaseCheckboxGroup<Value>`，並繼承**全部** [`BaseFormField` 欄位 props](./BaseFormField.md#1-props)（`label` / `labelPlacement`(left/top) / `labelWidth` / `hideLabel` / `message` / `error` / `required` / `disabled` / `id`，會轉發給 BaseFormField）。
+元件為**泛型** `BaseCheckboxGroup<Value>`，並繼承**全部** [`BaseFormField` 欄位 props](./BaseFormField.md#1-props)（`label` / `labelPlacement`(left/top) / `labelWidth` / `hideLabel` / `message` / `error` / `required` / `disabled` / `readonly` / `id`，會轉發給 BaseFormField）。
 
 | Prop | 型別 | 預設 | 說明 |
 |---|---|---|---|
@@ -75,7 +75,7 @@ const fruits = [
 - **容器型別沿用**：`v-model` 傳入 `Set` → 維持 Set（Set 進 Set 出）；否則用 `Array`。toggle 一律**整體取代**（`new Set(...)` / 新陣列），不深層 mutate（對齊 component-architecture 規範）。
 - **廣播**：`name` / `color` / `disabled` 經 provide 傳給子框；子框未指定時繼承，指定則覆寫。
 - **版面**：子框以 `flex-wrap` 橫向排列（`gap: 8px 16px`），可用 CSS 覆寫成直向。
-- **a11y**：子框容器標 `role="group"`，並接上 BaseFormField 的 `aria-describedby`（指向訊息區）；群組標籤、`aria-live` 訊息由 BaseFormField 提供。
+- **a11y**：子框容器標 `role="group"`，並接上 BaseFormField 的 `aria-describedby`（指向訊息區）；群組標籤、`aria-live` 訊息由 BaseFormField 提供。錯誤狀態（`error` prop 或驗證失敗）時，群組容器補 `aria-invalid="true"`（不只靠視覺色傳達），非錯誤時省略該屬性。
 
 ---
 
@@ -118,5 +118,5 @@ const rules: ValidationRule<string[] | Set<string>>[] = [
 
 ## 7. 測試與 Storybook
 
-- [x] **Vitest**：`tests/components/atoms/BaseCheckboxGroup.spec.ts`（slot 子框渲染、modelValue 反映子框勾選、勾選加入 / 取消移除、Set 容器維持、`disabled` / `color` 廣播、群組 rules「至少選一項」/ `validate()` / `reset()`、BaseFormField 標籤呈現、per-child color 覆寫）
+- [x] **Vitest**：`tests/components/atoms/BaseCheckboxGroup.spec.ts`（slot 子框渲染、modelValue 反映子框勾選、勾選加入 / 取消移除、Set 容器維持、`disabled` / `color` 廣播、群組 rules「至少選一項」/ `validate()` / `reset()`、BaseFormField 標籤呈現、**群組容器 `aria-invalid`（error / 驗證失敗時為 true、無錯誤時省略）**、per-child color 覆寫）
 - [x] **Storybook**：`stories/components/atoms/BaseCheckboxGroup.stories.ts`（Playground / SetModel / Disabled / Validation）
