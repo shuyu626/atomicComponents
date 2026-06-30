@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import BaseButton from '~/components/atoms/BaseButton.vue'
 import BaseLink from '~/components/atoms/BaseLink.vue'
@@ -242,9 +242,45 @@ describe('BaseButton', () => {
       expect(createWrapper({ ariaHaspopup: 'menu' }).attributes('aria-haspopup')).toBe('menu')
     })
 
-    // iconOnly 沒給 ariaLabel 的保護在 TS 編譯期由 BaseButtonIconA11yProps
-    // discriminated union 強制要求（`iconOnly: true` 必須提供 `ariaLabel`），
-    // 不在 runtime 噴 warn — 故無 runtime 測試。
+    // button/toggle 語意屬性（aria-pressed / aria-expanded / aria-haspopup）只在
+    // 委派成連結（BaseLink / <a>）時 *不* 輸出 —— 這些是 button 語意，不屬於 link。
+    it('does not set aria-pressed on link element', () => {
+      expect(createWrapper({ href: '/', ariaPressed: true }).attributes('aria-pressed')).toBeUndefined()
+    })
+
+    it('does not set aria-expanded on link element', () => {
+      expect(createWrapper({ href: '/', ariaExpanded: false }).attributes('aria-expanded')).toBeUndefined()
+    })
+
+    it('does not set aria-haspopup on link element', () => {
+      expect(createWrapper({ href: '/', ariaHaspopup: 'menu' }).attributes('aria-haspopup')).toBeUndefined()
+    })
+  })
+
+  // ── icon-only dev warning ──────────────────────────────────────────────────
+  describe('dev warning for icon-only without ariaLabel', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('warns when iconOnly is true without ariaLabel', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      createWrapper({ iconOnly: true })
+      expect(spy).toHaveBeenCalled()
+    })
+
+    it('does not warn when iconOnly is true with ariaLabel', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      createWrapper({ iconOnly: true, ariaLabel: 'Close' })
+      expect(spy).not.toHaveBeenCalled()
+    })
+
+    it('does not warn when iconOnly is false', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      createWrapper({ iconOnly: false })
+      createWrapper()
+      expect(spy).not.toHaveBeenCalled()
+    })
   })
 
   // ── Link behavior ────────────────────────────────────────────────────────

@@ -10,10 +10,10 @@
     :aria-disabled="!isNativeButton && isInactive ? true : undefined"
     :aria-busy="loading ? true : undefined"
     :aria-label="ariaLabel || undefined"
-    :aria-pressed="ariaPressed"
-    :aria-expanded="ariaExpanded"
+    :aria-pressed="isNativeButton ? ariaPressed : undefined"
+    :aria-expanded="isNativeButton ? ariaExpanded : undefined"
     :aria-controls="ariaControls || undefined"
-    :aria-haspopup="ariaHaspopup || undefined"
+    :aria-haspopup="isNativeButton ? (ariaHaspopup || undefined) : undefined"
     @click="handleClick"
   >
     <!-- 主要內容（loading 中 visibility: hidden 保留佔位，避免 layout shift） -->
@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watchEffect } from 'vue'
 import type { ButtonHTMLAttributes } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
 
@@ -173,6 +173,17 @@ function handleClick(event: MouseEvent): void {
     event.preventDefault()
     event.stopPropagation()
   }
+}
+
+// a11y：iconOnly 模式沒有可見文字，缺 `ariaLabel` 時 SR 只會報「button」，於開發期警告。
+if (import.meta.env.DEV) {
+  watchEffect(() => {
+    if (props.iconOnly && !props.ariaLabel) {
+      console.warn(
+        '[BaseButton] `iconOnly` 啟用時請提供 `ariaLabel`，否則螢幕報讀器只會讀出「button」。',
+      )
+    }
+  })
 }
 </script>
 

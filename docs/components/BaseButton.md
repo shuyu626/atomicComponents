@@ -1,6 +1,6 @@
 # Button 元件規範
 
-> **歸屬**:`Base*` 通用元件家族(`app/components/common/BaseButton.vue`)。
+> **歸屬**:`Base*` 通用元件家族(`app/components/atoms/BaseButton.vue`)。
 > **配套**:`docs/components/component-design-spec.md`(跨元件通用原則)。
 
 本文件是 Button 元件的完整規格,可作為其他通用元件撰寫時的範例藍本。
@@ -12,8 +12,8 @@
 | Prop | 型別 | 預設 | 為什麼必要 |
 |---|---|---|---|
 | `variant` | `'solid' \| 'outline' \| 'ghost' \| 'text' \| 'link'` | `'solid'` | 視覺結構。**不綁定顏色** |
-| `color` / `tone` | `'primary' \| 'neutral' \| 'danger' \| 'warning' \| 'success' \| 'info'` | `'primary'` | 語意顏色。獨立於 variant |
-| `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | `'md'` | 同時控制 padding / 字級 / icon / min-height |
+| `color` | `'primary' \| 'danger' \| 'success' \| 'warning' \| 'info' \| 'neutral'` | `'primary'` | 語意顏色。獨立於 variant |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | 同時控制 padding / 字級 / min-height |
 | `disabled` | `boolean` | `false` | 表單必備 |
 | `loading` | `boolean` | `false` | 非同步動作必備 |
 | `type` | `'button' \| 'submit' \| 'reset'` | `'button'` | 預設安全值,避免意外提交 |
@@ -34,15 +34,14 @@
 | `aria-pressed` | `boolean` | toggle(收藏 / 點讚 / 暗黑模式) |
 | `aria-expanded` | `boolean` | popup / menu trigger |
 | `aria-controls` | `string` | 配合 `aria-expanded` |
-| `aria-haspopup` | `'menu' \| 'listbox' \| 'dialog' \| ...` | popup 類型提示 |
-| `as` / `tag` | `string \| Component` | polymorphic 逃生口(整合 headless-ui 等) |
+| `aria-haspopup` | `'menu' \| 'listbox' \| 'dialog' \| 'tree' \| 'grid' \| 'true'` | popup 類型提示 |
 | `rounded` | `'none' \| 'sm' \| 'md' \| 'lg' \| 'full'` | 覆寫預設圓角 |
-| `elevated` | `boolean` | FAB / 浮動按鈕 shadow |
-| `replace` | `boolean` | 路由 replace 而非 push |
-| `prefetch` | `boolean` | 覆寫 link prefetch 預設 |
-| `download` | `string \| boolean` | 配合 `href` 觸發下載 |
-| `form` | `string` | 跨 DOM tree 觸發指定 form 提交 |
-| `name` / `value` | `string` | 同 form 多 submit 區分 |
+
+> **非宣告式 prop(透傳)**:以下不是 BaseButton 宣告的 prop,而是透過 Vue fallthrough attributes 落到底層元素 / 元件,功能由該層提供:
+> - `download` / `form` / `name` / `value` —— 渲染為原生 `<button>`(或 `<a>`)時透傳的**原生 attr**(`form` 跨 DOM 觸發提交、`name`/`value` 區分同 form 多 submit、`download` 配合連結觸發下載)。
+> - `replace` / `prefetch` —— 有 `to` / `href` 時委派 `BaseLink`(NuxtLink / RouterLink)的 **prop**,透傳生效。
+>
+> 元件**未支援** polymorphic `as` / `tag`(整合 headless-ui 等),也**沒有** `elevated`(FAB shadow)prop。FAB 陰影請以 class / `--btn-*` token 自訂;根元素只在「有 `to`/`href` → BaseLink」與「否則 → 原生 `<button>`」兩者間自動切換。
 
 ---
 
@@ -54,7 +53,6 @@
 | `prepend` | 前綴(icon / badge) | 跟 `append` 命名成對 |
 | `append` | 後綴 | 同上 |
 | `loading` | 自訂 spinner | 預設 spinner 不一定合品牌 |
-| `icon` | icon-only 模式專用 | `shape="square" iconOnly` 時用,語意更清楚 |
 
 ---
 
@@ -62,18 +60,20 @@
 
 | 行為 | 實作 |
 |---|---|
-| disabled 點擊保護 | `@click` 內 `e.preventDefault(); e.stopImmediatePropagation()` + CSS `pointer-events: none` |
+| disabled 點擊保護 | `@click` 內 `e.preventDefault(); e.stopPropagation()` + CSS `pointer-events: none`。**用 `stopPropagation` 而非 `stopImmediatePropagation`** —— 後者會吃掉同一 element 上 `v-on="$attrs"` 透傳的 handler |
 | loading 視為 disabled | 同時 disable click + 加 `aria-busy="true"` |
 | Loading 保留寬度 | spinner `position: absolute` 覆蓋,內容用 `visibility: hidden` 保留 layout |
 | `target="_blank"` 安全預設 | 自動補 `rel="noopener noreferrer"`(caller 可顯式覆寫) |
 | `<a>` 模式的 disabled | 設 `aria-disabled="true"` + `tabindex="-1"` + `pointer-events:none` |
 | Focus 樣式 | `:focus-visible` ring,非 `:focus` |
 | 鍵盤行為 | `<button>` 原生 Enter / Space;`<a role="button">` 要補 Space |
-| 觸控目標 | 每個 size 都 ≥ 44 × 44px(`xs` 桌機可小、手機加 padding) |
+| 觸控目標 | 粗指標裝置(`@media (pointer: coarse)`)下 ≥ 44 × 44px;`sm` 桌機保持 28px 視覺(避開密集排版),手機改用透明 hit-area pseudo 擴大觸控區到 44 × 44(WCAG 2.5.5) |
 | Icon 間距 | 用 `gap` 而非 margin(RTL 友善) |
 | Reduced motion | spinner / transition 包 `@media (prefers-reduced-motion: reduce)` |
 | 透傳 attrs | 預設 fallthrough 即可;`data-testid` / `class` / `@click` 全部要能透過 |
 | Click 事件 | **不要 `emit('click')`**,讓 `@click` 透過 attrs fallthrough。`onClick` 只負責 disabled 攔截 |
+| toggle / popup a11y | `aria-pressed` / `aria-expanded` / `aria-haspopup` **僅在渲染為原生 `<button>`** 時輸出;委派成連結(BaseLink / `<a>`,即有 `to` / `href`)時不輸出 |
+| icon-only 警告 | `iconOnly` 為 `true` 但未提供 `ariaLabel` 時,於 **dev 環境 `console.warn`** 提醒(避免 SR 只報「button」) |
 
 ---
 
@@ -85,8 +85,8 @@
 | loading 中 | `aria-busy="true"` |
 | disabled 在 `<button>` | `disabled` attribute |
 | disabled 在 `<a>` | `aria-disabled="true"` + `tabindex="-1"` + `pointer-events:none` |
-| toggle | `aria-pressed="true/false"` |
-| menu trigger | `aria-haspopup` + `aria-expanded` |
+| toggle | `aria-pressed="true/false"`(僅原生 `<button>` 輸出,委派連結時不輸出) |
+| menu trigger | `aria-haspopup` + `aria-expanded`(僅原生 `<button>` 輸出,委派連結時不輸出) |
 | 顏色傳達狀態 | 同步配 icon 或文字(色盲友善) |
 | 對比度 | 文字對背景 ≥ 4.5 : 1 |
 | Focus indicator | 不可 `outline: none` 無備案 |
@@ -130,10 +130,10 @@
 | 收藏 toggle | `:aria-pressed="favorited"` |
 | Modal footer 觸發外部 form | `type="submit" :form="formId"` |
 | 下載檔案 | `href="/file.pdf" download` |
-| FAB 浮動按鈕 | `shape="circle" elevated size="lg"` |
+| FAB 浮動按鈕 | `shape="circle" size="lg"`(陰影用 class / `--btn-*` token 自訂;**無 `elevated` prop**) |
 | Pagination 上下頁 | `iconOnly variant="ghost" aria-label="Previous"` |
 | Segmented control 單顆 | `variant="ghost" :aria-pressed` |
-| 整合 headless-ui MenuButton | `:as="MenuButton"` |
+| ~~整合 headless-ui MenuButton~~ | **未支援** polymorphic `:as` / `:tag` |
 
 ---
 
