@@ -34,6 +34,7 @@ const meta = {
     },
     duration: { control: { type: 'number' }, description: '自動消失 ms / timeout（0 = 常駐）' },
     closable: { control: { type: 'boolean' }, description: '是否顯示關閉鈕' },
+    closeLabel: { control: { type: 'text' }, description: '關閉鈕 aria-label（多語系可覆寫，預設「關閉通知」）' },
     progress: { control: { type: 'boolean' }, description: '是否顯示倒數進度條' },
   },
 }

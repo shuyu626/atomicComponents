@@ -148,8 +148,10 @@ const manager = createToastManager({ max: 3, placement: 'bottom-end' })
 ## 5. 無障礙（a11y）
 
 - **角色與播報**：`error` / `warning` → `role="alert"` + `aria-live="assertive"`（即時打斷）；`success` / `info` → `role="status"` + `aria-live="polite"`（等空檔）。皆 `aria-atomic="true"`，確保整段重念。
+- **持久 live region（容器佇列模式）**：`BaseToastContainer` 內建一組**常駐**的 `polite` / `assertive` live region（`role=status` / `role=alert` + `aria-atomic="true"`），永遠存在於 DOM。新 toast 出現時把訊息文字（`title` + `message`）依 `type` 注入對應層級朗讀。原因：部分螢幕閱讀器只朗讀「先存在、後填入」的 live region，整塊 `role=status/alert` 動態插入時會被略過。為避免「視覺 toast + 容器 announcer」重複播報，容器渲染的 toast 一律帶 `presentational`（見下）移除自身 live 語意，但保留視覺與關閉鈕互動。
+- **`presentational` prop**：宣告式單獨使用 `<BaseToast>` 時**不需設定**（預設 `false`，維持自身 `role` / `aria-live` / `aria-atomic`）；僅 `BaseToastContainer` 佇列渲染時自動設為 `true`，把朗讀責任交給容器的持久 live region。
 - **暫停閱讀**：hover / focus 進入 toast 會暫停自動消失，避免使用者還在讀就被抽走。
-- **關閉按鈕**：`<button>` 帶 `aria-label="關閉通知"`，可鍵盤聚焦觸發。
+- **關閉按鈕**：`<button>` 帶 `aria-label`（預設「關閉通知」，可用 `closeLabel` prop 覆寫供多語系），可鍵盤聚焦觸發。
 - **減少動態**：`prefers-reduced-motion: reduce` 時關閉進出場與補位動畫。
 - **常駐重大訊息**：需使用者確認的錯誤建議 `duration: 0`，避免讀屏使用者來不及聽完。
 
@@ -194,7 +196,9 @@ const manager = createToastManager({ max: 3, placement: 'bottom-end' })
 - [ ] hover / focus 時暫停計時，移開續跑剩餘時間
 - [ ] 超過 `max` 時最舊的被擠掉
 - [ ] 6 種 placement 定位正確且各自獨立堆疊
-- [ ] error / warning 為 `role="alert"`，其餘為 `role="status"`
+- [ ] error / warning 為 `role="alert"`，其餘為 `role="status"`（單獨使用 `<BaseToast>` 時）
+- [ ] 容器有常駐的 polite / assertive live region，新 toast 訊息依 type 注入正確層級
+- [ ] 容器佇列渲染的 toast 帶 `presentational`（無自身 live 語意，避免重複播報），關閉鈕仍可操作
 - [ ] `prefers-reduced-motion` 下無動畫
 - [ ] 關閉按鈕可鍵盤操作、`onClose` 在各移除途徑皆觸發
 ```

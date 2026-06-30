@@ -22,6 +22,7 @@ const meta = {
   argTypes: {
     title: { control: { type: 'text' }, description: '標題列文字（接 aria-labelledby）' },
     ariaLabel: { control: { type: 'text' }, description: '無 title 時用作 aria-label' },
+    closeLabel: { control: { type: 'text' }, description: '關閉鈕 aria-label（多語系可覆寫，預設「關閉」）' },
     width: { control: { type: 'text' }, description: '面板寬度（數字補 px，字串原樣）' },
     fullscreen: { control: { type: 'boolean' }, description: '全螢幕模式' },
     draggable: { control: { type: 'boolean' }, description: '可拖曳移動（拖四邊）' },

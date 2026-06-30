@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { h, nextTick } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import type { VNode } from 'vue'
@@ -11,6 +11,8 @@ interface MountOptions {
   modelValue?: boolean
   title?: string
   ariaLabel?: string
+  closeLabel?: string
+  beforeClose?: (done: () => void) => void
   hideBackdrop?: boolean
   hideCloseButton?: boolean
   closeOnBackdrop?: boolean
@@ -133,6 +135,26 @@ describe('BaseModal', () => {
       )
       expect(panelEl()!.querySelector('.my-header')).toBeTruthy()
       expect(panelEl()!.querySelector('.my-footer')).toBeTruthy()
+    })
+
+    it('links the body via aria-describedby', () => {
+      track(mountModal({ title: 'x' }))
+      const panel = panelEl()!
+      const body = panel.querySelector('.base-modal__body') as HTMLElement
+      expect(body.id).toBeTruthy()
+      expect(panel.getAttribute('aria-describedby')).toBe(body.id)
+    })
+
+    it('defaults the close button aria-label to 關閉', () => {
+      track(mountModal())
+      const closeBtn = panelEl()!.querySelector('.base-modal__close') as HTMLElement
+      expect(closeBtn.getAttribute('aria-label')).toBe('關閉')
+    })
+
+    it('overrides the close button aria-label via closeLabel', () => {
+      track(mountModal({ closeLabel: 'Close' }))
+      const closeBtn = panelEl()!.querySelector('.base-modal__close') as HTMLElement
+      expect(closeBtn.getAttribute('aria-label')).toBe('Close')
     })
   })
 
@@ -281,6 +303,89 @@ describe('BaseModal', () => {
       await flushPromises()
       await nextTick()
       expect(panelEl()!.contains(document.activeElement)).toBe(true)
+    })
+  })
+
+  // ── beforeClose hook (對齊 BaseDrawer) ──────────────────────────────────────────
+  describe('beforeClose', () => {
+    it('intercepts the close button: calls beforeClose, does not close yet', async () => {
+      const beforeClose = vi.fn()
+      const wrapper = track(mountModal({ beforeClose }))
+      const closeBtn = panelEl()!.querySelector('.base-modal__close') as HTMLElement
+      closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(beforeClose).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy()
+    })
+
+    it('closes only after beforeClose invokes done()', async () => {
+      const beforeClose = vi.fn((done: () => void) => done())
+      const wrapper = track(mountModal({ beforeClose }))
+      const closeBtn = panelEl()!.querySelector('.base-modal__close') as HTMLElement
+      closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false])
+    })
+
+    it('gates the Esc close path through beforeClose', async () => {
+      const beforeClose = vi.fn()
+      const wrapper = track(mountModal({ beforeClose }))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(beforeClose).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy()
+    })
+
+    it('does not run beforeClose on programmatic (v-model) close', async () => {
+      const beforeClose = vi.fn()
+      const wrapper = track(mountModal({ beforeClose }))
+      await wrapper.setProps({ modelValue: false })
+      await flushPromises()
+      expect(beforeClose).not.toHaveBeenCalled()
+    })
+  })
+
+  // ── 生命週期事件 (對齊 BaseDrawer) ──────────────────────────────────────────────
+  // open / close（動畫「前」）由 watch(open) 發出，不依賴 transition；掛載即開啟者另由
+  // onMounted 補發 open。opened（動畫「後」）由 <Transition> after-hook 發出，需真實 transition。
+  describe('lifecycle events', () => {
+    const mountReal = (modelValue: boolean) =>
+      mount(BaseModal, {
+        props: { modelValue },
+        slots: { default: defaultContent } as never,
+        attachTo: document.body,
+        global: { stubs: { transition: false } },
+      })
+
+    it('emits open when it starts opening', async () => {
+      const wrapper = track(mountModal({ modelValue: false }))
+      await wrapper.setProps({ modelValue: true })
+      expect(wrapper.emitted('open')).toHaveLength(1)
+    })
+
+    it('emits close when it starts closing', async () => {
+      const wrapper = track(mountModal({ modelValue: true }))
+      await wrapper.setProps({ modelValue: false })
+      expect(wrapper.emitted('close')).toHaveLength(1)
+    })
+
+    it('emits open on mount when already open (no opened-without-open asymmetry)', () => {
+      const wrapper = track(mountModal({ modelValue: true }))
+      expect(wrapper.emitted('open')).toHaveLength(1)
+    })
+
+    it('emits opened after the open transition finishes', async () => {
+      vi.useFakeTimers()
+      try {
+        const wrapper = mountReal(false)
+        active = wrapper
+        await wrapper.setProps({ modelValue: true })
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(wrapper.emitted('opened')).toBeTruthy()
+      }
+      finally {
+        vi.useRealTimers()
+      }
     })
   })
 })

@@ -49,7 +49,7 @@
               v-if="!hideCloseButton"
               type="button"
               class="base-dialog__close"
-              aria-label="關閉"
+              :aria-label="closeLabel"
               @click="close"
               @pointerdown.stop
             >
@@ -114,6 +114,8 @@ interface BaseDialogProps {
    * 避免螢幕閱讀器念出「未命名對話框」。有標題時以 `aria-labelledby` 為準、此值忽略。
    */
   ariaLabel?: string
+  /** 關閉鈕的無障礙名稱（`aria-label`）。多語系專案可覆寫。 @default '關閉' */
+  closeLabel?: string
   /** 面板寬度。數字補 `px`，字串原樣（如 `'60%'`）；`fullscreen` 時忽略。 @default 640 */
   width?: number | string
   /** 全螢幕模式（撐滿視窗、不可拖曳、預設顯示關閉鈕作為關閉入口）。 @default false */
@@ -141,6 +143,7 @@ interface BaseDialogProps {
 const props = withDefaults(defineProps<BaseDialogProps>(), {
   title: undefined,
   ariaLabel: undefined,
+  closeLabel: '關閉',
   width: 640,
   fullscreen: false,
   draggable: false,

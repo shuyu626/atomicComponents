@@ -28,6 +28,11 @@ const meta = {
       control: { type: 'text' },
       description: '無 title 時用作 aria-label（對話框無障礙名稱）',
     },
+    closeLabel: {
+      control: { type: 'text' },
+      description: '關閉鈕 aria-label（多語系可覆寫，預設「關閉」）',
+    },
+    beforeClose: { control: false, description: '關閉前攔截 (done) => void' },
     hideBackdrop: {
       control: { type: 'boolean' },
       description: '隱藏半透明遮罩（仍可點外部關閉）',
@@ -49,6 +54,10 @@ const meta = {
       description: '開啟時是否鎖定背景捲動',
     },
     modelValue: { control: false, description: '開關狀態（v-model）' },
+    onOpen: { action: 'open', description: '開始開啟（進場前）' },
+    onOpened: { action: 'opened', description: '開啟完成（進場後）' },
+    onClose: { action: 'close', description: '開始關閉（離場前）' },
+    onClosed: { action: 'closed', description: '關閉完成（離場後）' },
   },
 }
 
@@ -268,6 +277,32 @@ export const NoBackdrop: Story = {
         <button :style="BTN" @click="open = true">開啟（無遮罩）</button>
         <BaseModal v-model="open" title="無遮罩對話框" hide-backdrop>
           <p style="margin:0;color:#374151">沒有半透明遮罩，但點擊面板外部仍會關閉。</p>
+        </BaseModal>
+      </div>
+    `,
+  }),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BeforeClose —— 關閉前攔截確認（對齊 BaseDrawer / Element Plus 風格）
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const BeforeClose: Story = {
+  render: () => ({
+    components: { BaseModal },
+    setup() {
+      const open = ref(false)
+      // 回傳一個 beforeClose：跳出原生 confirm，確認後才呼叫 done() 真正關閉。
+      const beforeClose = (done: () => void) => {
+        if (window.confirm('表單尚未儲存，確定要關閉嗎？')) done()
+      }
+      return { open, beforeClose, BTN }
+    },
+    template: `
+      <div style="padding:40px;font-family:system-ui">
+        <button :style="BTN" @click="open = true">開啟（關閉需確認）</button>
+        <BaseModal v-model="open" title="編輯中" :before-close="beforeClose">
+          <p style="margin:0;color:#374151">試著按 Esc、點遮罩或關閉鈕 —— 都會先跳確認框，按確定才關閉。</p>
         </BaseModal>
       </div>
     `,

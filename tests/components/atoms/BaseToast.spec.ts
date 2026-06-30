@@ -13,7 +13,9 @@ interface MountOptions {
   type?: ToastType
   duration?: number
   closable?: boolean
+  closeLabel?: string
   progress?: boolean
+  presentational?: boolean
   slots?: Record<string, unknown>
 }
 
@@ -119,6 +121,15 @@ describe('BaseToast', () => {
 
       expect(mountToast({ type: 'success' }).attributes('role')).toBe('status')
     })
+
+    it('presentational=true 移除 live 語意（role / aria-live / aria-atomic）但保留視覺與關閉鈕', () => {
+      const wrapper = mountToast({ type: 'error', presentational: true })
+      expect(wrapper.attributes('role')).toBeUndefined()
+      expect(wrapper.attributes('aria-live')).toBeUndefined()
+      expect(wrapper.attributes('aria-atomic')).toBeUndefined()
+      // 關閉鈕仍可互動
+      expect(wrapper.find('.base-toast__close').exists()).toBe(true)
+    })
   })
 
   describe('關閉按鈕', () => {
@@ -134,6 +145,16 @@ describe('BaseToast', () => {
     it('closable=false 不渲染關閉按鈕', () => {
       const wrapper = mountToast({ closable: false })
       expect(wrapper.find('.base-toast__close').exists()).toBe(false)
+    })
+
+    it('關閉鈕 aria-label 預設為「關閉通知」', () => {
+      const wrapper = mountToast()
+      expect(wrapper.find('.base-toast__close').attributes('aria-label')).toBe('關閉通知')
+    })
+
+    it('可透過 closeLabel 覆寫關閉鈕 aria-label', () => {
+      const wrapper = mountToast({ closeLabel: 'Dismiss' })
+      expect(wrapper.find('.base-toast__close').attributes('aria-label')).toBe('Dismiss')
     })
   })
 

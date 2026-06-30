@@ -39,6 +39,7 @@ BaseDrawer 是「**側邊抽屜（slide-over panel）**」元件。它與 [`Base
 |---|---|---|---|
 | `title` | `string` | — | 標題文字。設定後渲染標題列並接 `aria-labelledby` |
 | `ariaLabel` | `string` | — | 無 `title` 也無 `#title` slot 時用作 `aria-label`（避免無名對話框） |
+| `closeLabel` | `string` | `'關閉'` | 關閉鈕的無障礙名稱（`aria-label`）。多語系專案可覆寫 |
 | `anchor` | `'top' \| 'right' \| 'bottom' \| 'left'` | `'right'` | 停靠邊緣，決定滑入方向與版型 |
 | `size` | `number \| string` | `320` | 寬（左 / 右）或高（上 / 下）。數字補 `px`（經 `toUnit`），字串原樣（如 `'50%'`、`'30rem'`） |
 | `image` | `string` | — | 背景圖片網址（純裝飾，墊在內容後方）。更複雜的背景改用 `#image` slot |
@@ -237,7 +238,7 @@ function beforeClose(done: () => void) {
 |---|---|
 | 面板 | `role="dialog"`、`aria-modal="true"`、`tabindex="-1"`、`id`（`useId()`） |
 | 無障礙名稱 | 有 `title` 或 `#title` → `aria-labelledby` 指向標題；皆無 → 用 `ariaLabel` 當 `aria-label`。三者皆無會念「未命名對話框」 |
-| 關閉鈕 | `aria-label="關閉"`，`&times;` 圖示 `aria-hidden` |
+| 關閉鈕 | `aria-label`（預設「關閉」，可用 `closeLabel` 覆寫供多語系），`&times;` 圖示 `aria-hidden` |
 | 遮罩 / 背景圖層 | `aria-hidden="true"`（純視覺，不進無障礙樹）；背景圖 `alt=""` |
 | 鍵盤 | Esc 關閉（最上層）；focus-trap 鎖 Tab，關閉還焦給觸發元素 |
 | 焦點 | 開啟即移入抽屜；關閉還焦 |

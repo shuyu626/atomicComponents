@@ -4,7 +4,13 @@
       用單一 <Transition> 包整個 overlay：open=false 時播完 leave 動畫才由 v-if 卸載，
       不需額外的「延遲卸載」本地狀態。backdrop 與 panel 各自有 CSS 進出場效果。
     -->
-    <Transition appear name="base-modal">
+    <Transition
+      appear
+      name="base-modal"
+      @after-enter="emit('opened')"
+      @after-appear="emit('opened')"
+      @after-leave="emit('closed')"
+    >
       <div
         v-if="open"
         class="base-modal"
@@ -27,12 +33,13 @@
           tabindex="-1"
           :aria-labelledby="title ? titleId : undefined"
           :aria-label="!title ? ariaLabel : undefined"
+          :aria-describedby="bodyId"
         >
           <button
             v-if="!hideCloseButton"
             type="button"
             class="base-modal__close"
-            aria-label="關閉"
+            :aria-label="closeLabel"
             @click="close"
           >
             <span aria-hidden="true">&times;</span>
@@ -45,7 +52,7 @@
             </slot>
           </header>
 
-          <div class="base-modal__body">
+          <div :id="bodyId" class="base-modal__body">
             <slot :close="close" />
           </div>
 
@@ -59,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { useId, useTemplateRef } from 'vue'
+import { computed, onMounted, useId, useTemplateRef, watch } from 'vue'
 
 import { useOverlay } from '~/composables/useOverlay'
 
@@ -71,6 +78,14 @@ interface BaseModalProps {
    * 避免螢幕閱讀器念出「未命名對話框」。有 `title` 時以 `aria-labelledby` 為準、此值忽略。
    */
   ariaLabel?: string
+  /** 關閉鈕的無障礙名稱（`aria-label`）。多語系專案可覆寫。 @default '關閉' */
+  closeLabel?: string
+  /**
+   * 關閉前攔截。提供時，所有關閉入口（Esc / 點外部 / 關閉鈕 / slot `close()`）都會先
+   * 呼叫它並暫不關閉；需在內部呼叫 `done()` 才真正關閉。適合「未儲存，確定離開？」確認流程。
+   * 透過 `v-model` 由父層直接改值（程式化關閉）不會觸發。
+   */
+  beforeClose?: (done: () => void) => void
   /** 隱藏半透明遮罩（仍保留點擊外部關閉的行為）。 @default false */
   hideBackdrop?: boolean
   /** 隱藏右上角的關閉按鈕。 @default false */
@@ -86,6 +101,8 @@ interface BaseModalProps {
 const props = withDefaults(defineProps<BaseModalProps>(), {
   title: undefined,
   ariaLabel: undefined,
+  closeLabel: '關閉',
+  beforeClose: undefined,
   hideBackdrop: false,
   hideCloseButton: false,
   closeOnBackdrop: true,
@@ -96,9 +113,55 @@ const props = withDefaults(defineProps<BaseModalProps>(), {
 // 父層綁 v-model => 受控;沒綁 => 內部狀態（預設關閉）。
 const open = defineModel<boolean>({ default: false })
 
+const emit = defineEmits<{
+  /** 開始開啟（進場動畫前）。 */
+  open: []
+  /** 開啟完成（進場動畫後）。 */
+  opened: []
+  /** 開始關閉（離場動畫前）。 */
+  close: []
+  /** 關閉完成（離場動畫後）。 */
+  closed: []
+}>()
+
+/**
+ * 關閉時統一經此把關：有 `beforeClose` 則交由它決定何時呼叫 `done()`，否則直接關閉。
+ * 開啟方向不攔截。所有「使用者觸發」的關閉路徑（Esc / 點外部 / 關閉鈕 / slot close）皆寫入
+ * 此 ref，因此都會過 `beforeClose`；父層透過 `v-model` 直接改 `open` 屬於程式化關閉、不經此。
+ */
+const guardedOpen = computed<boolean>({
+  get: () => open.value,
+  set(value) {
+    if (value) {
+      open.value = true
+      return
+    }
+    if (props.beforeClose) {
+      props.beforeClose(() => {
+        open.value = false
+      })
+    }
+    else {
+      open.value = false
+    }
+  },
+})
+
 function close() {
-  open.value = false
+  guardedOpen.value = false
 }
+
+// 生命週期事件（對齊 BaseDrawer）：
+// - open / close（動畫「前」）：watch 預設 flush:'pre'，在 DOM 更新與動畫開始前發出。
+//   掛載時即為開啟者 watch 不會觸發，故 onMounted 補發 open（修正 appear 只發 opened 的不對稱）。
+// - opened / closed（動畫「後」）：由 <Transition> 的 after-enter / after-leave hook 發出。
+watch(open, (value) => {
+  emit(value ? 'open' : 'close')
+})
+
+onMounted(() => {
+  if (open.value) emit('open')
+})
 
 defineSlots<{
   /** 對話框主體內容。slot props 提供 `close()`。 */
@@ -111,12 +174,14 @@ defineSlots<{
 
 const id = useId()
 const titleId = `${id}-title`
+const bodyId = `${id}-body`
 
 const panelRef = useTemplateRef<HTMLElement>('panelRef')
 
 // 浮層共用行為（focus-trap / Esc / 點外部關閉 / scroll-lock / 堆疊 / 遮罩渲染）
 // 抽到 useOverlay，與 BaseDialog 共用同一套堆疊與 focus-trap 堆疊。
-const { showBackdrop, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, open, {
+// 傳入 guardedOpen：useOverlay 內部關閉（Esc / 點外部）也會過 beforeClose 把關。
+const { showBackdrop, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, guardedOpen, {
   closeOnEscape: () => props.closeOnEscape,
   closeOnBackdrop: () => props.closeOnBackdrop,
   lockScroll: () => props.lockScroll,

@@ -4,7 +4,7 @@
     :class="`base-toast--${type}`"
     :role="role"
     :aria-live="ariaLive"
-    aria-atomic="true"
+    :aria-atomic="ariaAtomic"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
     @focusin="onFocusIn"
@@ -47,7 +47,7 @@
       v-if="closable"
       type="button"
       class="base-toast__close"
-      aria-label="關閉通知"
+      :aria-label="closeLabel"
       @click="onClose"
     >
       <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -83,8 +83,17 @@ interface BaseToastProps {
   duration?: number
   /** 是否顯示關閉按鈕。 @default true */
   closable?: boolean
+  /** 關閉鈕的無障礙名稱（`aria-label`）。多語系專案可覆寫。 @default '關閉通知' */
+  closeLabel?: string
   /** 是否在底部顯示倒數進度條（`duration: 0` 時自動不顯示）。 @default false */
   progress?: boolean
+  /**
+   * 設為 `true` 時移除自身的 live region 語意（`role` / `aria-live` / `aria-atomic`），
+   * 但保留視覺與互動（關閉鈕仍可聚焦）。`BaseToastContainer` 佇列渲染時會啟用，
+   * 改由容器的持久 live region 統一朗讀，避免「視覺 toast + 容器 announcer」重複播報。
+   * @default false
+   */
+  presentational?: boolean
 }
 
 const props = withDefaults(defineProps<BaseToastProps>(), {
@@ -93,7 +102,9 @@ const props = withDefaults(defineProps<BaseToastProps>(), {
   type: 'info',
   duration: 3000,
   closable: true,
+  closeLabel: '關閉通知',
   progress: false,
+  presentational: false,
 })
 
 const emit = defineEmits<{
@@ -123,8 +134,18 @@ const iconPath = computed(() => ICON_PATHS[props.type])
 
 // error / warning 屬即時且重要 → role="alert"（隱含 assertive）打斷播報；
 // success / info 屬一般提示 → role="status"（隱含 polite）等空檔再播。
-const role = computed(() => (props.type === 'error' || props.type === 'warning' ? 'alert' : 'status'))
-const ariaLive = computed(() => (role.value === 'alert' ? 'assertive' : 'polite'))
+// presentational 模式下移除全部 live 語意,交給容器的持久 live region 統一朗讀。
+const role = computed(() =>
+  props.presentational
+    ? undefined
+    : props.type === 'error' || props.type === 'warning'
+      ? 'alert'
+      : 'status',
+)
+const ariaLive = computed(() =>
+  props.presentational ? undefined : role.value === 'alert' ? 'assertive' : 'polite',
+)
+const ariaAtomic = computed(() => (props.presentational ? undefined : 'true'))
 
 // 進度條只在「要求顯示且有倒數」時出現。
 const showProgress = computed(() => props.progress && props.duration > 0)

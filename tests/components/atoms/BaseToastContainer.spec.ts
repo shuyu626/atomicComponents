@@ -28,6 +28,11 @@ function toastEls(): HTMLElement[] {
   return Array.from(document.body.querySelectorAll('.base-toast'))
 }
 
+/** 取得持久 live region 中對應層級的節點。 */
+function liveRegion(level: 'polite' | 'assertive'): HTMLElement | null {
+  return document.body.querySelector(`.base-toast-live-region [aria-live="${level}"]`)
+}
+
 beforeEach(() => {
   // 計時器停用，避免自動消失干擾「渲染 / 移除」的判定。
   manager = createToastManager()
@@ -37,6 +42,7 @@ afterEach(() => {
   wrapper?.unmount()
   wrapper = null
   document.body.querySelectorAll('.base-toast-container').forEach(el => el.remove())
+  document.body.querySelectorAll('.base-toast-live-region').forEach(el => el.remove())
 })
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -112,5 +118,55 @@ describe('BaseToastContainer', () => {
 
     expect(manager.toasts).toHaveLength(0)
     vi.useRealTimers()
+  })
+
+  // ── 持久 live region（a11y）────────────────────────────────────────────────
+  describe('持久 live region', () => {
+    it('佇列為空時 polite / assertive 兩個區域即已存在且為空', () => {
+      mountContainer()
+      expect(liveRegion('polite')).not.toBeNull()
+      expect(liveRegion('assertive')).not.toBeNull()
+      expect(liveRegion('polite')!.textContent).toBe('')
+      expect(liveRegion('assertive')!.textContent).toBe('')
+    })
+
+    it('info / success 訊息注入 polite 區，不進 assertive', async () => {
+      mountContainer()
+      manager.show({ message: '已儲存', type: 'success', duration: 0 })
+      await nextTick()
+
+      expect(liveRegion('polite')!.textContent).toContain('已儲存')
+      expect(liveRegion('assertive')!.textContent).toBe('')
+    })
+
+    it('error / warning 訊息注入 assertive 區，不進 polite', async () => {
+      mountContainer()
+      manager.show({ message: '發生錯誤', type: 'error', duration: 0 })
+      await nextTick()
+
+      expect(liveRegion('assertive')!.textContent).toContain('發生錯誤')
+      expect(liveRegion('polite')!.textContent).toBe('')
+    })
+
+    it('注入文字含 title 與 message', async () => {
+      mountContainer()
+      manager.show({ title: '提示', message: '內容', type: 'info', duration: 0 })
+      await nextTick()
+
+      const text = liveRegion('polite')!.textContent ?? ''
+      expect(text).toContain('提示')
+      expect(text).toContain('內容')
+    })
+
+    it('佇列渲染的 toast 為 presentational（移除自身 role / aria-live）', async () => {
+      mountContainer()
+      manager.show({ message: 'a', type: 'error', duration: 0 })
+      await nextTick()
+
+      const toast = document.body.querySelector('.base-toast')!
+      expect(toast.getAttribute('role')).toBeNull()
+      expect(toast.getAttribute('aria-live')).toBeNull()
+      expect(toast.getAttribute('aria-atomic')).toBeNull()
+    })
   })
 })

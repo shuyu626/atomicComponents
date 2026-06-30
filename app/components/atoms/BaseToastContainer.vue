@@ -1,6 +1,18 @@
 <template>
   <Teleport to="body">
     <!--
+      持久 live region:永遠存在於 DOM(先於訊息插入),再把文字塞進來。
+      部分螢幕閱讀器只朗讀「先存在、後填入」的 live region,整塊動態插入的
+      role=status/alert 會被略過,故獨立出這個常駐 announcer 統一朗讀。
+      polite / assertive 兩個層級分流:error / warning 走 assertive(立即打斷),
+      其餘走 polite(等空檔)。視覺 toast 改 presentational(無 live 語意),避免重複播報。
+    -->
+    <div class="base-toast-live-region" aria-atomic="true">
+      <div role="status" aria-live="polite" aria-atomic="true">{{ politeMessage }}</div>
+      <div role="alert" aria-live="assertive" aria-atomic="true">{{ assertiveMessage }}</div>
+    </div>
+
+    <!--
       每個有 toast 的 placement 各渲染一個固定區塊，彼此獨立堆疊。
       只在「該角落真的有 toast」時渲染區塊，避免空的 fixed 元素佔位攔截點擊。
     -->
@@ -14,6 +26,7 @@
         <BaseToast
           v-for="item in group.items"
           :key="item.id"
+          presentational
           :message="item.message"
           :title="item.title"
           :type="item.type"
@@ -28,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import BaseToast from '~/components/atoms/BaseToast.vue'
 import { useToast } from '~/composables/useToast'
@@ -73,9 +86,55 @@ const groups = computed<ToastGroup[]>(() =>
     }))
     .filter(group => group.items.length > 0),
 )
+
+// ── 持久 live region 文字注入 ────────────────────────────────────────────────
+// 兩個層級各持有一段文字;新 toast 出現時依 type 把訊息寫進對應層級,
+// 觸發常駐 announcer 朗讀(視覺 toast 已 presentational,不重複播報)。
+const politeMessage = ref('')
+const assertiveMessage = ref('')
+
+// 已朗讀過的 id,避免同一筆因重渲 / 其他 toast 增減被重複播報;
+// 並在離開佇列後清除,防止 Set 無限成長。
+const announced = new Set<string>()
+
+watch(
+  () => manager.toasts.map(toast => toast.id),
+  () => {
+    for (const toast of manager.toasts) {
+      if (announced.has(toast.id)) continue
+      announced.add(toast.id)
+      const text = [toast.title, toast.message].filter(Boolean).join(' ')
+      if (toast.type === 'error' || toast.type === 'warning') {
+        assertiveMessage.value = text
+      }
+      else {
+        politeMessage.value = text
+      }
+    }
+    const liveIds = new Set(manager.toasts.map(toast => toast.id))
+    for (const id of announced) {
+      if (!liveIds.has(id)) announced.delete(id)
+    }
+  },
+)
 </script>
 
 <style scoped lang="scss">
+// 持久 live region:視覺隱藏但保留在 a11y tree,僅供螢幕閱讀器朗讀。
+.base-toast-live-region {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  border: 0;
+  pointer-events: none;
+}
+
 .base-toast-container {
   position: fixed;
   z-index: var(--toast-z, 1200);

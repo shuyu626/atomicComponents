@@ -35,9 +35,10 @@ BaseDialog 是「**可拖曳 / 全螢幕對話框**」元件。它與 [`BaseModa
 |---|---|---|---|
 | `title` | `string` | — | 標題文字。設定後渲染標題列並接 `aria-labelledby` |
 | `ariaLabel` | `string` | — | 無 `title` 也無 `#title` slot 時用作 `aria-label`（避免無名對話框） |
+| `closeLabel` | `string` | `'關閉'` | 關閉鈕的無障礙名稱（`aria-label`）。多語系專案可覆寫 |
 | `width` | `number \| string` | `640` | 面板寬度。數字補 `px`（經 `toUnit`），字串原樣（如 `'60%'`）；`fullscreen` 時忽略 |
-| `fullscreen` | `boolean` | `false` | 全螢幕模式（撐滿視窗、停用拖曳、header 一律顯示關閉鈕） |
-| `draggable` | `boolean` | `false` | 可拖曳移動（拖四邊感應區；`fullscreen` 時停用） |
+| `fullscreen` | `boolean` | `false` | 全螢幕模式（撐滿視窗、停用拖曳；fullscreen 時 header 一律渲染並預設顯示關閉鈕，仍可被 `hideCloseButton` 隱藏） |
+| `draggable` | `boolean` | `false` | 可拖曳移動（`fullscreen` 時停用）。把手依有無標題列自動切換：**有標題列（預設）→ 拖標題列**（避開捲軸 / 按鈕）；**無標題列 → 退回拖四邊感應區** |
 | `transition` | `'fade' \| 'slide-up' \| 'slide-down' \| 'slide-left' \| 'slide-right'` | `'fade'` | 進出場動畫變體 |
 | `hideBackdrop` | `boolean` | `false` | 隱藏半透明遮罩（仍可點外部關閉） |
 | `hideCloseButton` | `boolean` | `false` | 隱藏標題列關閉鈕 |
@@ -144,7 +145,7 @@ const open = ref(false)
 | 未綁 `v-model` | 用內部狀態（`default: false`），仍可由 `close()` 關閉 |
 | `fullscreen` + `draggable` | fullscreen 優先，停用拖曳、不渲染感應區 |
 | 拖到視窗邊緣 | clamp 在視窗內，面板完整可見；面板比視窗大時保住左 / 上緣 |
-| 面板比視窗大（小螢幕） | `max-height: calc(100% - 3rem)` + 主體 `overflow-y:auto` 內捲 |
+| 面板比視窗大（小螢幕） | `max-height: 100%`（overlay 已用 `padding: 1.5rem` 留白，`100%` 即「視窗 − padding」，不需再扣一次）+ 主體 `overflow-y:auto` 內捲 |
 | 多個對話框 / 與 BaseModal 疊開 | 共用堆疊，Esc / 點外部只關最上層；scroll-lock 直到最後一個關閉才釋放 |
 | 元件卸載時仍開啟 | useOverlay 的 `onUnmounted` 清堆疊 / 解鎖 / 停 trap；useDrag 清監聽，無殘留 |
 
@@ -157,7 +158,7 @@ const open = ref(false)
 | 面板 | `role="dialog"`、`aria-modal="true"`、`tabindex="-1"`、`id`（`useId()`） |
 | 無障礙名稱 | 有 `title` 或 `#title` → `aria-labelledby` 指向標題；皆無 → 用 `ariaLabel` 當 `aria-label`。三者皆無會念「未命名對話框」 |
 | 內容 | `aria-describedby` 指向主體 `&__content` |
-| 關閉鈕 | `aria-label="關閉"`，`&times;` 圖示 `aria-hidden` |
+| 關閉鈕 | `aria-label`（預設「關閉」，可用 `closeLabel` 覆寫供多語系），`&times;` 圖示 `aria-hidden` |
 | 遮罩 / 拖曳感應區 | `aria-hidden="true"`（純視覺，不進無障礙樹） |
 | 鍵盤 | Esc 關閉（最上層）；focus-trap 鎖 Tab，關閉還焦給觸發元素 |
 | 焦點 | 開啟即移入對話框；關閉還焦 |
@@ -196,6 +197,8 @@ const open = ref(false)
 | 鎖捲動 | 開啟背景不可捲，關閉還原 |
 | 焦點陷阱 | 連按 Tab 不跑出；關閉還焦 |
 | 與 BaseModal 疊開 | Esc 只關最上層；兩者皆關才解鎖捲動 |
+
+> **與 BaseModal / BaseDrawer 的差異**：BaseDialog 只透過 `defineModel` 暴露 `v-model`，**沒有** BaseModal / BaseDrawer 具備的 `open` / `opened` / `close` / `closed` emit 與 `beforeClose` prop。需要「關閉前攔截確認」或「進出場完成事件」時請改用 BaseModal / BaseDrawer，或在父層自行包裝。
 
 ---
 

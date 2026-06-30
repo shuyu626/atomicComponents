@@ -58,7 +58,7 @@
               v-if="!hideCloseButton"
               type="button"
               class="base-drawer__close"
-              aria-label="關閉"
+              :aria-label="closeLabel"
               @click="close"
             >
               <span aria-hidden="true">&times;</span>
@@ -94,6 +94,8 @@ export interface BaseDrawerProps {
    * 避免螢幕閱讀器念出「未命名對話框」。有標題時以 `aria-labelledby` 為準、此值忽略。
    */
   ariaLabel?: string
+  /** 關閉鈕的無障礙名稱（`aria-label`）。多語系專案可覆寫。 @default '關閉' */
+  closeLabel?: string
   /** 停靠邊緣，決定滑入方向與版型。 @default 'right' */
   anchor?: DrawerAnchor
   /**
@@ -129,6 +131,7 @@ export interface BaseDrawerProps {
 const props = withDefaults(defineProps<BaseDrawerProps>(), {
   title: undefined,
   ariaLabel: undefined,
+  closeLabel: '關閉',
   anchor: 'right',
   size: 320,
   image: undefined,

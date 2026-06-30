@@ -134,6 +134,16 @@ describe('BaseDrawer', () => {
       expect(wrapper.find('.base-drawer__close').exists()).toBe(false)
     })
 
+    it('defaults the close button aria-label to 關閉', () => {
+      const wrapper = track(createWrapper())
+      expect(wrapper.find('.base-drawer__close').attributes('aria-label')).toBe('關閉')
+    })
+
+    it('overrides the close button aria-label via closeLabel', () => {
+      const wrapper = track(createWrapper({ closeLabel: 'Close' }))
+      expect(wrapper.find('.base-drawer__close').attributes('aria-label')).toBe('Close')
+    })
+
     it('emits update:modelValue=false when the close button is clicked', async () => {
       const wrapper = track(createWrapper())
       await wrapper.find('.base-drawer__close').trigger('click')

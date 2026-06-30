@@ -11,6 +11,7 @@ interface MountOptions {
   modelValue?: boolean
   title?: string
   ariaLabel?: string
+  closeLabel?: string
   width?: number | string
   fullscreen?: boolean
   draggable?: boolean
@@ -136,6 +137,18 @@ describe('BaseDialog', () => {
     it('renders the footer slot', () => {
       track(mountDialog({ footer: () => h('div', { class: 'my-footer' }, 'F') }))
       expect(wrapperEl()!.querySelector('.my-footer')).toBeTruthy()
+    })
+
+    it('defaults the close button aria-label to 關閉', () => {
+      track(mountDialog({ title: '編輯' }))
+      const closeBtn = wrapperEl()!.querySelector('.base-dialog__close') as HTMLElement
+      expect(closeBtn.getAttribute('aria-label')).toBe('關閉')
+    })
+
+    it('overrides the close button aria-label via closeLabel', () => {
+      track(mountDialog({ title: '編輯', closeLabel: 'Close' }))
+      const closeBtn = wrapperEl()!.querySelector('.base-dialog__close') as HTMLElement
+      expect(closeBtn.getAttribute('aria-label')).toBe('Close')
     })
   })
 

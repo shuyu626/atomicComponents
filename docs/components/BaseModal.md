@@ -30,11 +30,27 @@ BaseModal 是「置中對話框」元件：以 `v-model` 控制開關，透過 `
 |---|---|---|---|
 | `title` | `string` | — | 標題列文字。設定後渲染預設標題並自動接 `aria-labelledby` |
 | `ariaLabel` | `string` | — | 對話框無障礙名稱。**無 `title` 時**用作 `aria-label`（避免無名對話框）；有 `title` 時忽略（以 `aria-labelledby` 為準） |
+| `closeLabel` | `string` | `'關閉'` | 關閉鈕的無障礙名稱（`aria-label`）。多語系專案可覆寫 |
+| `beforeClose` | `(done: () => void) => void` | — | 關閉前攔截；需在內部呼叫 `done()` 才真正關閉。程式化（`v-model`）關閉不觸發（對齊 BaseDrawer） |
 | `hideBackdrop` | `boolean` | `false` | 隱藏半透明遮罩（仍保留點擊外部關閉行為） |
 | `hideCloseButton` | `boolean` | `false` | 隱藏右上角關閉鈕 |
 | `closeOnBackdrop` | `boolean` | `true` | 點擊面板外部（遮罩區）是否關閉 |
 | `closeOnEscape` | `boolean` | `true` | 按 Esc 是否關閉（僅最上層 modal 回應） |
 | `lockScroll` | `boolean` | `true` | 開啟時鎖定背景捲動，並補捲軸寬度避免版面橫向跳動 |
+
+---
+
+## 2.1 Events（生命週期，對齊 BaseDrawer）
+
+| Event | 時機 | 說明 |
+|---|---|---|
+| `update:modelValue` | 開關變動 | `v-model` 同步（由 `defineModel` 自動發出） |
+| `open` | 進場動畫**前** | 開始開啟 |
+| `opened` | 進場動畫**後** | 開啟完成 |
+| `close` | 離場動畫**前** | 開始關閉 |
+| `closed` | 離場動畫**後** | 關閉完成（DOM 已卸載） |
+
+> `open` / `close` 由 `watch(open)` 在 DOM 更新前發出（掛載即開啟者另由 `onMounted` 補發 `open`，避免只發 `opened`）；`opened` / `closed` 由 `<Transition>` 的 `after-enter` / `after-leave` hook 發出。與 BaseDrawer 完全同一套 wiring。
 
 ---
 
@@ -143,6 +159,7 @@ const open = ref(false)
 | 點擊外部 | overlay `@click` + `event.composedPath()` 判斷是否落在面板內（含 Shadow DOM），不在面板內才關（`closeOnBackdrop` 控制） |
 | `close()` | 透過各 slot props 提供，讓內容主動關閉 |
 
+- 所有「使用者觸發」的關閉路徑（關閉鈕 / Esc / 點外部 / slot `close()`）皆寫入 `guardedOpen` writable computed；其 setter 在關閉且有 `beforeClose` 時交由 `beforeClose(done)` 決定何時 `done()`（= 真正設 `open=false`）。父層透過 `v-model` 直接改 `open` 屬於**程式化關閉**，不經 setter、不觸發 `beforeClose`（與 BaseDrawer / Element Plus 行為一致）
 - 所有關閉統一改 `open.value = false`（`defineModel`），**不**手動 `emit`
 
 ### 5.4 焦點管理（focus-trap）
@@ -187,7 +204,8 @@ const open = ref(false)
 | 面板 | `role="dialog"`、`aria-modal="true"`、`tabindex="-1"`、`id`（`useId()`）；用 `title` → `aria-labelledby`；無 `title` 但有 `ariaLabel` → `aria-label` |
 | 無障礙名稱 | **每個對話框都應有名稱**：給 `title`、`ariaLabel`，或自訂 `#header` 時自行用 `aria-labelledby`。三者皆無 → 螢幕閱讀器念「未命名對話框」 |
 | 標題 | 預設標題帶 `id`（`${useId()}-title`）供 `aria-labelledby` 連結 |
-| 關閉鈕 | `aria-label="關閉"`，`&times;` 圖示標 `aria-hidden` |
+| 內容 | 主體 `&__body` 帶 `id`（`${useId()}-body`），面板 `aria-describedby` 指向它（對齊 BaseDialog） |
+| 關閉鈕 | `aria-label`（預設「關閉」，可用 `closeLabel` 覆寫供多語系），`&times;` 圖示標 `aria-hidden` |
 | 遮罩 | `aria-hidden="true"`（純視覺，不進無障礙樹） |
 | 鍵盤 | Esc 關閉（最上層）；focus-trap 鎖 Tab，關閉還焦 |
 | 焦點 | 開啟即移入對話框；關閉還焦給觸發元素 |
