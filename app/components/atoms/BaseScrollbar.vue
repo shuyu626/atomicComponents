@@ -225,7 +225,11 @@ const onTrackPointerdown = (event: PointerEvent, orientation: OrientationKey) =>
   const { scroll, scrollSize, size, page, direction } = ORIENTATION_MAP[orientation]
 
   const track = event.currentTarget as HTMLElement
-  const thumb = track.childNodes[0] as HTMLElement
+  // 用 firstElementChild 而非 childNodes[0]:後者含文字 / 註解節點,
+  // 結構調整時可能讀到非元素節點,thumb[size] 變 undefined → NaN。
+  const thumb = track.firstElementChild as HTMLElement | null
+  if (!thumb) return
+
   const rect = track.getBoundingClientRect()
   const thumbHalf = thumb[size] / 2
   // 點擊位置距離 track 起點的距離，扣掉半個 thumb → thumb 中心對齊點擊處。
@@ -310,8 +314,20 @@ const update = () => {
 
   // 補償比例：thumb 被 MIN_SIZE 撐大後，軌道可移動空間變小，
   // 用此比例把 scroll 百分比換算回正確的 thumb 位移。
-  ratioY = originalHeight / (offsetHeight - originalHeight) / (height / (offsetHeight - height))
-  ratioX = originalWidth / (offsetWidth - originalWidth) / (width / (offsetWidth - width))
+  ratioY = computeRatio(originalHeight, height, offsetHeight)
+  ratioX = computeRatio(originalWidth, width, offsetWidth)
+}
+
+/**
+ * 計算位移補償比例。內容剛好溢出時（original ≈ offset，分母趨近 0）會算出
+ * Infinity / NaN，讓壞值流進 onScroll 的 thumbTop / thumbLeft；故分母 <= 0
+ * 一律回 0（不補償），避免壞值擴散。
+ */
+function computeRatio(original: number, size: number, offset: number): number {
+  const originalGap = offset - original
+  const sizeGap = offset - size
+  if (originalGap <= 0 || sizeGap <= 0) return 0
+  return original / originalGap / (size / sizeGap)
 }
 
 // 容器尺寸變化（resize）與內容重渲染（updated）都重算 thumb。

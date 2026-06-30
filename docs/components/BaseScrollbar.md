@@ -157,6 +157,8 @@ import BaseScrollbar from '~/components/atoms/BaseScrollbar.vue'
 | 外觀 | 顏色 / 尺寸寫死 | 抽成 `--scrollbar-*` token | 與其他 Base 元件一致、可主題化 |
 | 型別 | `originalOnSelectStart` 用 `any` | 改用 `typeof document.onselectstart` | 對齊 strict、避免自寫 `any` |
 | 樣式作用域 | 非 scoped | `scoped` | 避免污染全域 |
+| 點軌道取 thumb | `track.childNodes[0]`（含文字 / 註解節點） | `track.firstElementChild`（取不到則早退） | 結構調整時 `childNodes[0]` 可能是非元素節點，`thumb[size]` 會變 `undefined` → `NaN` 寫進 `scrollTop` |
+| ratio 補償計算 | 直接相除 | 分母 `<= 0` 時 ratio 視為 `0`（`computeRatio` guard） | 內容剛好溢出（`originalHeight ≈ offsetHeight`，分母趨近 0）時會算出 `Infinity` / `NaN`，流進 `onScroll` 的 `thumbTop` / `thumbLeft` 造成壞值 |
 
 ---
 

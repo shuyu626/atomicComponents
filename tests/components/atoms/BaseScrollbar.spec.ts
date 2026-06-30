@@ -252,6 +252,38 @@ describe('BaseScrollbar', () => {
     })
   })
 
+  // ── track 點擊 / 退化幾何 guard ────────────────────────────────────────────────
+  describe('track interaction & ratio guard', () => {
+    it('點擊軌道空白處捲向點擊位置（thumb 經 firstElementChild 取得）', async () => {
+      const w = track(mountScrollbar())
+      await applyGeometry(w, VERTICAL_OVERFLOW)
+
+      const trackEl = w.find('.base-scrollbar__track--vertical').element as HTMLElement
+      const thumbEl = w.find('.base-scrollbar__track--vertical .base-scrollbar__thumb').element as HTMLElement
+      const viewport = viewportOf(w)
+
+      // 灌入 track / thumb 幾何，讓點擊換算具確定性（happy-dom 預設皆為 0）。
+      Object.defineProperty(trackEl, 'offsetHeight', { configurable: true, get: () => 100 })
+      Object.defineProperty(thumbEl, 'offsetHeight', { configurable: true, get: () => 20 })
+      trackEl.getBoundingClientRect = () =>
+        ({ top: 0, left: 0, right: 0, bottom: 100, width: 0, height: 100, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect
+
+      trackEl.dispatchEvent(pointerEvent('pointerdown', { pageY: 50 }))
+      // position = |0 - 50| = 50；thumbHalf = 20/2 = 10
+      // scrollTop = (50 - 10) * (scrollHeight 400 / track 100) = 40 * 4 = 160
+      expect(viewport.scrollTop).toBe(160)
+    })
+
+    it('退化幾何（分母趨近 0）不渲染軌道，且捲動不拋錯（ratio guard）', async () => {
+      const w = track(mountScrollbar())
+      // offsetHeight 扣 GAP 後 ≈ originalHeight，分母趨近 0 → 無 guard 會算出 Infinity/NaN
+      await applyGeometry(w, { offsetHeight: 24, scrollHeight: 20, offsetWidth: 24, scrollWidth: 20 })
+
+      expect(w.find('.base-scrollbar__track').exists()).toBe(false)
+      expect(() => w.find('.base-scrollbar__viewport').trigger('scroll')).not.toThrow()
+    })
+  })
+
   // ── 卸載清理（補洩漏點）───────────────────────────────────────────────────────
   describe('cleanup on unmount', () => {
     it('removes document drag listeners on unmount', () => {
