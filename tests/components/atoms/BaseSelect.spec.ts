@@ -34,6 +34,8 @@ interface MountOptions {
   message?: string
   emptyText?: string
   clearable?: boolean
+  clearLabel?: string
+  removeLabel?: string | ((label: string) => string)
   rules?: unknown
   slots?: Record<string, unknown>
 }
@@ -267,6 +269,22 @@ describe('BaseSelect', () => {
       expect(optionEls().map((el) => el.textContent?.trim())).toEqual(['Apple', 'Apricot'])
     })
 
+    it('keys options by value so filtering does not reuse nodes by position', async () => {
+      const wrapper = track(mountSelect({ filterable: true }))
+      await open(wrapper)
+      // 標記「香蕉」（原本位於 index 1）的 DOM 節點
+      const banana = optionEls()[1]
+      expect(banana.textContent?.trim()).toBe('香蕉')
+      banana.dataset.marker = 'kept'
+      // 過濾掉「蘋果」「櫻桃」，只剩「香蕉」（位置由 index 1 → 0）
+      await typeSearch('香')
+      const remaining = optionEls()
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0].textContent?.trim()).toBe('香蕉')
+      // 以 value 當 key → 香蕉的節點被保留（沿用同一 DOM）；若用 index 當 key 會錯位重用蘋果節點
+      expect(remaining[0].dataset.marker).toBe('kept')
+    })
+
     it('shows the empty text when nothing matches', async () => {
       const wrapper = track(mountSelect({ filterable: true, emptyText: '沒有結果' }))
       await open(wrapper)
@@ -347,6 +365,13 @@ describe('BaseSelect', () => {
       expect(wrapper.find('.base-select__clear').exists()).toBe(false)
     })
 
+    it('uses the default Chinese clear aria-label, overridable for i18n', () => {
+      const def = track(mountSelect({ modelValue: 'apple' }))
+      expect(def.find('.base-select__clear').attributes('aria-label')).toBe('清除')
+      const en = track(mountSelect({ modelValue: 'apple', clearLabel: 'Clear' }))
+      expect(en.find('.base-select__clear').attributes('aria-label')).toBe('Clear')
+    })
+
     it('keeps the clear button keyboard-focusable (not tabindex -1)', () => {
       const wrapper = track(mountSelect({ modelValue: 'apple' }))
       expect(wrapper.find('.base-select__clear').attributes('tabindex')).not.toBe('-1')
@@ -370,6 +395,32 @@ describe('BaseSelect', () => {
     it('marks the combobox aria-invalid on error', () => {
       const wrapper = track(mountSelect({ label: '水果', error: true }))
       expect(controlEl(wrapper).attributes('aria-invalid')).toBe('true')
+    })
+
+    it('keeps aria-describedby pointing at the message despite BasePopover fallthrough', () => {
+      // BasePopover 的 fallthrough 會把 reference 上的 aria-describedby 覆蓋成 undefined，
+      // 故 describedby 改由 v-combobox-aria 指令於 patch 後寫入；此測試鎖住該行為避免回歸。
+      const wrapper = track(mountSelect({ label: '水果', error: true, message: '必填' }))
+      const control = controlEl(wrapper)
+      const describedby = control.attributes('aria-describedby')
+      expect(describedby).toBeTruthy()
+      // 指向實際存在的訊息節點，且內容為錯誤訊息
+      expect(wrapper.find(`#${describedby}`).text()).toContain('必填')
+    })
+
+    it('associates the combobox with the listbox via aria-haspopup and aria-controls', async () => {
+      const wrapper = track(mountSelect())
+      const control = controlEl(wrapper)
+      // 控制項自身明確設定 aria-haspopup="listbox"（覆蓋 BasePopover fallthrough 帶下的泛用 true）
+      expect(control.attributes('aria-haspopup')).toBe('listbox')
+      // 收合時 listbox <ul> 尚未渲染，不輸出 aria-controls（避免指向不存在的元素）
+      expect(control.attributes('aria-controls')).toBeUndefined()
+      await open(wrapper)
+      const listbox = menuEl()!
+      expect(listbox.getAttribute('role')).toBe('listbox')
+      // 展開時 aria-controls 指向實際的 listbox <ul> id（非 BasePopover 浮層容器）
+      expect(control.attributes('aria-controls')).toBe(listbox.id)
+      expect(control.attributes('aria-haspopup')).toBe('listbox')
     })
 
     it('does not render a focusable proxy input in the a11y tree', () => {
@@ -400,10 +451,42 @@ describe('BaseSelect', () => {
       expect(wrapper.find('.base-select__control .base-chip__delete').exists()).toBe(true)
     })
 
+    it('renders chips at BaseChip size "sm"', () => {
+      const wrapper = track(mountSelect({ multiple: true, chips: true, modelValue: ['apple'] }))
+      const chip = wrapper.find('.base-select__control .base-chip')
+      expect(chip.classes()).toContain('base-chip--sm')
+      expect(chip.classes()).not.toContain('base-chip--small')
+    })
+
     it('removes a single value when its chip delete is clicked', async () => {
       const wrapper = track(mountSelect({ multiple: true, chips: true, modelValue: ['apple', 'banana'] }))
       await wrapper.findAll('.base-select__control .base-chip__delete')[0].trigger('click')
       expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['banana']])
+    })
+
+    it('labels the chip delete with the default Chinese, overridable for i18n', () => {
+      // 預設：函式插入該項 label
+      const def = track(mountSelect({ multiple: true, chips: true, modelValue: ['apple'] }))
+      expect(def.find('.base-select__control .base-chip__delete').attributes('aria-label'))
+        .toBe('移除 蘋果')
+      // 覆寫：函式
+      const fn = track(mountSelect({
+        multiple: true,
+        chips: true,
+        modelValue: ['apple'],
+        removeLabel: (label: string) => `Remove ${label}`,
+      }))
+      expect(fn.find('.base-select__control .base-chip__delete').attributes('aria-label'))
+        .toBe('Remove 蘋果')
+      // 覆寫：字串（原樣使用）
+      const str = track(mountSelect({
+        multiple: true,
+        chips: true,
+        modelValue: ['apple'],
+        removeLabel: 'Remove item',
+      }))
+      expect(str.find('.base-select__control .base-chip__delete').attributes('aria-label'))
+        .toBe('Remove item')
     })
 
     it('keeps the Set container when removing a chip', async () => {

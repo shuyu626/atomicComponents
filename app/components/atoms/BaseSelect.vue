@@ -24,12 +24,19 @@
         trigger="click"
       >
         <template #reference>
+          <!--
+            v-combobox-aria：在 combobox 控制項上「自行」明確設定 listbox 關聯——
+            aria-haspopup="listbox" 與（展開時）aria-controls 指向實際的 listbox <ul>
+            (`${uid}-listbox`)。BasePopover 會透過 fallthrough 帶下泛用的 aria-haspopup="true"
+            與指向浮層容器的 aria-controls；fallthrough 在屬性合併時會覆蓋模板上的同名綁定，
+            故改用指令在 patch 之後寫入，確保「以控制項自身明確設定為準」。
+          -->
           <div
             :id="id"
+            v-combobox-aria="{ listboxId: `${uid}-listbox`, expanded: active, describedby }"
             class="base-select__control"
             role="combobox"
             :aria-labelledby="labelledby"
-            :aria-describedby="describedby"
             :aria-invalid="invalid"
             :aria-required="isRequired"
             :aria-disabled="isDisabled || undefined"
@@ -52,10 +59,10 @@
                 <BaseChip
                   v-for="opt in (selected as BaseSelectOption<T>[])"
                   :key="String(opt.value)"
-                  size="small"
+                  size="sm"
                   :label="opt.label"
                   :deletable="!isDisabled && !isReadonly"
-                  :delete-aria-label="`移除 ${opt.label}`"
+                  :delete-aria-label="removeAriaLabel(opt.label)"
                   @delete="onChipDelete($event, opt)"
                 />
               </span>
@@ -91,7 +98,7 @@
               v-if="showClear && !isDisabled && !isReadonly"
               type="button"
               class="base-select__clear"
-              aria-label="清除"
+              :aria-label="clearLabel"
               @mousedown.prevent
               @click.stop="onClear"
             >
@@ -189,7 +196,7 @@
               <li
                 v-for="item in optionViews"
                 :id="item.id"
-                :key="item.id"
+                :key="String(item.option.value)"
                 class="base-select__option"
                 :class="{
                   'base-select__option--selected': item.selected,
@@ -286,6 +293,7 @@ function scrollIntoView(element: HTMLElement | null | undefined) {
 
 <script setup lang="ts" generic="T = string | number">
 import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
+import type { DirectiveBinding } from 'vue'
 
 import BaseChip from '~/components/atoms/BaseChip.vue'
 import BaseFormField from '~/components/atoms/BaseFormField.vue'
@@ -295,6 +303,7 @@ import type { BasePopoverPlacement } from '~/components/atoms/BasePopover.vue'
 import useFormFieldProps from '~/composables/useFormFieldProps'
 import useValidation from '~/composables/useValidation'
 import { moveFocus, nextItem, previousItem } from '~/utils/dom'
+import isFunction from '~/utils/isFunction'
 import isSet from '~/utils/isSet'
 import type { ValidationRule } from '~/utils/validators'
 
@@ -319,11 +328,18 @@ interface BaseSelectProps<Value> extends BaseFormFieldProps {
   searchPlaceholder?: string
   /** 可清除：有選取時顯示叉叉清除鈕（hover / focus 控制項才顯形）。 @default true */
   clearable?: boolean
+  /** 清除鈕的 aria-label（i18n 覆寫點）。 @default '清除' */
+  clearLabel?: string
   /**
    * 多選時以可刪除的 chip 顯示已選項（取代逗號串接文字）；單選無效。
    * 每個 chip 的 × 可單獨移除該值。複用 BaseChip。 @default false
    */
   chips?: boolean
+  /**
+   * chip 刪除鈕的 aria-label（i18n 覆寫點）：字串（原樣使用）或接受該項 `label`
+   * 回傳字串的函式。 @default (label) => `移除 ${label}`
+   */
+  removeLabel?: string | ((label: string) => string)
   /** 浮層位置（`flip` / `shift` 會在空間不足時自動調整）。 @default 'bottom-start' */
   placement?: BasePopoverPlacement
   /** 無選項時的提示文字（可用 `#empty` slot 覆寫）。 @default '查無選項' */
@@ -343,11 +359,17 @@ const props = withDefaults(defineProps<BaseSelectProps<T>>(), {
   filterable: false,
   searchPlaceholder: '搜尋',
   clearable: true,
+  clearLabel: '清除',
   chips: false,
+  removeLabel: () => (label: string) => `移除 ${label}`,
   placement: 'bottom-start',
   emptyText: '查無選項',
   rules: undefined,
 })
+
+/** 解析 chip 刪除鈕 aria-label：字串原樣 / 函式接收項目 label。 */
+const removeAriaLabel = (label: string): string =>
+  isFunction(props.removeLabel) ? props.removeLabel(label) : props.removeLabel
 
 defineSlots<{
   /** 標籤內容，取代 `label` prop。 */
@@ -385,6 +407,36 @@ const activeIndex = ref(-1)
 
 const searchRef = useTemplateRef<HTMLInputElement>('searchRef')
 const menuRef = useTemplateRef<HTMLElement>('menuRef')
+
+/**
+ * 在 combobox 控制項上硬寫 listbox 關聯，覆蓋 BasePopover fallthrough 帶下的泛用值。
+ * fallthrough 屬性合併時會勝過模板綁定，故改在 mounted / updated（patch 之後）以
+ * setAttribute 寫入：aria-haspopup 固定 'listbox'；aria-controls 僅在展開（listbox <ul>
+ * 實際存在於 DOM）時指向其 id，收合時移除以免指向不存在的元素。
+ */
+interface ComboboxAriaValue {
+  listboxId: string
+  expanded: boolean
+  /**
+   * BaseFormField 傳入的 describedby（指向訊息 / 說明節點）。
+   * 同樣需走指令於 patch 後寫入 —— BasePopover 的 fallthrough 會把 reference 上的
+   * aria-describedby 覆蓋成 undefined（非 tooltip role 時），純模板綁定會被清掉，
+   * 導致有錯誤 / 說明訊息時螢幕閱讀器讀不到。
+   */
+  describedby?: string
+}
+function applyComboboxAria(el: HTMLElement, binding: DirectiveBinding<ComboboxAriaValue>) {
+  el.setAttribute('aria-haspopup', 'listbox')
+  if (binding.value.expanded) el.setAttribute('aria-controls', binding.value.listboxId)
+  else el.removeAttribute('aria-controls')
+
+  if (binding.value.describedby) el.setAttribute('aria-describedby', binding.value.describedby)
+  else el.removeAttribute('aria-describedby')
+}
+const vComboboxAria = {
+  mounted: applyComboboxAria,
+  updated: applyComboboxAria,
+}
 
 const allOptions = computed<BaseSelectOption<T>[]>(() => props.options ?? [])
 

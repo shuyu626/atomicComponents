@@ -25,7 +25,9 @@ BaseSelect 額外的控制項 props，加上**全部** [`BaseFormField` 的欄�
 | `filterable` | `boolean` | `false` | 可搜尋（點開後**浮層上方為搜尋欄、下方為選項**，依 `label` 即時過濾） |
 | `searchPlaceholder` | `string` | `'搜尋'` | `filterable` 時搜尋框的 placeholder |
 | `clearable` | `boolean` | `true` | 有選取時顯示叉叉清除鈕（hover / focus 控制項才顯形） |
+| `clearLabel` | `string` | `'清除'` | 清除鈕的 `aria-label`（i18n 覆寫點） |
 | `chips` | `boolean` | `false` | 多選時以可刪除的 chip 顯示已選項（取代逗號文字）；單選無效。複用 [`BaseChip`](./BaseChip.md) |
+| `removeLabel` | `string \| ((label: string) => string)` | `` (label) => `移除 ${label}` `` | chip 刪除鈕的 `aria-label`（i18n 覆寫點）：字串原樣 / 函式接收該項 `label` |
 | `placement` | `BasePopoverPlacement` | `'bottom-start'` | 浮層位置（空間不足時 `flip` / `shift` 自動調整） |
 | `emptyText` | `string` | `'查無選項'` | 無選項時的提示（可用 `#empty` slot 覆寫） |
 | `rules` | `ValidationRule<T \| T[] \| Set<T> \| undefined>[]` | — | 驗證規則陣列；touched-gated。見 §6 |
@@ -167,8 +169,9 @@ const city = ref<string>()
 
 ## 5. A11y
 
-- **combobox / listbox**：控制項 `role="combobox"`，浮層內 `<ul role="listbox">`，選項 `role="option"` + `aria-selected`；多選 listbox 標 `aria-multiselectable`。
-- **展開狀態**：BasePopover 自動為控制項掛 `aria-expanded`（開合）、`aria-controls`、`aria-haspopup`；箭頭隨 `aria-expanded` 翻轉。
+- **combobox / listbox**：控制項 `role="combobox"`，浮層內 `<ul role="listbox">`（id 為 `${uid}-listbox`），選項 `role="option"` + `aria-selected`；多選 listbox 標 `aria-multiselectable`。
+- **展開狀態**：BasePopover 自動為控制項掛 `aria-expanded`（開合）。箭頭隨 `aria-expanded` 翻轉。
+- **listbox 關聯**：控制項**自行**以指令明確設定 `aria-haspopup="listbox"`，並在展開時把 `aria-controls` 指向實際的 listbox `<ul>`（`${uid}-listbox`）、收合時移除。因 BasePopover 會透過 fallthrough 帶下泛用的 `aria-haspopup="true"` 與指向浮層容器的 `aria-controls`，而 fallthrough 屬性在合併時會覆蓋模板綁定，故改在 patch 之後以指令寫入，確保**以控制項自身明確設定為準**（指向真正的 listbox，而非浮層容器）。
 - **狀態與名稱掛在可聚焦的 combobox 上**：鍵盤焦點落在 `role="combobox"` 的 `<div>`，故 `aria-describedby` / `aria-invalid` / `aria-required` 直接掛在 combobox div。名稱則用 **`aria-labelledby`** 指向 BaseFormField 的 `<label>` 元素（BaseFormField 透過 default slot 的 `labelledby` 傳入）——單一名稱來源、不產生重複的隱藏控制項，且 `#label` slot 自訂標籤時同樣有效。
 - **表單送出**：以 `<input type="hidden">`（不可聚焦、不入 a11y tree）送出 `name` 對應的**序列化值**（單選為值、多選逗號串接各值），而非顯示用的 label。
 - **作用中項**：filterable 時 searchbox 綁 `aria-activedescendant` 指向作用中選項 id，SR 能朗讀目前高亮項而不移動實體焦點。
@@ -240,6 +243,6 @@ function onSubmit() {
 
 ## 8. 測試與 Storybook
 
-- [x] **Vitest**：`tests/components/atoms/BaseSelect.spec.ts`（渲染 combobox / 浮層 teleport / `aria-expanded`、單選選取 / 顯示 / `aria-selected` / 關閉、多選 Array toggle 累加移除 / 顯示串接 / 保持開啟、多選 Set 容器維持、整體 disabled 不開 / 停用選項不可選、**filterable 搜尋欄在浮層上方 / 過濾 / emptyText / `aria-activedescendant` + Enter 選取**、鍵盤 roving 導覽 / Enter / Esc / Tab、**clearable 單選 / 多選 Array / 多選 Set 清除 / 不開合浮層 / disabled 隱藏 / `clearable=false` / 可鍵盤聚焦**、**chips 多選顯示 / 單獨移除 / 維持 Set / 不開合浮層 / 空顯 placeholder / 單選不啟用**、**選中打勾**、**a11y（`aria-labelledby` 取名 / `aria-required` / `aria-invalid`）與表單（hidden input 送序列化值、不渲染代理 input）**、驗證 touched-gated / 關閉 touch / `validate()` / `reset()`、`#option` / `#display` / `#empty` slot）
+- [x] **Vitest**：`tests/components/atoms/BaseSelect.spec.ts`（渲染 combobox / 浮層 teleport / `aria-expanded`、單選選取 / 顯示 / `aria-selected` / 關閉、多選 Array toggle 累加移除 / 顯示串接 / 保持開啟、多選 Set 容器維持、整體 disabled 不開 / 停用選項不可選、**filterable 搜尋欄在浮層上方 / 過濾 / emptyText / `aria-activedescendant` + Enter 選取 / 選項以 value 為 key 過濾不錯位重用節點**、鍵盤 roving 導覽 / Enter / Esc / Tab、**clearable 單選 / 多選 Array / 多選 Set 清除 / 不開合浮層 / disabled 隱藏 / `clearable=false` / 可鍵盤聚焦**、**chips 多選顯示 / 單獨移除 / 維持 Set / 不開合浮層 / 空顯 placeholder / 單選不啟用 / chip size `sm`**、**選中打勾**、**a11y（`aria-labelledby` 取名 / `aria-required` / `aria-invalid` / `aria-haspopup="listbox"` + 展開時 `aria-controls` 指向 listbox `<ul>`）與表單（hidden input 送序列化值、不渲染代理 input）**、驗證 touched-gated / 關閉 touch / `validate()` / `reset()`、`#option` / `#display` / `#empty` slot）
 - [x] **Vitest**：`tests/utils/isSet.spec.ts`（Set / WeakSet / Array / Map / 物件 / null / undefined / 原始值）
 - [x] **Storybook**：`stories/components/atoms/BaseSelect.stories.ts`（Playground / Single / Multiple / Chips / MultipleSet / Filterable / Clearable / States / CustomSlots / Validation / Themed）

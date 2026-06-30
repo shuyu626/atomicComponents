@@ -250,7 +250,7 @@ export const States: Story = {
     `),
   }),
   parameters: {
-    docs: { description: { story: '狀態透過 --field-* token 傳遞：`error` 邊框 / 訊息轉紅、`disabled` / `readonly` 不可開啟；`required` 標籤後加 `*` 並綁 `aria-required`。' } },
+    docs: { description: { story: '狀態透過 --field-* token 傳遞：`error` 邊框 / 訊息轉紅、`disabled` / `readonly` 不可開啟；`required` 標籤後加 `*` 並綁 `aria-required`。combobox 控制項自行設定 `aria-haspopup="listbox"`，展開時 `aria-controls` 指向實際的 listbox `<ul>`。' } },
   },
 }
 
