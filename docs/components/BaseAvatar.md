@@ -16,10 +16,10 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
 
 | Prop | 型別 | 預設 | 說明 |
 |---|---|---|---|
-| `size` | `'small' \| 'medium' \| 'large' \| \`${number}\` \| number` | `'medium'` | 具名走預設 token；數字 / 數字字串走自訂像素 |
+| `size` | `'sm' \| 'md' \| 'lg' \| \`${number}\` \| number` | `'md'` | 具名走預設 token；數字 / 數字字串走自訂像素 |
 | `rounded` | `` `${number}` \| number \| 'full' `` | `'full'` | `full` 為圓形；其餘為像素圓角 |
 | `src` | `string` | — | 圖片來源；不給則只渲染 fallback / default slot |
-| `alt` | `string` | — | 圖片替代文字。**有 `src` 時必填**：作 `<img alt>` 與根節點 `aria-label`，也是載入失敗時的最終文字 fallback；裝飾性頭像明示 `alt=""`。漏給時開發期會 `console.warn` |
+| `alt` | `string` | — | 圖片替代文字。**有 `src` 時必填**：作 `<img alt>`；圖片載入失敗時改作根節點 `aria-label`，並作為最終文字 fallback；裝飾性頭像明示 `alt=""`。漏給時開發期會 `console.warn` |
 | `loading` | `'lazy' \| 'eager'` | `'lazy'` | 圖片載入策略；一般維持 `'lazy'`，首屏關鍵頭像改用 `priority` |
 | `priority` | `boolean` | `false` | 首屏關鍵頭像捷徑：一鍵套 `loading="eager"` + `fetchpriority="high"` 加速 LCP（會覆寫 `loading`） |
 
@@ -30,7 +30,7 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
 | `#default` | 縮寫 / icon：無 `src`，或圖片失敗且未給 `fallback` 時顯示 |
 | `#fallback` | 圖片載入失敗時的替代內容（未提供時退回 `#default`，再退回 `alt`） |
 
-預設尺寸 token：`small = 32px`、`medium = 40px`、`large = 56px`。
+預設尺寸 token：`sm = 32px`、`md = 40px`、`lg = 56px`。
 
 ---
 
@@ -39,7 +39,7 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
 | Prop | 型別 | 預設 | 說明 |
 |---|---|---|---|
 | `max` | `number` | `3` | 最多顯示幾個；超出收斂成 `+N`。小於 1 夾為 1 |
-| `size` | 同 BaseAvatar `size` | `'medium'` | **統一覆寫** 群組內每個 avatar 的尺寸 |
+| `size` | 同 BaseAvatar `size` | `'md'` | **統一覆寫** 群組內每個 avatar 的尺寸 |
 | `rounded` | 同 BaseAvatar `rounded` | `'full'` | **統一覆寫** 群組內每個 avatar 的圓角 |
 
 **Slots**
@@ -48,7 +48,7 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
 |---|---|
 | `#default` | 放一組 `<BaseAvatar>`；群組會統一尺寸 / 圓角、裁切到 `max`、加白色描邊與重疊位移 |
 
-> 群組以 `cloneVNode` 把 `size` / `rounded` 覆寫進每個子 avatar，因此子層各自的 `size` / `rounded` 會被群組統一值取代。
+> 群組以 `cloneVNode` 把 `size` / `rounded` 覆寫進每個子 avatar，因此子層各自的 `size` / `rounded` 會被群組統一值取代。clone 時 key 沿用原 vnode 的 key（`node.key ?? index`），確保 slot 來源是動態清單（`v-for`）時 Vue 依身分而非位置 diff，避免增減 / 重排誤 patch 到錯的 avatar。
 
 ---
 
@@ -63,7 +63,7 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
 | `--avatar-bg` | `#f3f4f6` | 底色 |
 | `--avatar-color` | `#374151` | 文字（縮寫）顏色 |
 | `--avatar-font-size` | `1.25rem` | 縮寫字級 |
-| `--avatar-font-weight` | `700` | 縮寫字重 |
+| `--avatar-font-weight` | `500` | 縮寫字重 |
 
 **BaseAvatarGroup（`--avatar-group-*`）**
 
@@ -105,7 +105,7 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
   </BaseAvatar>
 
   <!-- 尺寸與圓角 -->
-  <BaseAvatar src="/avatars/alex.jpg" alt="Alex" size="large" />
+  <BaseAvatar src="/avatars/alex.jpg" alt="Alex" size="lg" />
   <BaseAvatar src="/avatars/alex.jpg" alt="Alex" :size="64" :rounded="12" />
 </template>
 ```
@@ -116,7 +116,7 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
 
 ```vue
 <template>
-  <BaseAvatarGroup :max="3" size="medium" aria-label="專案成員">
+  <BaseAvatarGroup :max="3" size="md" aria-label="專案成員">
     <BaseAvatar src="/avatars/a.jpg" alt="Amy" />
     <BaseAvatar src="/avatars/b.jpg" alt="Ben" />
     <BaseAvatar src="/avatars/c.jpg" alt="Cara" />
@@ -131,8 +131,9 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
 
 ## 6. A11y
 
-- 圖片頭像：根節點 `role="img"` + `aria-label="{alt}"`，`<img>` 同步帶 `alt`。
-- 縮寫頭像（無 `src`）：純文字內容，螢幕閱讀器直接朗讀縮寫。
+- 圖片頭像（載入成功）：語意交給 `<img alt>`，根節點**不**掛 `role="img"` / `aria-label`，避免外層與內層 `alt` 重複朗讀。
+- 圖片頭像（載入失敗 fallback）：圖片消失、改顯示縮寫 / icon，此時才在根節點補 `role="img"` + `aria-label="{alt}"`，讓螢幕閱讀器把 fallback 當成一張帶描述的圖片。
+- 縮寫頭像（無 `src`）：純文字內容，螢幕閱讀器直接朗讀縮寫，根節點不掛 `role`。
 - 群組：根節點 `role="group"`，**建議由使用端傳 `aria-label`**（如 `aria-label="專案成員"`）給群組命名；DOM 順序＝閱讀順序，SR 依序朗讀每個頭像的 `alt`，最後讀到 `+N`。
 - `alt` 在有 `src` 時請務必提供有意義文字；裝飾性頭像明示 `alt=""` 讓 SR 跳過。漏給 `alt` 開發期會 `console.warn` 提醒。
 
@@ -143,7 +144,7 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
 | # | 參考實作 | 問題 | 本元件作法 |
 |---|---|---|---|
 | 1 | 用 `new Image()` 預載 + `watch` 偵測 `onerror` | 額外發一次圖片請求；需 `isMounted` 旗標規避 SSR hydration mismatch | 直接用 `<img>` 原生 `@error` 切換 fallback；無重複請求、無需 `isMounted`，初次渲染恆為 `<img>`，無 hydration 落差 |
-| 2 | `:width="size"` / `:height="size"` | `size='medium'` 時渲染出非法的 `width="medium"` 屬性 | 僅在數值尺寸輸出像素 `width/height`（預留版位防 layout shift），具名尺寸交給 CSS |
+| 2 | `:width="size"` / `:height="size"` | 具名尺寸（如 `size='md'`）時渲染出非法的 `width="md"` 屬性 | 僅在數值尺寸輸出像素 `width/height`（預留版位防 layout shift），具名尺寸交給 CSS |
 | 3 | `--avatar-rounded: toUnit(props.rounded)` | 數字字串（如 `'8'`）經 `toUnit` 不會補 `px`，產生無單位的非法值 | 一律 `` `${Number(rounded)}px` ``，數字字串也正確補單位 |
 | 4 | 群組 `.reverse()` 反轉 DOM + `flex-direction: row-reverse` | DOM 順序被反轉，螢幕閱讀器朗讀順序與視覺相反（a11y bug） | 保持自然 DOM 順序，改用遞減 `z-index` 達成「前者疊在上層」，閱讀順序＝視覺順序 |
 | 5 | `resolveSlotChildren` 只 `import { Fragment }`，卻使用 `Comment` / `Text` | 比對到瀏覽器全域建構子而非 Vue symbol，註解 / 文字過濾失效 | 補上 `import { Comment, Fragment, Text } from 'vue'`，過濾恢復正常 |
@@ -153,6 +154,8 @@ BaseAvatar 是 **頭像** 元件：優先顯示圖片（`src`），圖片載入�
 | 9 | 群組描邊 / 重疊量寫死（`2px solid white`、`-1rem`） | 無法主題化、不隨尺寸調整 | 抽成 `--avatar-group-ring` / `--avatar-group-overlap` token |
 | 10 | 群組用全域 `<style>` 觸及子 avatar | 樣式洩漏到全域 | `scoped` + `:deep()` 穿透插槽節點，避免全域污染 |
 | 11 | 顏色 / 字級寫死於 `.atomic-avatar` | 不可主題化 | 全抽成 `--avatar-*` token |
+| 12 | 圖片載入成功時外層仍掛 `role="img"` + `aria-label` | 與內層 `<img alt>` 語意重複，SR 朗讀兩次 | 只有 fallback 狀態（圖片失敗）才在外層補 `role="img"` + `aria-label`；圖片正常顯示交給 `<img alt>` |
+| 13 | 群組 `cloneVNode` 未補 `key` | slot 來源是動態清單時 Vue 可能依位置 diff，增減 / 重排誤 patch 到錯的 avatar | clone 時 `key: node.key ?? index`，沿用原 key、缺則退回 index |
 
 ---
 

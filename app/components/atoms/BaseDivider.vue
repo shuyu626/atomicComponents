@@ -42,7 +42,7 @@ export interface BaseDividerProps {
    * 線型樣式（對應 CSS `border-style`）。
    * @default 'solid'
    */
-  variant?: 'solid' | 'dashed' | 'dotted'
+  lineStyle?: 'solid' | 'dashed' | 'dotted'
   /**
    * 文字相對於分隔線的位置；僅在提供 `#default` slot（帶文字）時生效。
    * `start` / `end` 會讓文字靠向起點 / 終點，較短的那一段線置於文字外側。
@@ -58,7 +58,7 @@ interface BaseDividerSlots {
 
 const props = withDefaults(defineProps<BaseDividerProps>(), {
   orientation: 'horizontal',
-  variant: 'solid',
+  lineStyle: 'solid',
   textAlign: 'center',
 })
 
@@ -67,7 +67,7 @@ const slots = defineSlots<BaseDividerSlots>()
 /** 組裝 BEM modifier：方向 / 線型 / 文字對齊。 */
 const rootClass = computed(() => [
   `base-divider--${props.orientation}`,
-  `base-divider--${props.variant}`,
+  `base-divider--${props.lineStyle}`,
   `base-divider--${props.textAlign}`,
 ])
 </script>
@@ -97,7 +97,7 @@ const rootClass = computed(() => [
   --divider-spacing: 0; // 分隔線外距（horizontal 走 block、vertical 走 inline）
   --divider-vertical-length: 1em; // 垂直線無內容時的預設長度（亦可由 flex 容器 stretch 撐開）
 
-  // 線型由 variant modifier 覆寫
+  // 線型由 lineStyle modifier 覆寫
   --_divider-line-style: solid;
   box-sizing: border-box;
   border: 0;

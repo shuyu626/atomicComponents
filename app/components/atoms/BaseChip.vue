@@ -60,7 +60,7 @@ import type { Component, CSSProperties } from 'vue'
 type LiteralUnion<T extends string> = T | (string & {})
 
 /** 語意色名單；不在此列者一律視為自訂 CSS color（走 inline `--chip-accent`）。 */
-const THEME_COLORS = ['primary', 'success', 'warning', 'danger', 'info'] as const
+const THEME_COLORS = ['primary', 'success', 'warning', 'danger', 'info', 'neutral'] as const
 
 type ThemeColor = (typeof THEME_COLORS)[number]
 
@@ -71,22 +71,22 @@ export interface BaseChipProps {
    */
   as?: string | Component
   /**
-   * 外觀：`filled`（飽和實心底，白字）| `contained`（淡色調底）|
-   * `outlined`（外框）| `text`（純文字無底無框）。
-   * @default 'contained'
+   * 外觀：`solid`（飽和實心底，白字）| `outline`（外框）|
+   * `ghost`（淡色調底，預設）| `text`（純文字無底無框）。
+   * @default 'ghost'
    */
-  variant?: 'filled' | 'contained' | 'outlined' | 'text'
+  variant?: 'solid' | 'outline' | 'ghost' | 'text'
   /**
-   * 顏色：語意色（`primary` / `success` / `warning` / `danger` / `info`）走預設 token；
+   * 顏色：語意色（`primary` / `success` / `warning` / `danger` / `info` / `neutral`）走預設 token；
    * 其餘字串視為自訂 CSS color（hex / rgb / hsl / 具名色皆可），背景以 `color-mix` 取淡色調。
    * @default 'primary'
    */
   color?: LiteralUnion<ThemeColor>
   /**
    * 尺寸。
-   * @default 'medium'
+   * @default 'md'
    */
-  size?: 'small' | 'medium'
+  size?: 'sm' | 'md' | 'lg'
   /** 標籤文字；提供 default slot 時以 slot 為準。 */
   label?: string
   /**
@@ -103,9 +103,9 @@ export interface BaseChipProps {
 
 const props = withDefaults(defineProps<BaseChipProps>(), {
   as: 'span',
-  variant: 'contained',
+  variant: 'ghost',
   color: 'primary',
-  size: 'medium',
+  size: 'md',
   label: undefined,
   deletable: false,
   deleteAriaLabel: 'Delete',
@@ -168,8 +168,8 @@ if (import.meta.env.DEV) {
  *
  *   .base-chip { --chip-accent: #8b5cf6; --chip-radius: 9999px; }
  *
- * 顏色模型：單一 --chip-accent 作為色相來源。filled 直接吃飽和 accent 當底、
- * --chip-on-accent 當文字；contained / outlined / text 則用 color-mix 從 accent
+ * 顏色模型：單一 --chip-accent 作為色相來源。solid 直接吃飽和 accent 當底、
+ * --chip-on-accent 當文字；ghost / outline / text 則用 color-mix 從 accent
  * 推導淡底與邊框。語意色與自訂色共用同一條路徑。
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -180,7 +180,7 @@ if (import.meta.env.DEV) {
  */
 :where(.base-chip) {
   --chip-accent: #1d4ed8; // 預設 = primary
-  --chip-on-accent: #fff; // filled variant 的文字色（飽和底上的對比色）
+  --chip-on-accent: #fff; // solid variant 的文字色（飽和底上的對比色）
   --chip-font-size: 0.875rem;
   --chip-padding-y: 4px;
   --chip-padding-x: 8px;
@@ -194,6 +194,7 @@ if (import.meta.env.DEV) {
 :where(.base-chip--warning) { --chip-accent: #b45309; } // amber-700
 :where(.base-chip--danger)  { --chip-accent: #b91c1c; } // red-700
 :where(.base-chip--info)    { --chip-accent: #0369a1; } // sky-700
+:where(.base-chip--neutral) { --chip-accent: #374151; } // gray-700
 
 .base-chip {
   display: inline-flex;
@@ -212,33 +213,39 @@ if (import.meta.env.DEV) {
   user-select: none;
 
   // ── 尺寸 ──────────────────────────────────────────────
-  &--small {
+  &--sm {
     --chip-font-size: 0.75rem;
     --chip-padding-y: 2px;
   }
 
-  &--medium {
+  &--md {
     --chip-font-size: 0.875rem;
     --chip-padding-y: 4px;
+  }
+
+  &--lg {
+    --chip-font-size: 1rem;
+    --chip-padding-y: 6px;
+    --chip-padding-x: 12px;
   }
 
   // 內距套在 chip 本體；刪除鈕另以負邊距抵銷右側內距、擴大點擊區。
   padding: var(--chip-padding-y) var(--chip-padding-x);
 
   // ── Variant ───────────────────────────────────────────
-  &--filled {
+  &--solid {
     // 飽和實心底 + 對比文字色（語意色皆為 700 級深色，白字 ≥ AA）。
     color: var(--chip-on-accent);
     background-color: var(--chip-accent);
   }
 
-  &--contained {
+  &--ghost {
     color: var(--chip-accent);
     // accent 的 ~12% 淡底，可主題化；任意 CSS color 皆適用。
     background-color: color-mix(in srgb, var(--chip-accent) 12%, transparent);
   }
 
-  &--outlined {
+  &--outline {
     color: var(--chip-accent);
     background-color: transparent;
     border-color: color-mix(in srgb, var(--chip-accent) 50%, transparent);
@@ -288,7 +295,7 @@ if (import.meta.env.DEV) {
 
     &:hover {
       opacity: 1;
-      // 用 currentColor 疊色：filled 底上是白色淡層、其餘 variant 是 accent 淡層，皆可見。
+      // 用 currentColor 疊色：solid 底上是白色淡層、其餘 variant 是 accent 淡層，皆可見。
       background-color: color-mix(in srgb, currentColor 20%, transparent);
     }
 

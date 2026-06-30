@@ -71,11 +71,11 @@ describe('BaseBadge', () => {
 
     it('does not misjudge null/undefined/text as numeric 0', () => {
       // dot 不受「空內容收合」影響，可單獨驗證「不被當成 0 隱藏」。
-      expect(contentOf(mountBadge({ content: null, size: 'dot' })).classes()).not.toContain(
+      expect(contentOf(mountBadge({ content: null, dot: true })).classes()).not.toContain(
         'base-badge__content--invisible',
       )
       expect(
-        contentOf(mountBadge({ content: undefined, size: 'dot' })).classes(),
+        contentOf(mountBadge({ content: undefined, dot: true })).classes(),
       ).not.toContain('base-badge__content--invisible')
       // 文字內容（非 dot）有內容、非 0 → 維持顯示。
       expect(contentOf(mountBadge({ content: 'NEW' })).classes()).not.toContain(
@@ -87,29 +87,49 @@ describe('BaseBadge', () => {
   // ── 無內容收合 ─────────────────────────────────────────────────────────────────
   describe('empty collapse', () => {
     it('collapses a non-dot badge with no content (invisible + aria-hidden)', () => {
-      const c = contentOf(mountBadge({ size: 'medium' }))
+      const c = contentOf(mountBadge({ size: 'md' }))
       expect(c.classes()).toContain('base-badge__content--invisible')
       expect(c.attributes('aria-hidden')).toBe('true')
     })
 
     it('stays visible for a non-dot badge once it has content', () => {
-      const c = contentOf(mountBadge({ size: 'medium', content: 1 }))
+      const c = contentOf(mountBadge({ size: 'md', content: 1 }))
       expect(c.classes()).not.toContain('base-badge__content--invisible')
     })
 
     it('keeps a dot visible even without content (presence indicator)', () => {
-      const c = contentOf(mountBadge({ size: 'dot' }))
+      const c = contentOf(mountBadge({ dot: true }))
       expect(c.classes()).not.toContain('base-badge__content--invisible')
       expect(c.attributes('aria-hidden')).toBeUndefined()
     })
   })
 
-  // ── dot 尺寸 ──────────────────────────────────────────────────────────────────
+  // ── dot 模式 ──────────────────────────────────────────────────────────────────
   describe('dot', () => {
-    it('never renders content in dot size', () => {
-      const c = contentOf(mountBadge({ content: 5, size: 'dot' }))
+    it('defaults to non-dot (no dot modifier)', () => {
+      const c = contentOf(mountBadge({ content: 5 }))
+      expect(c.classes()).not.toContain('base-badge__content--dot')
+    })
+
+    it('never renders content when dot is true', () => {
+      const c = contentOf(mountBadge({ content: 5, dot: true }))
       expect(c.text()).toBe('')
       expect(c.classes()).toContain('base-badge__content--dot')
+    })
+
+    it('ignores #content slot when dot is true', () => {
+      const c = contentOf(mountBadge({ dot: true }, { content: () => 'HOT' }))
+      expect(c.text()).toBe('')
+    })
+
+    it('keeps the size modifier so dot size is controllable', () => {
+      const c = contentOf(mountBadge({ dot: true, size: 'lg' }))
+      expect(c.classes()).toEqual(
+        expect.arrayContaining([
+          'base-badge__content--dot',
+          'base-badge__content--lg',
+        ]),
+      )
     })
   })
 
@@ -121,7 +141,7 @@ describe('BaseBadge', () => {
         expect.arrayContaining([
           'base-badge__content--top-right',
           'base-badge__content--circular',
-          'base-badge__content--medium',
+          'base-badge__content--md',
           'base-badge__content--danger',
         ]),
       )
@@ -133,7 +153,7 @@ describe('BaseBadge', () => {
           content: 1,
           placement: 'bottom-left',
           overlap: 'rectangular',
-          size: 'large',
+          size: 'lg',
           color: 'primary',
         }),
       )
@@ -141,8 +161,18 @@ describe('BaseBadge', () => {
         expect.arrayContaining([
           'base-badge__content--bottom-left',
           'base-badge__content--rectangular',
-          'base-badge__content--large',
+          'base-badge__content--lg',
           'base-badge__content--primary',
+        ]),
+      )
+    })
+
+    it('supports the sm size and neutral color', () => {
+      const c = contentOf(mountBadge({ content: 1, size: 'sm', color: 'neutral' }))
+      expect(c.classes()).toEqual(
+        expect.arrayContaining([
+          'base-badge__content--sm',
+          'base-badge__content--neutral',
         ]),
       )
     })
@@ -160,8 +190,8 @@ describe('BaseBadge', () => {
       expect(c.text()).toBe('HOT')
     })
 
-    it('does not render #content in dot size', () => {
-      const c = contentOf(mountBadge({ size: 'dot' }, { content: () => 'HOT' }))
+    it('does not render #content when dot is true', () => {
+      const c = contentOf(mountBadge({ dot: true }, { content: () => 'HOT' }))
       expect(c.text()).toBe('')
     })
   })

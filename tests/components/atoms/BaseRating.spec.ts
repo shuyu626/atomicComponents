@@ -64,9 +64,13 @@ describe('BaseRating', () => {
     })
 
     it('applies size and color modifier classes', () => {
-      const wrapper = mountRating({ size: 'large', color: 'success' })
-      expect(wrapper.classes()).toContain('base-rating--large')
+      const wrapper = mountRating({ size: 'lg', color: 'success' })
+      expect(wrapper.classes()).toContain('base-rating--lg')
       expect(wrapper.classes()).toContain('base-rating--success')
+    })
+
+    it('defaults to the md size modifier class', () => {
+      expect(mountRating().classes()).toContain('base-rating--md')
     })
   })
 
@@ -225,7 +229,11 @@ describe('BaseRating', () => {
       expect(group(wrapper).attributes('aria-invalid')).toBe('true')
       const describedby = group(wrapper).attributes('aria-describedby')
       expect(describedby).toBeTruthy()
-      expect(wrapper.find(`#${describedby}`).text()).toBe('請給予評分')
+      const messageEl = wrapper.find(`#${describedby}`)
+      expect(messageEl.text()).toBe('請給予評分')
+      // live region 常駐 DOM（v-show）+ aria-atomic，整段被朗讀（對齊 BaseFormField）。
+      expect(messageEl.attributes('aria-live')).toBe('polite')
+      expect(messageEl.attributes('aria-atomic')).toBe('true')
     })
   })
 })

@@ -21,14 +21,14 @@ const meta = {
   component: BaseProgress,
   tags: ['autodocs'],
   argTypes: {
-    variant: {
+    type: {
       control: { type: 'inline-radio' },
       options: ['linear', 'circular'],
       description: '型態：橫條 / 環形。預設 linear',
     },
     color: {
       control: { type: 'select' },
-      options: ['primary', 'success', 'warning', 'danger', 'info'],
+      options: ['primary', 'success', 'warning', 'danger', 'info', 'neutral'],
       description: '語意色。預設 primary',
     },
     value: { control: { type: 'range', min: 0, max: 100, step: 1 }, description: '當前進度值' },
@@ -53,7 +53,7 @@ type Story = StoryObj
 
 export const Playground: Story = {
   args: {
-    variant: 'linear',
+    type: 'linear',
     color: 'primary',
     value: 40,
     max: 100,
@@ -80,7 +80,7 @@ export const Variants: Story = {
     components: { BaseProgress },
     template: ROW(`
       <BaseProgress :value="60" indicator style="width:240px" />
-      <BaseProgress variant="circular" :value="60" indicator />
+      <BaseProgress type="circular" :value="60" indicator />
     `),
   }),
   parameters: {
@@ -101,6 +101,7 @@ export const Colors: Story = {
       <BaseProgress color="warning" :value="70" indicator />
       <BaseProgress color="danger" :value="70" indicator />
       <BaseProgress color="info" :value="70" indicator />
+      <BaseProgress color="neutral" :value="70" indicator />
     `),
   }),
 }
@@ -140,9 +141,9 @@ export const CircularSizes: Story = {
   render: () => ({
     components: { BaseProgress },
     template: ROW(`
-      <BaseProgress variant="circular" :value="75" :size="40" :thickness="4" />
-      <BaseProgress variant="circular" :value="75" :size="64" :thickness="8" indicator />
-      <BaseProgress variant="circular" :value="75" :size="96" :thickness="10" indicator />
+      <BaseProgress type="circular" :value="75" :size="40" :thickness="4" />
+      <BaseProgress type="circular" :value="75" :size="64" :thickness="8" indicator />
+      <BaseProgress type="circular" :value="75" :size="96" :thickness="10" indicator />
     `),
   }),
   parameters: {
@@ -159,7 +160,7 @@ export const Indeterminate: Story = {
     components: { BaseProgress },
     template: ROW(`
       <BaseProgress indeterminate style="width:240px" />
-      <BaseProgress variant="circular" indeterminate />
+      <BaseProgress type="circular" indeterminate />
     `),
   }),
   parameters: {
@@ -189,7 +190,7 @@ export const Live: Story = {
     },
     template: ROW(`
       <BaseProgress :value="value" indicator style="width:240px" />
-      <BaseProgress variant="circular" :value="value" indicator />
+      <BaseProgress type="circular" :value="value" indicator />
     `),
   }),
   parameters: {

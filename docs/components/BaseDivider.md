@@ -3,7 +3,7 @@
 > **歸屬**：`Base*` 通用元件家族（`app/components/atoms/BaseDivider.vue`）。
 > **配套**：`docs/components/component-design-spec.md`（跨元件通用原則）。
 
-BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的分隔。支援水平 / 垂直方向、`solid` / `dashed` / `dotted` 三種線型，並可選配中央文字（如「或」「OR」分段標題）。
+BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的分隔。支援水平 / 垂直方向、`solid` / `dashed` / `dotted` 三種線型（`lineStyle`），並可選配中央文字（如「或」「OR」分段標題）。
 
 兩種型態自動切換：
 
@@ -21,7 +21,7 @@ BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的�
 | Prop | 型別 | 預設 | 說明 |
 |---|---|---|---|
 | `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | 方向：水平分隔上下內容 / 垂直分隔左右內容 |
-| `variant` | `'solid' \| 'dashed' \| 'dotted'` | `'solid'` | 線型（對應 CSS `border-style`） |
+| `lineStyle` | `'solid' \| 'dashed' \| 'dotted'` | `'solid'` | 線型（對應 CSS `border-style`） |
 | `textAlign` | `'start' \| 'center' \| 'end'` | `'center'` | 文字位置；僅在提供 `#default` slot 時生效 |
 
 **Slots**
@@ -71,8 +71,8 @@ BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的�
   <BaseDivider />
 
   <!-- 線型 -->
-  <BaseDivider variant="dashed" />
-  <BaseDivider variant="dotted" />
+  <BaseDivider line-style="dashed" />
+  <BaseDivider line-style="dotted" />
 
   <!-- 帶文字（置中 / 靠左 / 靠右） -->
   <BaseDivider>或</BaseDivider>
@@ -95,11 +95,11 @@ BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的�
 ## 4. 行為與狀態
 
 - **型態自動切換**：有 `#default` slot → 帶文字的 `<div role="separator">`；無 → 純線 `<hr>`。
-- **文字對齊**：`textAlign` 透過調整兩側線段的 `flex-basis` 佔比達成（`start` 10% / 90%、`center` 50% / 50%、`end` 90% / 10%），僅在帶文字時有意義。
+- **文字對齊**：兩段線皆為 `flex: 1 1 0%`（`flex-basis: 0`），靠 **flex-grow 比例**分配「扣掉文字後」的剩餘空間；`textAlign` 調整兩側 grow 比例 —— `start` 為 `1 : 9`（起點側線短）、`center` 為 `1 : 1`（置中）、`end` 為 `9 : 1`（終點側線短）。僅在帶文字時有意義。
 - **垂直方向**：高度維持 `auto` + `align-self: stretch`，因此放進 `display: flex` 的橫向容器時會自動撐到與兄弟元素同高；`--divider-vertical-length`（預設 `1em`）作為 `min-height` fallback，在非 flex 或無高度情境下保底顯示。
   > ⚠️ 寫死 `height` 會讓 `align-self: stretch` 失效（stretch 僅在交叉軸尺寸為 `auto` 時生效），因此此處刻意用 `min-height` 而非 `height`。
 - **超長文字**：帶文字版的 `#default` 內容為單行不換行（`white-space: nowrap`），過長會水平溢出而非截斷 —— 分隔標籤建議維持精簡。
-- **線型**：`variant` 對應 `border-style`，`solid` / `dashed` / `dotted` 共用同一套 token，無分支。
+- **線型**：`lineStyle` 對應 `border-style`，`solid` / `dashed` / `dotted` 共用同一套 token，無分支。
 
 ---
 
@@ -117,8 +117,8 @@ BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的�
 |---|---|---|---|
 | 1 | 全域 `<style>` + 寫死 `lightslategray` | 樣式洩漏到全域；顏色無法主題化 | `scoped` + 自包含 `--divider-*` token，覆寫即可改色 / 粗細 / 間距 |
 | 2 | 垂直 `<hr>` 用 `height: auto` | 純 border 的 `<hr>` 在 `height: auto` 下實際高度為 0，**完全不顯示** | 改吃 `--divider-vertical-length` 預設長度，並 `align-self: stretch` 於 flex 容器中自動撐高 |
-| 3 | `::before` / `::after` 用 `width: var(--size, 50%)` 控制線長 | `display: block` 的偽元素以百分比寬搭配 `justify-content: center`，線段佔比與置中邏輯耦合、不易預測 | 改用 flex `flex: 0 0 var(--_divider-size)`，線段佔比由 `flex-basis` 直接決定，置中 / start / end 邏輯清晰 |
-| 4 | 僅 `solid` 單一線型 | 無法畫虛線 / 點線分隔 | 新增 `variant`（`solid` / `dashed` / `dotted`），對應 `border-style` |
+| 3 | `::before` / `::after` 用 `width: var(--size, 50%)` 控制線長 | `display: block` 的偽元素以百分比寬搭配 `justify-content: center`，線段佔比與置中邏輯耦合、不易預測；兩側 50% + 50% 已達 100%，再加文字會溢出、把文字擠到 0 寬而換行 | 改用 flex `flex: 1 1 0%`（`flex-basis: 0` + 等比 grow 填滿「扣掉文字」後的剩餘空間），線段佔比由 **flex-grow 比例**決定（`start` 1:9、`center` 1:1、`end` 9:1），置中 / start / end 邏輯清晰 |
+| 4 | 僅 `solid` 單一線型 | 無法畫虛線 / 點線分隔 | 新增 `lineStyle`（`solid` / `dashed` / `dotted`），對應 `border-style` |
 | 5 | 無外距控制 | 使用端需自行包一層加 margin | 新增 `--divider-spacing` token（horizontal 走 `margin-block`、vertical 走 `margin-inline`） |
 | 6 | `defineSlots()` 無型別 | slot 無型別提示 | `defineSlots<BaseDividerSlots>()` 明確標註 |
 | 7 | 文字色繼承預設黑字 | 帶文字分隔的標籤通常為次要資訊 | 新增 `--divider-text-color`（預設 gray-500 次要色），可覆寫 |
@@ -127,5 +127,5 @@ BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的�
 
 ## 7. 測試與 Storybook
 
-- [x] **Vitest**：`tests/components/atoms/BaseDivider.spec.ts`（純線渲染 `<hr>`、帶文字渲染 `<div role="separator">`、slot 內容、`orientation` / `variant` / `textAlign` modifier class、`aria-orientation`）— 10 cases
+- [x] **Vitest**：`tests/components/atoms/BaseDivider.spec.ts`（純線渲染 `<hr>`、帶文字渲染 `<div role="separator">`、slot 內容、`orientation` / `lineStyle` / `textAlign` modifier class、`aria-orientation`）— 10 cases
 - [x] **Storybook**：`stories/components/atoms/BaseDivider.stories.ts`（Playground / Basic / Variants / WithText / Vertical / Themed）

@@ -7,7 +7,7 @@ import BaseDivider from '~/components/atoms/BaseDivider.vue'
 //
 // BaseDivider 是分隔線元件：未給 slot 渲染純線 <hr>，給 default slot 則渲染帶文字的
 // <div role="separator">（兩段線夾住中央內容）。支援 horizontal / vertical 方向、
-// solid / dashed / dotted 線型，文字可 start / center / end 對齊。外觀全走 --divider-* token。
+// solid / dashed / dotted 線型（lineStyle），文字可 start / center / end 對齊。外觀全走 --divider-* token。
 
 const WRAP = (inner: string) =>
   `<div style="padding:32px;font-family:system-ui;max-width:480px">${inner}</div>`
@@ -22,7 +22,7 @@ const meta = {
       options: ['horizontal', 'vertical'],
       description: '方向。預設 horizontal',
     },
-    variant: {
+    lineStyle: {
       control: { type: 'inline-radio' },
       options: ['solid', 'dashed', 'dotted'],
       description: '線型。預設 solid',
@@ -45,7 +45,7 @@ type Story = StoryObj
 export const Playground: Story = {
   args: {
     orientation: 'horizontal',
-    variant: 'solid',
+    lineStyle: 'solid',
     textAlign: 'center',
   },
   render: (args: Record<string, unknown>) => ({
@@ -84,14 +84,14 @@ export const Variants: Story = {
     components: { BaseDivider },
     template: WRAP(`
       <div style="display:flex;flex-direction:column;gap:20px">
-        <BaseDivider variant="solid" />
-        <BaseDivider variant="dashed" />
-        <BaseDivider variant="dotted" />
+        <BaseDivider line-style="solid" />
+        <BaseDivider line-style="dashed" />
+        <BaseDivider line-style="dotted" />
       </div>
     `),
   }),
   parameters: {
-    docs: { description: { story: '`variant` 對應 CSS `border-style`。' } },
+    docs: { description: { story: '`lineStyle` 對應 CSS `border-style`。' } },
   },
 }
 

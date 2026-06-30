@@ -10,12 +10,12 @@
     role="progressbar"
     aria-valuemin="0"
     :aria-valuemax="maxNumber"
-    :aria-valuenow="indeterminate ? undefined : valueNumber"
+    :aria-valuenow="indeterminate ? undefined : ariaValueNow"
     :aria-valuetext="indeterminate ? undefined : `${displayPercentage}%`"
     :style="rootStyle"
   >
     <!-- ── 線形（linear）：rail 軌道 + track 填充，track 以 translateX 推進 ── -->
-    <template v-if="variant === 'linear'">
+    <template v-if="type === 'linear'">
       <div class="base-progress__rail">
         <div
           class="base-progress__track"
@@ -59,7 +59,7 @@
     <!-- 指示文字：indeterminate 時不顯示（無確定值可報） -->
     <span
       v-if="!indeterminate && (indicator || slots.default)"
-      :class="variant === 'linear'
+      :class="type === 'linear'
         ? 'base-progress__indicator'
         : 'base-progress__circular-indicator'"
     >
@@ -85,13 +85,13 @@ export interface BaseProgressProps {
    * 型態：`linear`（橫條）或 `circular`（環形）。
    * @default 'linear'
    */
-  variant?: 'linear' | 'circular'
+  type?: 'linear' | 'circular'
   /**
    * 語意色，作為 `--progress-color`（填充色）的預設來源；
    * 要完全自訂顏色請覆寫 `--progress-color` token。
    * @default 'primary'
    */
-  color?: 'primary' | 'success' | 'warning' | 'danger' | 'info'
+  color?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutral'
   /**
    * 持續動畫，在載入進度未知時使用；開啟後 `value` / `indicator` 失效。
    * @default false
@@ -131,7 +131,7 @@ interface BaseProgressSlots {
 }
 
 const props = withDefaults(defineProps<BaseProgressProps>(), {
-  variant: 'linear',
+  type: 'linear',
   color: 'primary',
   indeterminate: false,
   value: 0,
@@ -165,8 +165,21 @@ const percentage = computed(() => {
 /** 指示文字用的整數百分比（幾何計算仍用未取整的 `percentage`）。 */
 const displayPercentage = computed(() => Math.round(percentage.value))
 
+/**
+ * 對外播報的 `aria-valuenow`：夾在 `[0, max]`。
+ * 幾何已 clamp，播報值同步 clamp，避免 SR 報出超出範圍的原始值
+ * （如 value=150 / max=100 應報 100、value=-20 應報 0）。
+ */
+const ariaValueNow = computed(() => {
+  const value = valueNumber.value
+  const max = maxNumber.value
+  if (!Number.isFinite(value)) return 0
+  const upperBound = Number.isFinite(max) && max > 0 ? max : 0
+  return Math.min(upperBound, Math.max(0, value))
+})
+
 const rootClass = computed(() => [
-  `base-progress--${props.variant}`,
+  `base-progress--${props.type}`,
   `base-progress--${props.color}`,
   { 'base-progress--indeterminate': props.indeterminate },
 ])
@@ -225,6 +238,7 @@ const arcLength = computed(() =>
 :where(.base-progress--warning) { --progress-color: #f59e0b; }
 :where(.base-progress--danger)  { --progress-color: #ef4444; }
 :where(.base-progress--info)    { --progress-color: #06b6d4; }
+:where(.base-progress--neutral) { --progress-color: #6b7280; }
 
 /* ───────────────────────────────────────────────────────
  * Linear：rail（底軌）內含 track（填充），track 以 translateX 推進

@@ -48,15 +48,21 @@ export interface BaseBadgeProps {
    */
   placement?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
   /**
-   * 尺寸：`dot` 為純紅點（不顯示內容）；`medium` / `large` 顯示內容。
-   * @default 'medium'
+   * 尺寸：`sm` / `md` / `lg`。一般徽章控制色塊大小；`dot` 模式下控制紅點大小。
+   * @default 'md'
    */
-  size?: 'dot' | 'medium' | 'large'
+  size?: 'sm' | 'md' | 'lg'
+  /**
+   * 純紅點模式：為 `true` 時只渲染存在感紅點、不顯示任何內容（`content` / `#content`
+   * 皆忽略），點的大小仍由 `size` 控制。
+   * @default false
+   */
+  dot?: boolean
   /**
    * 語意色：作為 `--badge-bg` 的預設來源；要完全自訂顏色請覆寫 `--badge-bg` token。
    * @default 'danger'
    */
-  color?: 'primary' | 'success' | 'warning' | 'danger' | 'info'
+  color?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutral'
   /**
    * 內容為數字 `0` 時是否仍顯示。預設 `false`（0 → 隱藏徽章）。
    * @default false
@@ -67,7 +73,7 @@ export interface BaseBadgeProps {
 interface BaseBadgeSlots {
   /** 錨點元素（被標記的目標）。 */
   default?: () => VNode[]
-  /** 自訂徽章內容（取代 `content` 的文字渲染）；`dot` 尺寸不渲染。 */
+  /** 自訂徽章內容（取代 `content` 的文字渲染）；`dot` 為 `true` 時不渲染。 */
   content?: () => VNode[]
 }
 
@@ -76,7 +82,8 @@ const props = withDefaults(defineProps<BaseBadgeProps>(), {
   overlap: 'circular',
   max: 99,
   placement: 'top-right',
-  size: 'medium',
+  size: 'md',
+  dot: false,
   color: 'danger',
   showZero: false,
 })
@@ -88,13 +95,13 @@ const hasContent = computed(
   () => !isNullOrUndefined(props.content) || !!slots.content,
 )
 
-/** 是否渲染文字內容：有內容且非 `dot` 尺寸。 */
-const showContent = computed(() => hasContent.value && props.size !== 'dot')
+/** 是否渲染文字內容：有內容且非 `dot` 模式。 */
+const showContent = computed(() => hasContent.value && !props.dot)
 
 /**
  * 視覺隱藏（scale 0）的時機：
  * 1. 內容為「數字 0」且未開 `showZero`（dot 與非 dot 一致）。
- * 2. 非 `dot` 尺寸卻沒有任何內容 → 避免渲染出空的色塊圓圈；`dot` 為純存在感
+ * 2. 非 `dot` 模式卻沒有任何內容 → 避免渲染出空的色塊圓圈；`dot` 為純存在感
  *    紅點、不受此限。
  *
  * > 修正參考實作：(1) 原版用 `Number(content) === 0`，`content=null` 時
@@ -105,7 +112,7 @@ const invisible = computed(() => {
   if (!props.showZero && isNumberish(props.content) && Number(props.content) === 0) {
     return true
   }
-  if (props.size !== 'dot' && !hasContent.value) {
+  if (!props.dot && !hasContent.value) {
     return true
   }
   return false
@@ -120,12 +127,13 @@ const displayContent = computed(() => {
   return content
 })
 
-/** 組裝 BEM modifier：定位 / 錨點外形 / 尺寸 / 顏色 / 隱藏狀態。 */
+/** 組裝 BEM modifier：定位 / 錨點外形 / 尺寸 / dot / 顏色 / 隱藏狀態。 */
 const contentClass = computed(() => [
   `base-badge__content--${props.placement}`,
   `base-badge__content--${props.overlap}`,
   `base-badge__content--${props.size}`,
   `base-badge__content--${props.color}`,
+  props.dot && 'base-badge__content--dot',
   invisible.value && 'base-badge__content--invisible',
 ])
 </script>
@@ -162,6 +170,7 @@ const contentClass = computed(() => [
 :where(.base-badge__content--warning) { --_badge-preset-bg: #f59e0b; }
 :where(.base-badge__content--danger) { --_badge-preset-bg: #ef4444; }
 :where(.base-badge__content--info) { --_badge-preset-bg: #06b6d4; }
+:where(.base-badge__content--neutral) { --_badge-preset-bg: #6b7280; }
 
 .base-badge {
   position: relative;
@@ -209,21 +218,30 @@ const contentClass = computed(() => [
     // ── 隱藏（數字 0）：縮成 0；a11y 由 template 的 aria-hidden 處理 ──
     &--invisible { --badge-scale: 0; }
 
-    // ── 尺寸 ───────────────────────────────────────────────
-    &--dot {
-      padding: 0;
-      min-width: 9px;
-      height: 9px;
+    // ── 尺寸（一般徽章色塊）────────────────────────────────
+    &--sm {
+      min-width: 16px;
+      height: 16px;
     }
 
-    &--medium {
+    &--md {
       min-width: 20px;
       height: 20px;
     }
 
-    &--large {
+    &--lg {
       min-width: 30px;
       height: 30px;
+    }
+
+    // ── dot 模式：純紅點，無內邊距；點大小仍由 size 控制。
+    // 用「dot + size」雙 class 組合提高 specificity，覆寫上面的色塊尺寸。
+    &--dot {
+      padding: 0;
+
+      &.base-badge__content--sm { min-width: 6px; height: 6px; }
+      &.base-badge__content--md { min-width: 9px; height: 9px; }
+      &.base-badge__content--lg { min-width: 12px; height: 12px; }
     }
 
     // ── 定位（角落 + 自我位移對齊角落中心）─────────────────

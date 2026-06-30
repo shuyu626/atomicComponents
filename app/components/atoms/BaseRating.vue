@@ -129,12 +129,17 @@
       </span>
     </div>
 
-    <!-- 訊息區（互動模式）：驗證錯誤優先、否則 message prop。 -->
+    <!--
+      訊息區（互動模式）：驗證錯誤優先、否則 message prop。
+      以 v-show 常駐 DOM（而非 v-if 動態插入）+ aria-atomic，
+      讓動態出現 / 變動的驗證訊息整段被螢幕閱讀器朗讀（對齊 BaseFormField）。
+    -->
     <div
-      v-if="!readonly && displayMessage"
+      v-show="!readonly && displayMessage"
       :id="messageId"
       class="base-rating__message"
       aria-live="polite"
+      aria-atomic="true"
     >
       <slot
         name="message"
@@ -170,8 +175,8 @@ interface BaseRatingProps {
   readonly?: boolean
   /** 停用。 @default false */
   disabled?: boolean
-  /** 尺寸。 @default 'medium' */
-  size?: 'small' | 'medium' | 'large'
+  /** 尺寸。 @default 'md' */
+  size?: 'sm' | 'md' | 'lg'
   /** 評分色（未指定時用金色預設 token）。 */
   color?: BaseRatingColor
   /** 標籤文字（或用 `#default` / `#label` slot）。 */
@@ -196,7 +201,7 @@ const props = withDefaults(defineProps<BaseRatingProps>(), {
   clearable: true,
   readonly: false,
   disabled: false,
-  size: 'medium',
+  size: 'md',
   color: undefined,
   label: undefined,
   ariaLabel: '評分',
@@ -252,7 +257,7 @@ const hover = ref(0)
 const displayValue = computed(() => (hover.value > 0 ? hover.value : currentValue.value))
 
 const hasLabel = computed(() => !!(props.label || slots.label || slots.default))
-/** 唯讀模式才渲染原生 radio 與命中區。 */
+/** 互動模式才渲染原生 radio 與命中區（唯讀模式僅呈現分數、不渲染 input）。 */
 const renderInputs = computed(() => !props.readonly)
 /** 可實際互動（非唯讀且非停用）。 */
 const isInteractive = computed(() => !props.readonly && !props.disabled)
@@ -357,7 +362,7 @@ const rootClass = computed(() => [
 :where(.base-rating) {
   --rating-color: #faaf00; // 預設金色
   --rating-empty-color: #e0e0e0;
-  --rating-size: 1.5rem; // medium
+  --rating-size: 1.5rem; // md
   --rating-gap: 4px;
   --rating-label-color: #374151;
   --rating-danger-color: #dc2626;
@@ -369,9 +374,9 @@ const rootClass = computed(() => [
 :where(.base-rating--danger)  { --rating-color: #b91c1c; }
 :where(.base-rating--info)    { --rating-color: #0369a1; }
 
-:where(.base-rating--small)  { --rating-size: 1.125rem; }
-:where(.base-rating--medium) { --rating-size: 1.5rem; }
-:where(.base-rating--large)  { --rating-size: 2rem; }
+:where(.base-rating--sm) { --rating-size: 1.125rem; }
+:where(.base-rating--md) { --rating-size: 1.5rem; }
+:where(.base-rating--lg) { --rating-size: 2rem; }
 
 .base-rating {
   display: inline-flex;

@@ -6,7 +6,7 @@ import BaseChip from '~/components/atoms/BaseChip.vue'
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // BaseChip 是標籤 / 籌碼元件：緊湊呈現分類、狀態、篩選條件或可移除的 token。
-// contained / outlined / text 三種 variant，語意色與任意自訂 CSS color 共用同一
+// solid / outline / ghost / text 四種 variant，語意色與任意自訂 CSS color 共用同一
 // --chip-accent 顏色模型（底色 / 邊框由 color-mix 推導）。deletable 時尾端帶刪除鈕。
 
 const WRAP = (inner: string) =>
@@ -20,17 +20,17 @@ const meta = {
     as: { control: { type: 'text' }, description: '根元素標籤或元件（多型）。預設 span' },
     variant: {
       control: { type: 'select' },
-      options: ['filled', 'contained', 'outlined', 'text'],
-      description: '外觀。預設 contained',
+      options: ['solid', 'outline', 'ghost', 'text'],
+      description: '外觀。預設 ghost',
     },
     color: {
       control: { type: 'text' },
-      description: '語意色（primary/success/warning/danger/info）或任意 CSS color。預設 primary',
+      description: '語意色（primary/success/warning/danger/info/neutral）或任意 CSS color。預設 primary',
     },
     size: {
       control: { type: 'select' },
-      options: ['small', 'medium'],
-      description: '尺寸。預設 medium',
+      options: ['sm', 'md', 'lg'],
+      description: '尺寸。預設 md',
     },
     label: { control: { type: 'text' }, description: '標籤文字；有 default slot 時以 slot 為準' },
     deletable: { control: { type: 'boolean' }, description: '是否顯示刪除鈕。預設 false' },
@@ -50,9 +50,9 @@ type Story = StoryObj
 
 export const Playground: Story = {
   args: {
-    variant: 'contained',
+    variant: 'ghost',
     color: 'primary',
-    size: 'medium',
+    size: 'md',
     label: 'Chip',
     deletable: false,
     deleteAriaLabel: 'Delete',
@@ -67,16 +67,16 @@ export const Playground: Story = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Variants —— contained / outlined / text
+// Variants —— solid / outline / ghost / text
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Variants: Story = {
   render: () => ({
     components: { BaseChip },
     template: WRAP(`
-      <BaseChip variant="filled" color="primary">Filled</BaseChip>
-      <BaseChip variant="contained" color="primary">Contained</BaseChip>
-      <BaseChip variant="outlined" color="primary">Outlined</BaseChip>
+      <BaseChip variant="solid" color="primary">Solid</BaseChip>
+      <BaseChip variant="outline" color="primary">Outline</BaseChip>
+      <BaseChip variant="ghost" color="primary">Ghost</BaseChip>
       <BaseChip variant="text" color="primary">Text</BaseChip>
     `),
   }),
@@ -92,11 +92,12 @@ export const Colors: Story = {
     template: `
       <div style="display:flex;flex-direction:column;gap:12px;padding:32px;font-family:system-ui">
         <div style="display:flex;flex-wrap:wrap;gap:12px">
-          <BaseChip variant="filled" color="primary">Primary</BaseChip>
-          <BaseChip variant="filled" color="success">Success</BaseChip>
-          <BaseChip variant="filled" color="warning">Warning</BaseChip>
-          <BaseChip variant="filled" color="danger">Danger</BaseChip>
-          <BaseChip variant="filled" color="info">Info</BaseChip>
+          <BaseChip variant="solid" color="primary">Primary</BaseChip>
+          <BaseChip variant="solid" color="success">Success</BaseChip>
+          <BaseChip variant="solid" color="warning">Warning</BaseChip>
+          <BaseChip variant="solid" color="danger">Danger</BaseChip>
+          <BaseChip variant="solid" color="info">Info</BaseChip>
+          <BaseChip variant="solid" color="neutral">Neutral</BaseChip>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:12px">
           <BaseChip color="primary">Primary</BaseChip>
@@ -104,13 +105,15 @@ export const Colors: Story = {
           <BaseChip color="warning">Warning</BaseChip>
           <BaseChip color="danger">Danger</BaseChip>
           <BaseChip color="info">Info</BaseChip>
+          <BaseChip color="neutral">Neutral</BaseChip>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:12px">
-          <BaseChip variant="outlined" color="primary">Primary</BaseChip>
-          <BaseChip variant="outlined" color="success">Success</BaseChip>
-          <BaseChip variant="outlined" color="warning">Warning</BaseChip>
-          <BaseChip variant="outlined" color="danger">Danger</BaseChip>
-          <BaseChip variant="outlined" color="info">Info</BaseChip>
+          <BaseChip variant="outline" color="primary">Primary</BaseChip>
+          <BaseChip variant="outline" color="success">Success</BaseChip>
+          <BaseChip variant="outline" color="warning">Warning</BaseChip>
+          <BaseChip variant="outline" color="danger">Danger</BaseChip>
+          <BaseChip variant="outline" color="info">Info</BaseChip>
+          <BaseChip variant="outline" color="neutral">Neutral</BaseChip>
         </div>
       </div>
     `,
@@ -119,22 +122,23 @@ export const Colors: Story = {
     docs: {
       description: {
         story:
-          '上排 `filled` 飽和實心底（白字），下排 `outlined`。語意色 preset 皆採深色調，飽和底白字與淡底文字對比皆 ≥ WCAG AA。',
+          '上排 `solid` 飽和實心底（白字），中排 `ghost` 淡底（預設），下排 `outline`。語意色 preset 皆採深色調，飽和底白字與淡底文字對比皆 ≥ WCAG AA。',
       },
     },
   },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sizes —— small / medium
+// Sizes —— sm / md / lg
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Sizes: Story = {
   render: () => ({
     components: { BaseChip },
     template: WRAP(`
-      <BaseChip size="small" color="info">Small</BaseChip>
-      <BaseChip size="medium" color="info">Medium</BaseChip>
+      <BaseChip size="sm" color="info">Small</BaseChip>
+      <BaseChip size="md" color="info">Medium</BaseChip>
+      <BaseChip size="lg" color="info">Large</BaseChip>
     `),
   }),
 }
@@ -148,7 +152,7 @@ export const CustomColor: Story = {
     components: { BaseChip },
     template: WRAP(`
       <BaseChip color="#8b5cf6">#8b5cf6</BaseChip>
-      <BaseChip color="rebeccapurple" variant="outlined">rebeccapurple</BaseChip>
+      <BaseChip color="rebeccapurple" variant="outline">rebeccapurple</BaseChip>
       <BaseChip color="rgb(13 148 136)" variant="text">rgb(13 148 136)</BaseChip>
     `),
   }),
@@ -217,7 +221,7 @@ export const WithSlots: Story = {
         <template #prepend>${DOT('#15803d')}</template>
         線上
       </BaseChip>
-      <BaseChip color="info" variant="outlined">
+      <BaseChip color="info" variant="outline">
         v1.2.0
         <template #append>↗</template>
       </BaseChip>

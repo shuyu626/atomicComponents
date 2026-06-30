@@ -3,8 +3,8 @@
     class="base-avatar"
     :class="sizeClass"
     :style="style"
-    :role="src && alt ? 'img' : undefined"
-    :aria-label="src && alt ? alt : undefined"
+    :role="fallbackRole"
+    :aria-label="fallbackRole ? alt : undefined"
   >
     <!-- 有 src：載入成功顯示圖片，失敗（@error）切換到 fallback -->
     <template v-if="src">
@@ -51,10 +51,10 @@ import isNumberish from '~/utils/isNumberish'
 
 export interface BaseAvatarProps {
   /**
-   * 尺寸：具名（`small` / `medium` / `large`）走預設 token；數字 / 數字字串走自訂像素。
-   * @default 'medium'
+   * 尺寸：具名（`sm` / `md` / `lg`）走預設 token；數字 / 數字字串走自訂像素。
+   * @default 'md'
    */
-  size?: 'small' | 'medium' | 'large' | `${number}` | number
+  size?: 'sm' | 'md' | 'lg' | `${number}` | number
   /**
    * 圓角：`full` 為圓形；數字 / 數字字串為像素圓角。
    * @default 'full'
@@ -88,7 +88,7 @@ interface BaseAvatarSlots {
 }
 
 const props = withDefaults(defineProps<BaseAvatarProps>(), {
-  size: 'medium',
+  size: 'md',
   rounded: 'full',
   src: undefined,
   alt: undefined,
@@ -107,6 +107,17 @@ watch(
   () => {
     error.value = false
   },
+)
+
+/**
+ * 只有 fallback 狀態（有 `src` 但圖片載入失敗）才在外層 span 補 `role="img"` + `aria-label`，
+ * 讓螢幕閱讀器把縮寫 / icon fallback 當成一張帶描述的圖片。
+ *
+ * 圖片正常顯示時交給 `<img alt>` 表達語意，避免外層 role/aria-label 與內層 img alt 重複朗讀；
+ * 純縮寫頭像（無 `src`）與裝飾性頭像（`alt=""`）一律不掛，讓 SR 直接讀文字或跳過。
+ */
+const fallbackRole = computed<'img' | undefined>(() =>
+  props.src && error.value && props.alt ? 'img' : undefined,
 )
 
 // a11y：有 src 卻沒給 alt 時於開發期警告（裝飾性頭像請明示 alt=""）。
@@ -132,10 +143,10 @@ const fetchPriority = computed<'high' | undefined>(() =>
 
 /**
  * 自訂尺寸時換算成像素整數，餵給 `<img width/height>` 預留版位、避免 layout shift。
- * 具名尺寸交給 CSS class 處理，回傳 `undefined`（不輸出無效的 `width="medium"`）。
+ * 具名尺寸交給 CSS class 處理，回傳 `undefined`（不輸出無效的 `width="md"`）。
  *
- * > 修正參考實作：原版 `:width="size"` 在 `size='medium'` 時會渲染出非法的
- * > `width="medium"` 屬性，此處只在數值尺寸時輸出。
+ * > 修正參考實作：原版 `:width="size"` 在具名尺寸（如 `size='md'`）時會渲染出非法的
+ * > `width="md"` 屬性，此處只在數值尺寸時輸出。
  */
 const pixelSize = computed(() => (isNumberish(props.size) ? Number(props.size) : undefined))
 
@@ -194,17 +205,17 @@ const style = computed(() => ({
   border-radius: var(--avatar-rounded);
   user-select: none;
 
-  &--small {
+  &--sm {
     --avatar-size: 32px;
     --avatar-font-size: 0.75rem;
   }
 
-  &--medium {
+  &--md {
     --avatar-size: 40px;
     --avatar-font-size: 1.25rem;
   }
 
-  &--large {
+  &--lg {
     --avatar-size: 56px;
     --avatar-font-size: 1.5rem;
   }

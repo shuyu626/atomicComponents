@@ -20,8 +20,9 @@ BaseBadge 是 **徽章** 元件：把數字計數或純紅點（dot）疊在錨�
 | `overlap` | `'circular' \| 'rectangular'` | `'circular'` | 錨點外形 → 角落內縮量。圓形錨點（頭像）用 `circular` 內縮；方形錨點（卡片 / icon）用 `rectangular` 貼齊角落 |
 | `max` | `` number \| `${number}` `` | `99` | 數字內容上限；超過顯示 `${max}+`。非數字內容不受影響 |
 | `placement` | `'top-left' \| 'top-right' \| 'bottom-left' \| 'bottom-right'` | `'top-right'` | 相對錨點的定位角落 |
-| `size` | `'dot' \| 'medium' \| 'large'` | `'medium'` | `dot` 為純紅點（不顯示內容）；`medium` / `large` 顯示內容 |
-| `color` | `'primary' \| 'success' \| 'warning' \| 'danger' \| 'info'` | `'danger'` | 語意色：作為 `--badge-bg` 的預設來源。要完全自訂顏色請覆寫 `--badge-bg` |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | 尺寸：一般徽章控制色塊大小；`dot` 模式下控制紅點大小 |
+| `dot` | `boolean` | `false` | 純紅點模式：為 `true` 時只渲染存在感紅點、不顯示任何內容（`content` / `#content` 皆忽略），點大小仍由 `size` 控制 |
+| `color` | `'primary' \| 'success' \| 'warning' \| 'danger' \| 'info' \| 'neutral'` | `'danger'` | 語意色：作為 `--badge-bg` 的預設來源。要完全自訂顏色請覆寫 `--badge-bg` |
 | `showZero` | `boolean` | `false` | 內容為數字 `0` 時是否仍顯示 |
 
 **Slots**
@@ -29,7 +30,7 @@ BaseBadge 是 **徽章** 元件：把數字計數或純紅點（dot）疊在錨�
 | Slot | 說明 |
 |---|---|
 | `#default` | 錨點元素（被標記的目標） |
-| `#content` | 自訂徽章內容，取代 `content` 的文字渲染；`dot` 尺寸不渲染 |
+| `#content` | 自訂徽章內容，取代 `content` 的文字渲染；`dot` 為 `true` 時不渲染 |
 
 ---
 
@@ -41,7 +42,7 @@ BaseBadge 是 **徽章** 元件：把數字計數或純紅點（dot）疊在錨�
 | `--badge-color` | `#fff` | 文字（數字）顏色 |
 | `--badge-font-size` | `0.75rem` | 內容字級 |
 
-語意色 preset（`color` prop 選用，可被 `--badge-bg` 覆寫）：`primary #3b82f6`、`success #22c55e`、`warning #f59e0b`、`danger #ef4444`、`info #06b6d4`。
+語意色 preset（`color` prop 選用，可被 `--badge-bg` 覆寫）：`primary #3b82f6`、`success #22c55e`、`warning #f59e0b`、`danger #ef4444`、`info #06b6d4`、`neutral #6b7280`。
 
 > 背景採 fallback chain：`background: var(--badge-bg, var(--_badge-preset-bg))`。傳 `color` prop 走語意 preset；覆寫 `--badge-bg` 則完全自訂——兩條路並存。預設 token 皆以 `:where()`（specificity 0）宣告，確保使用端 class 覆寫得動。
 
@@ -76,8 +77,13 @@ BaseBadge 是 **徽章** 元件：把數字計數或純紅點（dot）疊在錨�
     <BellIcon />
   </BaseBadge>
 
-  <!-- 純紅點（存在感提示，不顯示數字） -->
-  <BaseBadge size="dot" color="success">
+  <!-- 純紅點（存在感提示，不顯示數字）；點大小由 size 控制 -->
+  <BaseBadge dot color="success">
+    <Avatar />
+  </BaseBadge>
+
+  <!-- 較大的紅點 -->
+  <BaseBadge dot size="lg" color="neutral">
     <Avatar />
   </BaseBadge>
 
@@ -105,8 +111,8 @@ BaseBadge 是 **徽章** 元件：把數字計數或純紅點（dot）疊在錨�
 
 - **數字收斂**：`content` 為數字且 `> max` 時顯示 `${max}+`；非數字內容（如 `'NEW'`）不套 `max`、原樣顯示。
 - **0 的處理**：`content` 為數字 `0` 且 `showZero=false` → 隱藏（`scale(0)` 收合 + `aria-hidden`）。`null` / `undefined` / 文字**不**算 0，不會被誤判隱藏。
-- **空內容收合**：`medium` / `large` 尺寸但沒有任何 `content` / `#content` slot 時 → 自動收合（不渲染空色塊圓圈）。
-- **dot 尺寸**：永遠不渲染 `content` / `#content`，只當作存在感紅點；**即使無內容也維持顯示**（不受空收合影響）。
+- **空內容收合**：非 `dot` 模式但沒有任何 `content` / `#content` slot 時 → 自動收合（不渲染空色塊圓圈）。
+- **dot 模式**：`dot=true` 時永遠不渲染 `content` / `#content`，只當作存在感紅點；**即使無內容也維持顯示**（不受空收合影響）；點大小由 `size`（`sm` / `md` / `lg`）控制。
 
 ---
 
@@ -135,5 +141,5 @@ BaseBadge 是 **徽章** 元件：把數字計數或純紅點（dot）疊在錨�
 
 ## 7. 測試與 Storybook
 
-- [x] **Vitest**：`tests/components/atoms/BaseBadge.spec.ts`（content 渲染 / `max` 收斂 / `showZero` / 0 隱藏 + `aria-hidden` / null 不誤判 / **空內容收合** / dot 不渲染內容且維持顯示 / placement・overlap・color modifier class / `#content` slot）— 19 cases
-- [x] **Storybook**：`stories/components/atoms/BaseBadge.stories.ts`（Playground / Numbers / Max / Dot / Placements / Colors / Overlap / Themed）
+- [x] **Vitest**：`tests/components/atoms/BaseBadge.spec.ts`（content 渲染 / `max` 收斂 / `showZero` / 0 隱藏 + `aria-hidden` / null 不誤判 / **空內容收合** / `dot` 模式不渲染內容且維持顯示、size 可控 / placement・overlap・size・color modifier class（含 `sm`・`neutral`）/ `#content` slot）— 23 cases
+- [x] **Storybook**：`stories/components/atoms/BaseBadge.stories.ts`（Playground / Numbers / Sizes / Max / Dot / Placements / Colors / Overlap / Themed）

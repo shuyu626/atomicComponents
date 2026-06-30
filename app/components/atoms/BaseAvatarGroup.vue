@@ -28,9 +28,9 @@ export interface BaseAvatarGroupProps {
   max?: number
   /**
    * 統一套用到群組內每個 avatar 的尺寸（覆寫子層各自的 `size`）。
-   * @default 'medium'
+   * @default 'md'
    */
-  size?: 'small' | 'medium' | 'large' | `${number}` | number
+  size?: 'sm' | 'md' | 'lg' | `${number}` | number
   /**
    * 統一套用到群組內每個 avatar 的圓角（覆寫子層各自的 `rounded`）。
    * @default 'full'
@@ -45,7 +45,7 @@ interface BaseAvatarGroupSlots {
 
 const props = withDefaults(defineProps<BaseAvatarGroupProps>(), {
   max: 3,
-  size: 'medium',
+  size: 'md',
   rounded: 'full',
 })
 
@@ -73,10 +73,17 @@ function renderGroup() {
 
   // 保持「DOM 順序＝閱讀順序」（不像參考實作那樣 reverse），改用遞減 z-index
   // 讓前面的頭像疊在後面之上，兼顧視覺堆疊與螢幕閱讀器的正確朗讀順序。
+  // key 沿用原 vnode 的 key，沒有才用 index fallback（`node.key ?? index`）：
+  // 當 slot 來源是動態清單（v-for）時，保留原 key 才能讓 Vue 依身分（而非位置）
+  // diff，避免清單增減 / 重排時把狀態 patch 到錯的 avatar 上。
   const visible: VNode[] = nodes
     .slice(0, max)
     .map((node, index) =>
-      cloneVNode(node, { ...shared, style: { zIndex: length - index } }),
+      cloneVNode(node, {
+        ...shared,
+        key: node.key ?? index,
+        style: { zIndex: length - index },
+      }),
     )
 
   // 超出 max：補一個 `+N` 頭像，置於尾端（z-index 最低，與其他頭像一致地往後疊）。

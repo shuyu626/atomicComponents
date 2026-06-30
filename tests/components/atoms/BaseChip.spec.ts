@@ -44,10 +44,11 @@ describe('BaseChip', () => {
   // ── modifier classes ──────────────────────────────────────────────────────────
   describe('modifier classes', () => {
     it('applies default size/variant/color modifiers', () => {
+      // 預設 variant 為 ghost（淡色調底），維持元件原本的預設外觀。
       expect(rootOf(mountChip({ label: 'x' })).classes()).toEqual(
         expect.arrayContaining([
-          'base-chip--medium',
-          'base-chip--contained',
+          'base-chip--md',
+          'base-chip--ghost',
           'base-chip--primary',
         ]),
       )
@@ -56,23 +57,44 @@ describe('BaseChip', () => {
     it('reflects custom size/variant/color', () => {
       const w = mountChip({
         label: 'x',
-        size: 'small',
-        variant: 'outlined',
+        size: 'sm',
+        variant: 'outline',
         color: 'success',
       })
       expect(rootOf(w).classes()).toEqual(
         expect.arrayContaining([
-          'base-chip--small',
-          'base-chip--outlined',
+          'base-chip--sm',
+          'base-chip--outline',
           'base-chip--success',
         ]),
       )
     })
 
-    it('supports the filled variant', () => {
+    it('supports the lg size', () => {
       expect(
-        rootOf(mountChip({ label: 'x', variant: 'filled' })).classes(),
-      ).toContain('base-chip--filled')
+        rootOf(mountChip({ label: 'x', size: 'lg' })).classes(),
+      ).toContain('base-chip--lg')
+    })
+
+    it('supports the solid variant (saturated fill)', () => {
+      expect(
+        rootOf(mountChip({ label: 'x', variant: 'solid' })).classes(),
+      ).toContain('base-chip--solid')
+    })
+
+    it('supports every renamed variant', () => {
+      const variants = ['solid', 'outline', 'ghost', 'text'] as const
+      for (const variant of variants) {
+        expect(
+          rootOf(mountChip({ label: 'x', variant })).classes(),
+        ).toContain(`base-chip--${variant}`)
+      }
+    })
+
+    it('supports the neutral semantic color', () => {
+      const w = mountChip({ label: 'x', color: 'neutral' })
+      expect(rootOf(w).classes()).toContain('base-chip--neutral')
+      expect(rootOf(w).attributes('style')).toBeUndefined()
     })
   })
 
@@ -85,7 +107,7 @@ describe('BaseChip', () => {
       expect(
         rootOf(w)
           .classes()
-          .some(c => /^base-chip--(primary|success|warning|danger|info)$/.test(c)),
+          .some(c => /^base-chip--(primary|success|warning|danger|info|neutral)$/.test(c)),
       ).toBe(false)
     })
 

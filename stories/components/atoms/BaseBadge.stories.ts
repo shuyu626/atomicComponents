@@ -32,12 +32,16 @@ const meta = {
     },
     size: {
       control: { type: 'select' },
-      options: ['dot', 'medium', 'large'],
-      description: 'dot 為純紅點（不顯示內容）。預設 medium',
+      options: ['sm', 'md', 'lg'],
+      description: '尺寸：一般徽章控制色塊大小、dot 模式控制紅點大小。預設 md',
+    },
+    dot: {
+      control: { type: 'boolean' },
+      description: '純紅點模式：只顯示紅點、不渲染內容，點大小由 size 控制。預設 false',
     },
     color: {
       control: { type: 'select' },
-      options: ['primary', 'success', 'warning', 'danger', 'info'],
+      options: ['primary', 'success', 'warning', 'danger', 'info', 'neutral'],
       description: '語意色（作為 --badge-bg 預設）。預設 danger',
     },
     showZero: { control: { type: 'boolean' }, description: 'content 為 0 時是否仍顯示。預設 false' },
@@ -57,7 +61,8 @@ export const Playground: Story = {
     overlap: 'circular',
     max: 99,
     placement: 'top-right',
-    size: 'medium',
+    size: 'md',
+    dot: false,
     color: 'danger',
     showZero: false,
   },
@@ -92,6 +97,26 @@ export const Numbers: Story = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Sizes —— sm / md / lg
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const Sizes: Story = {
+  render: () => ({
+    components: { BaseBadge },
+    template: `
+      <div style="display:flex;align-items:center;gap:28px;padding:32px;font-family:system-ui">
+        <BaseBadge :content="8" size="sm">${ANCHOR}</BaseBadge>
+        <BaseBadge :content="8" size="md">${ANCHOR}</BaseBadge>
+        <BaseBadge :content="8" size="lg">${ANCHOR}</BaseBadge>
+      </div>
+    `,
+  }),
+  parameters: {
+    docs: { description: { story: '三種尺寸：`sm` / `md`（預設）/ `lg`。' } },
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Max —— 超過上限收斂成 99+
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -116,24 +141,28 @@ export const Max: Story = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Dot: Story = {
-  args: {
-    content: "55"
-  },
-
   render: () => ({
     components: { BaseBadge },
     template: `
       <div style="display:flex;align-items:center;gap:28px;padding:32px;font-family:system-ui">
-        <BaseBadge size="dot" color="danger">${ANCHOR}</BaseBadge>
-        <BaseBadge size="dot" color="success">${ANCHOR}</BaseBadge>
-        <BaseBadge size="dot" color="primary">${ANCHOR}</BaseBadge>
+        <BaseBadge dot color="primary">${ANCHOR}</BaseBadge>
+        <BaseBadge dot color="success">${ANCHOR}</BaseBadge>
+        <BaseBadge dot color="warning">${ANCHOR}</BaseBadge>
+        <BaseBadge dot color="danger">${ANCHOR}</BaseBadge>
+        <BaseBadge dot color="info">${ANCHOR}</BaseBadge>
+        <BaseBadge dot color="neutral">${ANCHOR}</BaseBadge>
       </div>
     `,
   }),
 
   parameters: {
-    docs: { description: { story: 'dot 尺寸只顯示紅點、不渲染內容，常用於「有新內容」提示。' } },
-  }
+    docs: {
+      description: {
+        story:
+          'dot 模式只顯示圓點、不渲染內容，常用於「有新內容」提示。此排為六種語意色（統一 md 尺寸）；點大小由 size 控制，尺寸變化見 Sizes story。',
+      },
+    },
+  },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,6 +197,7 @@ export const Colors: Story = {
         <BaseBadge :content="5" color="warning">${ANCHOR}</BaseBadge>
         <BaseBadge :content="5" color="danger">${ANCHOR}</BaseBadge>
         <BaseBadge :content="5" color="info">${ANCHOR}</BaseBadge>
+        <BaseBadge :content="5" color="neutral">${ANCHOR}</BaseBadge>
       </div>
     `,
   }),

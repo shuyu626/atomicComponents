@@ -26,7 +26,7 @@ const meta = {
     clearable: { control: { type: 'boolean' }, description: '點已選取的同顆星可歸零。預設 true' },
     readonly: { control: { type: 'boolean' }, description: '唯讀（呈現分數、role=img）。預設 false' },
     disabled: { control: { type: 'boolean' }, description: '停用。預設 false' },
-    size: { control: { type: 'inline-radio' }, options: ['small', 'medium', 'large'], description: '尺寸。預設 medium' },
+    size: { control: { type: 'inline-radio' }, options: ['sm', 'md', 'lg'], description: '尺寸。預設 md' },
     color: { control: { type: 'select' }, options: ['primary', 'success', 'warning', 'danger', 'info'], description: '評分色；未指定時用金色預設 token' },
     label: { control: { type: 'text' }, description: '標籤文字；也可用 #default / #label slot' },
     message: { control: { type: 'text' }, description: '輔助 / 驗證訊息' },
@@ -49,7 +49,7 @@ export const Playground: Story = {
     clearable: true,
     readonly: false,
     disabled: false,
-    size: 'medium',
+    size: 'md',
   },
   render: (args: Record<string, unknown>) => ({
     components: { BaseRating },
@@ -152,9 +152,9 @@ export const Sizes: Story = {
     components: { BaseRating },
     template: WRAP(`
       <div style="display:flex;flex-direction:column;gap:12px">
-        <BaseRating :model-value="3" size="small" label="small" />
-        <BaseRating :model-value="3" size="medium" label="medium" />
-        <BaseRating :model-value="3" size="large" label="large" />
+        <BaseRating :model-value="3" size="sm" label="sm" />
+        <BaseRating :model-value="3" size="md" label="md" />
+        <BaseRating :model-value="3" size="lg" label="lg" />
       </div>
     `),
   }),

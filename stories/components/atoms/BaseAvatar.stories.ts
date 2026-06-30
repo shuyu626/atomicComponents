@@ -18,8 +18,8 @@ const meta = {
   argTypes: {
     size: {
       control: { type: 'select' },
-      options: ['small', 'medium', 'large', 64],
-      description: '具名（small/medium/large）走 token；數字 / 數字字串走自訂像素。預設 medium',
+      options: ['sm', 'md', 'lg', 64],
+      description: '具名（sm/md/lg）走 token；數字 / 數字字串走自訂像素。預設 md',
     },
     rounded: {
       control: { type: 'select' },
@@ -48,7 +48,7 @@ type Story = StoryObj
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Playground: Story = {
-  args: { src: SRC, alt: 'Alex Chen', size: 'medium', rounded: 'full', priority: false },
+  args: { src: SRC, alt: 'Alex Chen', size: 'md', rounded: 'full', priority: false },
   render: (args: Record<string, unknown>) => ({
     components: { BaseAvatar },
     setup() {
@@ -74,9 +74,9 @@ export const Sizes: Story = {
     },
     template: `
       <div style="display:flex;align-items:center;gap:16px;padding:24px;font-family:system-ui">
-        <BaseAvatar :src="src" alt="Small" size="small" />
-        <BaseAvatar :src="src" alt="Medium" size="medium" />
-        <BaseAvatar :src="src" alt="Large" size="large" />
+        <BaseAvatar :src="src" alt="Small" size="sm" />
+        <BaseAvatar :src="src" alt="Medium" size="md" />
+        <BaseAvatar :src="src" alt="Large" size="lg" />
         <BaseAvatar :src="src" alt="Custom 72" :size="72" />
       </div>
     `,
@@ -95,10 +95,10 @@ export const Rounded: Story = {
     },
     template: `
       <div style="display:flex;align-items:center;gap:16px;padding:24px;font-family:system-ui">
-        <BaseAvatar :src="src" alt="Circle" size="large" rounded="full" />
-        <BaseAvatar :src="src" alt="Rounded 16" size="large" :rounded="16" />
-        <BaseAvatar :src="src" alt="Rounded 8" size="large" :rounded="8" />
-        <BaseAvatar :src="src" alt="Square" size="large" :rounded="0" />
+        <BaseAvatar :src="src" alt="Circle" size="lg" rounded="full" />
+        <BaseAvatar :src="src" alt="Rounded 16" size="lg" :rounded="16" />
+        <BaseAvatar :src="src" alt="Rounded 8" size="lg" :rounded="8" />
+        <BaseAvatar :src="src" alt="Square" size="lg" :rounded="0" />
       </div>
     `,
   }),
@@ -113,9 +113,9 @@ export const Initials: Story = {
     components: { BaseAvatar },
     template: `
       <div style="display:flex;align-items:center;gap:16px;padding:24px;font-family:system-ui">
-        <BaseAvatar alt="Alex Chen" size="large">AC</BaseAvatar>
-        <BaseAvatar alt="Mira Yu" size="large" class="brand">MY</BaseAvatar>
-        <BaseAvatar alt="Ben Ko" size="large" :rounded="12">BK</BaseAvatar>
+        <BaseAvatar alt="Alex Chen" size="lg">AC</BaseAvatar>
+        <BaseAvatar alt="Mira Yu" size="lg" class="brand">MY</BaseAvatar>
+        <BaseAvatar alt="Ben Ko" size="lg" :rounded="12">BK</BaseAvatar>
         <style>.brand { --avatar-bg:#dbeafe; --avatar-color:#1e40af; }</style>
       </div>
     `,
@@ -136,11 +136,11 @@ export const Fallback: Story = {
     components: { BaseAvatar },
     template: `
       <div style="display:flex;align-items:center;gap:16px;padding:24px;font-family:system-ui">
-        <BaseAvatar src="https://invalid.example/broken.jpg" alt="Alex Chen" size="large">AC</BaseAvatar>
-        <BaseAvatar src="https://invalid.example/broken.jpg" alt="Mira Yu" size="large">
+        <BaseAvatar src="https://invalid.example/broken.jpg" alt="Alex Chen" size="lg">AC</BaseAvatar>
+        <BaseAvatar src="https://invalid.example/broken.jpg" alt="Mira Yu" size="lg">
           <template #fallback>MY</template>
         </BaseAvatar>
-        <BaseAvatar src="https://invalid.example/broken.jpg" alt="No Slot" size="large" />
+        <BaseAvatar src="https://invalid.example/broken.jpg" alt="No Slot" size="lg" />
       </div>
     `,
   }),
@@ -160,8 +160,8 @@ export const Themed: Story = {
     components: { BaseAvatar },
     template: `
       <div style="display:flex;align-items:center;gap:16px;padding:24px;font-family:system-ui">
-        <BaseAvatar alt="Theme A" size="large" class="t-a">TA</BaseAvatar>
-        <BaseAvatar alt="Theme B" size="large" class="t-b">TB</BaseAvatar>
+        <BaseAvatar alt="Theme A" size="lg" class="t-a">TA</BaseAvatar>
+        <BaseAvatar alt="Theme B" size="lg" class="t-b">TB</BaseAvatar>
         <style>
           .t-a { --avatar-bg:#fee2e2; --avatar-color:#b91c1c; --avatar-font-weight:800; }
           .t-b { --avatar-bg:#111827; --avatar-color:#f9fafb; }

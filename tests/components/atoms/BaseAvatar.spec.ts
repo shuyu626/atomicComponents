@@ -25,18 +25,37 @@ describe('BaseAvatar', () => {
       expect(img.attributes('alt')).toBe('Alex')
     })
 
-    it('marks the root as role="img" + aria-label when src is set', () => {
+    it('does NOT mark the root as role="img" while the image displays (img alt carries semantics)', () => {
       const root = mountAvatar({ src: '/a.jpg', alt: 'Alex' }).find('.base-avatar')
+      // 圖片正常顯示時交給 <img alt>，外層不重複掛 role/aria-label
+      expect(root.attributes('role')).toBeUndefined()
+      expect(root.attributes('aria-label')).toBeUndefined()
+      expect(root.find('img').attributes('alt')).toBe('Alex')
+    })
+
+    it('marks the root as role="img" + aria-label only in fallback state (image failed)', async () => {
+      const w = mountAvatar({ src: '/broken.jpg', alt: 'Alex' })
+      const root = w.find('.base-avatar')
+      // 載入中 / 成功：外層無 role
+      expect(root.attributes('role')).toBeUndefined()
+
+      await w.find('img').trigger('error')
+      // 失敗後縮寫 fallback 需要 role="img" + aria-label 讓 SR 當成帶描述的圖片
       expect(root.attributes('role')).toBe('img')
       expect(root.attributes('aria-label')).toBe('Alex')
     })
 
-    it('omits wrapper role/aria-label for decorative alt="" (lets SR skip)', () => {
-      const root = mountAvatar({ src: '/a.jpg', alt: '' }).find('.base-avatar')
-      expect(root.attributes('role')).toBeUndefined()
-      expect(root.attributes('aria-label')).toBeUndefined()
+    it('omits wrapper role/aria-label for decorative alt="" even after error (lets SR skip)', async () => {
+      const w = mountAvatar({ src: '/a.jpg', alt: '' })
+      const root = w.find('.base-avatar')
       // 內層 <img alt=""> 仍在，瀏覽器視為裝飾性圖
       expect(root.find('img').attributes('alt')).toBe('')
+      expect(root.attributes('role')).toBeUndefined()
+
+      await w.find('img').trigger('error')
+      // 裝飾性頭像即使失敗也不掛 role，讓 SR 直接跳過
+      expect(root.attributes('role')).toBeUndefined()
+      expect(root.attributes('aria-label')).toBeUndefined()
     })
 
     it('renders default slot (no img / no role) when src is absent', () => {
@@ -50,9 +69,9 @@ describe('BaseAvatar', () => {
   // ── 尺寸 ────────────────────────────────────────────────────────────────────
   describe('size', () => {
     it('adds a modifier class for named sizes and no img width/height attr', () => {
-      const w = mountAvatar({ src: '/a.jpg', alt: 'a', size: 'large' })
-      expect(w.find('.base-avatar').classes()).toContain('base-avatar--large')
-      // 具名尺寸不輸出非法的 width="large"
+      const w = mountAvatar({ src: '/a.jpg', alt: 'a', size: 'lg' })
+      expect(w.find('.base-avatar').classes()).toContain('base-avatar--lg')
+      // 具名尺寸不輸出非法的 width="lg"
       expect(w.find('img').attributes('width')).toBeUndefined()
       expect(w.find('img').attributes('height')).toBeUndefined()
     })
@@ -64,6 +83,18 @@ describe('BaseAvatar', () => {
       expect(w.find('img').attributes('height')).toBe('48')
       expect(root.style.getPropertyValue('--avatar-size')).toBe('48px')
       expect(w.find('.base-avatar').classes()).not.toContain('base-avatar--48')
+    })
+
+    it('defaults to the md modifier class', () => {
+      const w = mountAvatar({ alt: 'a' }, { default: () => 'AC' })
+      expect(w.find('.base-avatar').classes()).toContain('base-avatar--md')
+    })
+
+    it('maps each named size to its modifier class', () => {
+      for (const size of ['sm', 'md', 'lg'] as const) {
+        const w = mountAvatar({ alt: 'a', size }, { default: () => 'AC' })
+        expect(w.find('.base-avatar').classes()).toContain(`base-avatar--${size}`)
+      }
     })
 
     it('accepts numeric strings for size', () => {

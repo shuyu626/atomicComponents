@@ -19,7 +19,7 @@ BaseRating 是 **星級評分**：每顆星由 **底層未選取圖示**（`__ic
 | `clearable` | `boolean` | `true` | 點已選取的同顆星可歸零 |
 | `readonly` | `boolean` | `false` | 唯讀（呈現分數、不可互動，`role="img"`） |
 | `disabled` | `boolean` | `false` | 停用 |
-| `size` | `'small' \| 'medium' \| 'large'` | `'medium'` | 尺寸 |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | 尺寸 |
 | `color` | `'primary' \| 'success' \| 'warning' \| 'danger' \| 'info'` | — | 評分色；未指定時用金色預設 token |
 | `label` | `string` | — | 標籤文字；也可用 `#default` / `#label` slot |
 | `ariaLabel` | `string` | `'評分'` | 群組無障礙標籤（未提供 label / slot 時的 fallback） |
@@ -89,7 +89,7 @@ const half = ref(2.5)
 - 額外渲染一個 sr-only「未評分」radio（`value=0`），讓鍵盤可達 0（鍵盤清除評分的途徑）、且值為 0 時群組仍有對應的 checked 選項；此 radio 不在星格內，聚焦時改於整個群組（`__stars`）畫 focus ring，避免無焦點指示。
 - 標籤：有 `label` / slot 時群組以 `aria-labelledby` 連到標籤；否則用 `ariaLabel` 的 `aria-label` fallback。
 - 每個命中區（`label`）內含 sr-only 文字「N 顆星」供 SR 朗讀；視覺星形 `aria-hidden`。
-- 有訊息時群組綁 `aria-describedby` 指向訊息區（`aria-live="polite"`）、錯誤時 `aria-invalid`。
+- 有訊息時群組綁 `aria-describedby` 指向訊息區（`aria-live="polite"` + `aria-atomic="true"`，且以 `v-show` 常駐 DOM 而非 `v-if`，確保動態出現 / 變動的訊息整段被朗讀，對齊 `BaseFormField`）、錯誤時 `aria-invalid`。
 - 鍵盤聚焦：input 為 sr-only 且置於星格內，以 `.base-rating__star:has(.base-rating__input:focus-visible)` 對該星畫 `outline`。
 - 唯讀模式：群組 `role="img"` + `aria-label="N / max 顆星"`，整組視為單一圖像。
 

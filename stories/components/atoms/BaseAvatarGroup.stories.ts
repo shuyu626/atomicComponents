@@ -26,8 +26,8 @@ const meta = {
     },
     size: {
       control: { type: 'select' },
-      options: ['small', 'medium', 'large', 64],
-      description: '統一覆寫每個 avatar 的尺寸。預設 medium',
+      options: ['sm', 'md', 'lg', 64],
+      description: '統一覆寫每個 avatar 的尺寸。預設 md',
     },
     rounded: {
       control: { type: 'select' },
@@ -45,7 +45,7 @@ type Story = StoryObj
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Playground: Story = {
-  args: { max: 3, size: 'medium', rounded: 'full' },
+  args: { max: 3, size: 'md', rounded: 'full' },
   render: (args: Record<string, unknown>) => ({
     components: { BaseAvatarGroup, BaseAvatar },
     setup() {
@@ -118,13 +118,13 @@ export const Sizes: Story = {
     },
     template: `
       <div style="display:flex;flex-direction:column;gap:20px;padding:24px;font-family:system-ui">
-        <BaseAvatarGroup :max="4" size="small" aria-label="成員 small">
+        <BaseAvatarGroup :max="4" size="sm" aria-label="成員 small">
           <BaseAvatar v-for="p in people" :key="p.alt" :src="p.src" :alt="p.alt" />
         </BaseAvatarGroup>
-        <BaseAvatarGroup :max="4" size="medium" aria-label="成員 medium">
+        <BaseAvatarGroup :max="4" size="md" aria-label="成員 medium">
           <BaseAvatar v-for="p in people" :key="p.alt" :src="p.src" :alt="p.alt" />
         </BaseAvatarGroup>
-        <BaseAvatarGroup :max="4" size="large" aria-label="成員 large">
+        <BaseAvatarGroup :max="4" size="lg" aria-label="成員 large">
           <BaseAvatar v-for="p in people" :key="p.alt" :src="p.src" :alt="p.alt" />
         </BaseAvatarGroup>
       </div>
@@ -144,7 +144,7 @@ export const Themed: Story = {
     },
     template: `
       <div style="padding:24px;font-family:system-ui;background:#0f172a">
-        <BaseAvatarGroup :max="4" size="large" class="tight" aria-label="成員">
+        <BaseAvatarGroup :max="4" size="lg" class="tight" aria-label="成員">
           <BaseAvatar v-for="p in people" :key="p.alt" :src="p.src" :alt="p.alt" />
         </BaseAvatarGroup>
         <style>.tight { --avatar-group-overlap: 1.5rem; --avatar-group-ring: 2px solid #0f172a; }</style>

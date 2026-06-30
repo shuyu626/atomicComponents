@@ -13,7 +13,7 @@ function mountProgress(
 const rootOf = (w: ReturnType<typeof mountProgress>) => w.find('.base-progress')
 
 describe('BaseProgress', () => {
-  // ── 結構（variant）─────────────────────────────────────────────────────────────
+  // ── 結構（type）────────────────────────────────────────────────────────────────
   describe('structure', () => {
     it('renders the linear rail/track by default (no svg)', () => {
       const w = mountProgress({ value: 50 })
@@ -24,7 +24,7 @@ describe('BaseProgress', () => {
     })
 
     it('renders an <svg> with two circles for the circular variant', () => {
-      const w = mountProgress({ variant: 'circular', value: 50 })
+      const w = mountProgress({ type: 'circular', value: 50 })
       expect(rootOf(w).classes()).toContain('base-progress--circular')
       expect(w.find('svg.base-progress__circular').exists()).toBe(true)
       expect(w.find('.base-progress__circular-rail').exists()).toBe(true)
@@ -32,23 +32,29 @@ describe('BaseProgress', () => {
     })
 
     it('omits the circular track when value is 0 (arcLength = 0)', () => {
-      const w = mountProgress({ variant: 'circular', value: 0 })
+      const w = mountProgress({ type: 'circular', value: 0 })
       expect(w.find('.base-progress__circular-track').exists()).toBe(false)
     })
   })
 
   // ── modifier classes ──────────────────────────────────────────────────────────
   describe('modifier classes', () => {
-    it('applies default variant/color modifiers', () => {
+    it('applies default type/color modifiers', () => {
       expect(rootOf(mountProgress()).classes()).toEqual(
         expect.arrayContaining(['base-progress--linear', 'base-progress--primary']),
       )
     })
 
-    it('reflects custom variant/color', () => {
-      const w = mountProgress({ variant: 'circular', color: 'success' })
+    it('reflects custom type/color', () => {
+      const w = mountProgress({ type: 'circular', color: 'success' })
       expect(rootOf(w).classes()).toEqual(
         expect.arrayContaining(['base-progress--circular', 'base-progress--success']),
+      )
+    })
+
+    it('supports the neutral color', () => {
+      expect(rootOf(mountProgress({ color: 'neutral' })).classes()).toContain(
+        'base-progress--neutral',
       )
     })
 
@@ -78,6 +84,26 @@ describe('BaseProgress', () => {
       expect(root.attributes('aria-valuetext')).toBe('60%')
     })
 
+    it('clamps aria-valuenow to max when value exceeds max', () => {
+      const root = rootOf(mountProgress({ value: 150, max: 100 }))
+      expect(root.attributes('aria-valuenow')).toBe('100')
+    })
+
+    it('clamps aria-valuenow to 0 for negative value', () => {
+      const root = rootOf(mountProgress({ value: -20, max: 100 }))
+      expect(root.attributes('aria-valuenow')).toBe('0')
+    })
+
+    it('clamps aria-valuenow within a custom max', () => {
+      const root = rootOf(mountProgress({ value: 9, max: 5 }))
+      expect(root.attributes('aria-valuenow')).toBe('5')
+    })
+
+    it('falls back aria-valuenow to 0 when max <= 0', () => {
+      const root = rootOf(mountProgress({ value: 50, max: 0 }))
+      expect(root.attributes('aria-valuenow')).toBe('0')
+    })
+
     it('omits aria-valuenow / aria-valuetext when indeterminate', () => {
       const root = rootOf(mountProgress({ value: 30, indeterminate: true }))
       expect(root.attributes('aria-valuenow')).toBeUndefined()
@@ -87,7 +113,7 @@ describe('BaseProgress', () => {
     })
 
     it('marks the circular svg as decorative', () => {
-      const w = mountProgress({ variant: 'circular', value: 50 })
+      const w = mountProgress({ type: 'circular', value: 50 })
       expect(w.find('svg').attributes('aria-hidden')).toBe('true')
     })
   })
@@ -143,7 +169,7 @@ describe('BaseProgress', () => {
     })
 
     it('uses the circular indicator class for the circular variant', () => {
-      const w = mountProgress({ variant: 'circular', value: 40, indicator: true })
+      const w = mountProgress({ type: 'circular', value: 40, indicator: true })
       expect(w.find('.base-progress__circular-indicator').exists()).toBe(true)
       expect(w.find('.base-progress__indicator').exists()).toBe(false)
     })

@@ -54,7 +54,7 @@ describe('BaseDivider', () => {
 
   // ── modifier classes ───────────────────────────────────────────────────────────
   describe('modifier classes', () => {
-    it('applies default orientation/variant/textAlign modifiers', () => {
+    it('applies default orientation/lineStyle/textAlign modifiers', () => {
       expect(rootOf(mountDivider()).classes()).toEqual(
         expect.arrayContaining([
           'base-divider--horizontal',
@@ -64,10 +64,10 @@ describe('BaseDivider', () => {
       )
     })
 
-    it('reflects custom orientation/variant/textAlign', () => {
+    it('reflects custom orientation/lineStyle/textAlign', () => {
       const w = mountDivider({
         orientation: 'vertical',
-        variant: 'dashed',
+        lineStyle: 'dashed',
         textAlign: 'start',
       })
       expect(rootOf(w).classes()).toEqual(
@@ -79,8 +79,8 @@ describe('BaseDivider', () => {
       )
     })
 
-    it('supports the dotted variant', () => {
-      expect(rootOf(mountDivider({ variant: 'dotted' })).classes()).toContain(
+    it('supports the dotted lineStyle', () => {
+      expect(rootOf(mountDivider({ lineStyle: 'dotted' })).classes()).toContain(
         'base-divider--dotted',
       )
     })
