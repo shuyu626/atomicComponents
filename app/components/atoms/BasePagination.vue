@@ -122,7 +122,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 
 import BaseButton from '~/components/atoms/BaseButton.vue'
 import usePagination from '~/composables/usePagination'
@@ -229,6 +229,15 @@ const page = defineModel<number>({ required: true })
 const pageCount = computed(() => {
   if (props.total <= 0 || props.perPage <= 0) return 0
   return Math.ceil(props.total / props.perPage)
+})
+
+// total 縮小使 pageCount < 當前頁時,當前頁會落在不存在的頁。
+// 收斂到最後一頁(pageCount),透過 v-model emit 通知父層;pageCount < 1(無資料)
+// 時不動作 —— 此時不渲染 <nav>,且不該把 page 改成 0。
+watch(pageCount, (count) => {
+  if (count >= 1 && page.value > count) {
+    page.value = count
+  }
 })
 
 const items = usePagination(() => ({

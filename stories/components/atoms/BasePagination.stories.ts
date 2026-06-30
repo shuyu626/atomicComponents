@@ -427,6 +427,43 @@ export const CustomEllipsis: Story = {
 // Edge cases
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto-converge on shrink —— total 縮小使當前頁失效時,自動收斂到最後一頁
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const AutoConvergeOnShrink: Story = {
+  render: () => ({
+    components: { BasePagination },
+    setup() {
+      const page = ref(8)
+      const total = ref(100)
+      const shrink = () => (total.value = 30) // count 10 → 3,page 8 會被收斂到 3
+      const reset = () => {
+        total.value = 100
+        page.value = 8
+      }
+      return { page, total, shrink, reset }
+    },
+    template: `
+      <div style="display:flex;flex-direction:column;gap:12px;padding:16px;font-family:system-ui">
+        <div style="display:flex;gap:8px">
+          <button type="button" @click="shrink" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer">縮小 total → 30</button>
+          <button type="button" @click="reset" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer">重設</button>
+        </div>
+        <BasePagination v-model="page" :total="total" :per-page="10" />
+        <p style="margin:0;color:#6b7280;font-size:0.875rem">total：{{ total }}｜當前頁：{{ page }}（縮小後超出範圍的當前頁會自動收斂到最後一頁）</p>
+      </div>
+    `,
+  }),
+  parameters: {
+    docs: {
+      description: {
+        story: '當 `total` 縮小使 `pageCount < page` 時，元件透過 `watch(pageCount)` 自動把 `page` 收斂到最後一頁（經 v-model emit），避免停在不存在的頁。',
+      },
+    },
+  },
+}
+
 export const EdgeCases: Story = {
   render: () => ({
     components: { BasePagination },

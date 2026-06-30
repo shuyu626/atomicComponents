@@ -241,11 +241,12 @@ const navItems = computed(() =>
 
 | 情境 | 行為 |
 |---|---|
-| `total = 0` 或 `perPage <= 0` | `pageCount = 0`,不渲染任何 DOM |
+| `total = 0` 或 `perPage <= 0` | `pageCount = 0`,不渲染任何 DOM,**不收斂 `page`**(不會把 `page` 改成 0) |
 | `total < perPage` | `pageCount = 1`,渲染「prev + page 1 + next」,prev/next 都 disabled |
-| `page > pageCount` 或 `page <= 0` | composable 仍計算,但 caller 有責任將 `page` clamp 在 `[1, pageCount]` |
+| `total` 縮小使 `pageCount < page`(且 `pageCount >= 1`) | 元件 `watch(pageCount)` 自動把 `page` 收斂到 `pageCount`(最後一頁),透過 `v-model` emit 通知父層,避免停在不存在的頁 |
+| `page <= 0` 或 `page > pageCount`(非因 total 變動) | composable 仍計算;`page <= 0` 不主動 clamp,caller 應確保初始值合法 |
 
-> 不主動 clamp `page` 的原因:元件不該偷改 caller 的 state(會造成 v-model 雙向同步混亂)。若需 auto-clamp,在 caller 那層 `watch(pageCount)` 處理。
+> **為何只向下收斂、不向上 clamp `page <= 0`**:`total` 縮小導致當前頁失效是常見情境(刪資料、改篩選),不收斂會讓使用者卡在空白頁,故元件主動修正到最後一頁。但 `page <= 0` 屬 caller 給錯初始值,且收斂方向不明確(0 → 1?),交由 caller 負責;`pageCount < 1`(無資料)時也刻意不動 `page`,避免把它改成不合語意的 0。
 
 ---
 
@@ -320,7 +321,7 @@ const navItems = computed(() =>
 | 內建 pageSize 切換 | 應由獨立元件 `BasePageSizeSelect` 處理 |
 | 自動發 fetch 拉資料 | 資料層責任,元件只管 UI |
 | 內建翻譯 / i18n | 文字由 caller 傳,元件不耦合 i18n 套件 |
-| auto-clamp `page` 到 `[1, pageCount]` | 偷改 caller state 違反 v-model 單向資料流原則 |
+| 全面 auto-clamp `page` 到 `[1, pageCount]`(含 `page <= 0`) | 全面偷改 caller state 違反單向資料流;**例外**:`total` 縮小使 `pageCount < page` 時會向下收斂到最後一頁(見 §4.7),避免停在不存在的頁 |
 | 內建鍵盤左右鍵切頁 | 與 form / dialog 上下文衝突;caller 想要可在外層 listen `keydown` |
 | 顯示「共 N 筆」摘要 | 屬 page 層 layout,在外層自寫 |
 

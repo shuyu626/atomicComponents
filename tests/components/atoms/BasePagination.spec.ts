@@ -424,4 +424,28 @@ describe('BasePagination', () => {
       expect(w.find('.base-pagination__button--last .custom-last').exists()).toBe(true)
     })
   })
+
+  // ── Auto-converge when pageCount shrinks ───────────────────────────────────
+  describe('auto-converge on pageCount shrink', () => {
+    it('收斂 page 到 pageCount,當 total 縮小使當前頁超出範圍', async () => {
+      const { wrapper, model } = createWrapper({ total: 100 }, 8) // count=10, page=8
+      await wrapper.setProps({ total: 30 }) // count=3 → page 8 超出
+      await nextTick()
+      expect(model.value).toBe(3)
+    })
+
+    it('當前頁仍在範圍內時不更動 page', async () => {
+      const { wrapper, model } = createWrapper({ total: 100 }, 2)
+      await wrapper.setProps({ total: 30 }) // count=3 → page 2 仍合法
+      await nextTick()
+      expect(model.value).toBe(2)
+    })
+
+    it('total 變 0(pageCount < 1)時不把 page 收斂成 0', async () => {
+      const { wrapper, model } = createWrapper({ total: 100 }, 5)
+      await wrapper.setProps({ total: 0 }) // pageCount=0,不渲染也不改 page
+      await nextTick()
+      expect(model.value).toBe(5)
+    })
+  })
 })
