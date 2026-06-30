@@ -165,22 +165,24 @@ const arrow = computed(() => ({ element: arrowEl.value, padding: 8 }))
 
 ### 5.4 關閉行為
 
-- **Esc**：`document` keydown 監聽，按下即關
+- **Esc**：`document` keydown 監聽，但**只有最上層浮層回應** —— 接入共用堆疊 `usePopupsManager`，按 Esc 時以 `popups.isTop(token)` 判斷，多浮層並存（或在 Modal 內開 Popover）時一次只關最上面那個，不會一次全關。與 useOverlay 一致用 `preventDefault`（而非 `stopPropagation`），靠 `isTop` 做頂層協調
 - **點擊外部**：`document` click 監聽，用 `event.composedPath()` 判斷點擊是否落在 reference / 浮層內（含 Shadow DOM），都不在才關
 - **`close()`**：透過 default slot props 提供，讓內容（如選單項）主動關閉
-- 監聽於 `onMounted` 掛、`onUnmounted` 卸，並清除 hover timer 與 focus-trap
+- **監聽生命週期**：`document` 監聽**只在浮層開啟時掛載、關閉即解除**（以 `shouldRenderPopover` 為準 `watch`，並補一次 `onMounted` 處理「初始即開」），閒置時為零監聽 —— 一頁可能有上百個 tooltip / popover，常駐 listener 成本高。`onUnmounted` 一併清除 hover timer 與 focus-trap
 
 ### 5.5 焦點陷阱（focus-trap）
 
 - `watch(popoverRef)`：浮層掛載時，若**未設 `disableFocusTrap` 且 `tabbable(popover).length > 0`** → `createFocusTrap` 並 `activate`
 - 浮層卸載（`open=false` → `v-if` 移除）→ `deactivate`
 - `clickOutsideDeactivates: true`、`escapeDeactivates: false`（Esc 交給 §5.4 統一處理，同時關閉浮層）
+- **與 useOverlay 共用同一個 `trapStack`（`overlayTrapStack`）**：在 Modal 內開 Select / Dropdown / Popover 時，下層 Modal 的 trap 會自動暫停、兩個 trap 不互搶焦點（上層浮層關閉後再恢復下層）
 - 純提示（無可聚焦內容）不啟用 trap，不干擾頁面焦點
 
 ### 5.6 渲染條件與 SSR
 
 - `shouldRenderPopover = !disabled && #reference && #default && open`
 - 浮層用 `Teleport to="body"` 脫離裁切；**先掛載供 floating-ui 量測，再以 `isPositioned` 控制顯示**：未定位前 `opacity: 0` 藏住，定位算完才加上 `--positioned` class 淡入 + `scale`。這能消除「浮層先閃現在畫面左上角（`top/left:0`）再跳到 reference 旁」的問題；`prefers-reduced-motion` 下關閉動畫
+- **層級（`--popover-z`）為 `1150`**：高於 Modal / Dialog / Drawer（`1100`）、低於 Toast（`1200`），確保「在 Modal 內開 Select / Dropdown / Popover」時浮層不會被對話框蓋住
 - 初始 `open` 預設 `false` → SSR 不輸出浮層、`document` 監聽只在 `onMounted`（client）掛，SSR 安全
 
 ---
@@ -205,7 +207,7 @@ const arrow = computed(() => ({ element: arrowEl.value, padding: 8 }))
 
 | 對象 | 必做 |
 |---|---|
-| reference（disclosure：menu/dialog/listbox…） | `aria-haspopup`（由 `role` 推導：popup widget role 用該 role、其餘預設 `true`）、`aria-expanded`（跟隨開關）、`aria-controls`（指向浮層 id）；`disabled` 時 `aria-disabled` |
+| reference（disclosure：menu/dialog/listbox…） | `aria-haspopup`（由 `role` 推導：popup widget role 用該 role、其餘預設 `true`）、`aria-expanded`（跟隨開關）、`aria-controls`（指向浮層 id，**僅在開啟時輸出** —— 浮層關閉時未渲染，避免指向不存在的元素）；`disabled` 時 `aria-disabled` |
 | reference（`role="tooltip"`） | 改走 tooltip 語意：`aria-describedby`（指向浮層 id）；**不設** `aria-expanded` / `aria-controls` / `aria-haspopup`（tooltip 非可展開 widget，標 expanded 會被誤念「已摺疊」） |
 | 浮層 | `id`（`useId()`，與 reference 的 `aria-controls`／`aria-describedby` 配對）、`role`（由 prop 指定，如 `menu`/`dialog`/`tooltip`） |
 | 鍵盤 | `click` 觸發支援 Enter/Space；Esc 關閉；focus-trap 鎖 Tab（有可聚焦內容時） |

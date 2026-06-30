@@ -13,13 +13,16 @@ import type { ComputedRef, MaybeRefOrGetter, Ref } from 'vue'
 import { usePopupsManager } from '~/composables/usePopupsManager'
 
 /**
- * 所有浮層（BaseModal / BaseDialog…）共用的 focus-trap 堆疊（module 層級單例）。
+ * 所有浮層共用的 focus-trap 堆疊（module 層級單例）。
  *
  * 跨「不同元件」疊開時也共用同一個堆疊 —— focus-trap 會自動暫停下層 trap、
  * 只讓最上層作用，關閉後再恢復下層，避免兩個 active trap 互搶焦點。
  * 這也是把焦點邏輯抽到 composable 的關鍵：BaseModal 疊 BaseDialog 仍正確協作。
+ *
+ * 對外 export：BasePopover（Popover / Dropdown / Select）也接同一個堆疊，
+ * 確保「Modal 內開 Select / Dropdown」時兩個 trap 不會互搶焦點（下層自動暫停）。
  */
-const trapStack: FocusTrap[] = []
+export const overlayTrapStack: FocusTrap[] = []
 
 export interface UseOverlayOptions {
   /** 按 Esc 是否關閉（僅最上層浮層回應）。 @default true */
@@ -45,7 +48,7 @@ export interface UseOverlayReturn {
  * 浮層共用行為：focus-trap、Esc / 點外部關閉、scroll-lock、多層堆疊、遮罩渲染。
  *
  * 由 {@link usePopupsManager} 協調堆疊順序與背景捲動鎖定；焦點由 `focus-trap`
- * 配合 module 層級共用的 {@link trapStack} 管理。生命週期副作用（事件監聽、
+ * 配合 module 層級共用的 {@link overlayTrapStack} 管理。生命週期副作用（事件監聽、
  * 堆疊註冊 / 解除、trap 啟用 / 停用）皆於 composable 內自理。
  *
  * @param panelRef 對話框面板元素（focus-trap 的容器、判斷點擊內外的依據）
@@ -112,7 +115,7 @@ export function useOverlay(
     if (!panel || trap) return
 
     trap = createFocusTrap(panel, {
-      trapStack, // 多層浮層共用堆疊：開上層自動暫停下層 trap
+      trapStack: overlayTrapStack, // 多層浮層共用堆疊：開上層自動暫停下層 trap
       // 面板永遠至少有可聚焦元素；萬一全被隱藏，退而聚焦面板本身（panel 需 tabindex=-1）。
       fallbackFocus: panel,
       delayInitialFocus: false, // 開啟即把焦點移入面板（不等動畫）

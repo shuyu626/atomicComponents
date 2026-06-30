@@ -97,6 +97,8 @@ import {
 import type { FocusTrap } from 'focus-trap'
 import type { VNode } from 'vue'
 
+import { overlayTrapStack } from '~/composables/useOverlay'
+import { usePopupsManager } from '~/composables/usePopupsManager'
 import findFirstLegitChild from '~/helpers/findFirstLegitChild'
 import toArray from '~/utils/toArray'
 import toUnit from '~/utils/toUnit'
@@ -265,9 +267,12 @@ const ariaHasPopup = computed<string | boolean | undefined>(() => {
  */
 const isTooltip = computed(() => props.role === 'tooltip')
 
-/** reference 的 `aria-controls`：disclosure 用（指向浮層 id）；tooltip 省略。 */
+/**
+ * reference 的 `aria-controls`：disclosure 用（指向浮層 id）；tooltip 省略。
+ * 浮層僅在開啟時才渲染，故關閉時不輸出 `aria-controls`（避免指向不存在的元素）。
+ */
 const ariaControls = computed<string | undefined>(() =>
-  isTooltip.value ? undefined : id,
+  !isTooltip.value && open.value ? id : undefined,
 )
 
 /** reference 的 `aria-describedby`：僅 tooltip 用，聚焦時螢幕閱讀器念出提示內容。 */
@@ -377,9 +382,21 @@ const ReferenceComponent = defineComponent({
 })
 
 // ---- 全域關閉行為：Esc 與點擊外部 ----
+// 監聽只在「開啟時」掛載、關閉即解除 —— 一頁可能有上百個 tooltip/popover，
+// 常駐 document listener 成本高，閒置時應為零監聽。
+
+const popups = usePopupsManager()
+// 此浮層在堆疊管理器中的唯一身分。與 useOverlay（Modal/Dialog/Drawer）共用同一堆疊，
+// 因此「Modal 內再開 Popover」時，Esc 的頂層判斷能跨兩套浮層體系正確協調。
+const popupToken = Symbol('popover')
 
 function onEscKeydown(event: KeyboardEvent) {
   if (event.key !== 'Escape') return
+  // 只有最上層浮層回應 Esc：多個浮層並存時，一次只關最上面那個（避免一次全關）。
+  if (!open.value || !popups.isTop(popupToken)) return
+  // 與 useOverlay 一致用 preventDefault（而非 stopPropagation）：靠 isTop 做頂層協調，
+  // 不需要攔截事件傳播，跨「Modal 內開 Popover」兩套體系行為才一致。
+  event.preventDefault()
   setOpen(false)
 }
 
@@ -399,14 +416,43 @@ function onClickOutside(event: Event) {
   setOpen(false)
 }
 
-onMounted(() => {
+function addGlobalListeners() {
   document.addEventListener('click', onClickOutside)
   document.addEventListener('keydown', onEscKeydown)
+}
+
+function removeGlobalListeners() {
+  document.removeEventListener('click', onClickOutside)
+  document.removeEventListener('keydown', onEscKeydown)
+}
+
+// 以 shouldRenderPopover（= 未禁用 + 有兩端 slot + 開啟）為準進出堆疊與掛/解監聽。
+// 用它而非 open：避免「disabled 但父層 v-model open=true」這種矛盾狀態下，
+// 浮層其實沒渲染卻佔據堆疊頂層、且 setOpen 因 disabled 為 no-op，導致 Esc 被吃掉、
+// 連下層 Modal 都關不掉的死鎖。
+watch(shouldRenderPopover, (active) => {
+  if (active) {
+    popups.add(popupToken)
+    addGlobalListeners()
+  }
+  else {
+    popups.remove(popupToken)
+    removeGlobalListeners()
+  }
+})
+
+// 初始即為開啟狀態（父層 v-model 一開始就 true）時，於 client 掛載後補上註冊。
+// SSR 不執行 onMounted，避免污染 module 單例。
+onMounted(() => {
+  if (shouldRenderPopover.value) {
+    popups.add(popupToken)
+    addGlobalListeners()
+  }
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', onClickOutside)
-  document.removeEventListener('keydown', onEscKeydown)
+  removeGlobalListeners()
+  popups.remove(popupToken)
   clearCloseTimer()
   trap?.deactivate()
   trap = undefined
@@ -429,8 +475,11 @@ watch(popoverRef, (popover) => {
 
   // 建立並啟用 focus trap,把鍵盤焦點鎖在浮層內
   trap = createFocusTrap(popover, {
-    clickOutsideDeactivates: true, // 點外面時自動解除 trap(配合上面的點外關閉)
-    escapeDeactivates: false, // 點外面時自動解除 trap(配合上面的點外關閉)
+    // 與 useOverlay 共用同一個 trapStack：在 Modal 內開 Select / Dropdown 時，
+    // 下層 Modal 的 trap 會自動暫停，兩個 trap 不互搶焦點（關閉後再恢復下層）。
+    trapStack: overlayTrapStack,
+    clickOutsideDeactivates: true, // 點外面時自動解除 trap(配合上面 onClickOutside 的點外關閉)
+    escapeDeactivates: false, // Esc 交由 onEscKeydown 統一處理(含頂層判斷)，不讓 focus-trap 自行解除
   })
   trap.activate()
 })
@@ -444,7 +493,9 @@ watch(popoverRef, (popover) => {
   --popover-border: #e5e7eb;
   --popover-radius: 0.5rem;
   --popover-shadow: 0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%);
-  --popover-z: 1000;
+  // 浮層層級高於對話框（Modal/Dialog/Drawer 為 1100），低於 Toast（1200）：
+  // 確保「在 Modal 內開 Select / Dropdown / Popover」時浮層不會被對話框蓋住。
+  --popover-z: 1150;
   --popover-padding: 0.5rem 0.75rem;
 
   // floatingStyles 已用 inline style 設定 position/top/left，這裡只補視覺。

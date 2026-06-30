@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { h, nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import type { VNode } from 'vue'
 
@@ -85,12 +85,14 @@ describe('BasePopover', () => {
       const trigger = wrapper.find('.trigger')
       expect(trigger.attributes('aria-expanded')).toBe('false')
       expect(trigger.attributes('aria-haspopup')).toBe('true')
-      // aria-controls 指向浮層 id
-      const controls = trigger.attributes('aria-controls')
-      expect(controls).toBeTruthy()
+      // 關閉時浮層尚未渲染 → 不輸出 aria-controls（避免指向不存在的元素）
+      expect(trigger.attributes('aria-controls')).toBeUndefined()
 
       await trigger.trigger('click')
       expect(trigger.attributes('aria-expanded')).toBe('true')
+      // 開啟後 aria-controls 才指向實際渲染的浮層 id
+      const controls = trigger.attributes('aria-controls')
+      expect(controls).toBeTruthy()
       expect(popoverEl()?.id).toBe(controls)
     })
 
@@ -190,6 +192,72 @@ describe('BasePopover', () => {
       await wrapper.find('.trigger').trigger('click')
       expect(isOpen()).toBe(true)
 
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(isOpen()).toBe(false)
+    })
+
+    it('Escape closes only the top-most popover when several are open', async () => {
+      // 兩個浮層同時開啟（用 v-model 程式化開啟，避免點擊互相關閉），按 Esc 一次只關最上層。
+      // 鎖住「一次全關」舊 bug 的回歸。
+      const StackHost = defineComponent({
+        setup() {
+          const openA = ref(true)
+          const openB = ref(true)
+          return () =>
+            h('div', [
+              h(
+                BasePopover,
+                {
+                  modelValue: openA.value,
+                  'onUpdate:modelValue': (v: boolean) => { openA.value = v },
+                  disableFocusTrap: true,
+                },
+                {
+                  reference: () => h('button', { class: 'ra', type: 'button' }, 'a'),
+                  default: () => h('div', { class: 'pa' }, 'A'),
+                },
+              ),
+              h(
+                BasePopover,
+                {
+                  modelValue: openB.value,
+                  'onUpdate:modelValue': (v: boolean) => { openB.value = v },
+                  disableFocusTrap: true,
+                },
+                {
+                  reference: () => h('button', { class: 'rb', type: 'button' }, 'b'),
+                  default: () => h('div', { class: 'pb' }, 'B'),
+                },
+              ),
+            ])
+        },
+      })
+      const host = mount(StackHost)
+      await flushPromises()
+      expect(document.body.querySelectorAll('.base-popover').length).toBe(2)
+
+      // 第一次 Esc：只關後掛載的 B（最上層），A 仍在。
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(document.body.querySelector('.pb')).toBeNull()
+      expect(document.body.querySelector('.pa')).not.toBeNull()
+
+      // 第二次 Esc：才關 A。
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(document.body.querySelector('.pa')).toBeNull()
+
+      host.unmount()
+    })
+
+    it('a disabled popover stays unregistered even when open=true (no phantom on the stack)', async () => {
+      // disabled + v-model open=true 是矛盾狀態：浮層不該渲染，也就不會佔據堆疊頂層、
+      // 不會吃掉 Esc 而卡死下層浮層。
+      const wrapper = track(mountPopover({ disabled: true, modelValue: true }))
+      await flushPromises()
+      expect(isOpen()).toBe(false)
+      // Esc 不應有任何作用、也不應拋錯（沒有 phantom 監聽殘留）
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
       await flushPromises()
       expect(isOpen()).toBe(false)
