@@ -191,13 +191,26 @@ export const Confirm: Story = {
     setup() {
       const open = ref(false)
       const result = ref('')
-      const BTN_DANGER
+      const loading = ref(false)
+      const TRIGGER
         = 'padding:8px 14px;font:500 0.875rem system-ui;color:#fff;background:#dc2626;border:none;border-radius:6px;cursor:pointer'
-      return { open, result, BTN, BTN_GHOST, BTN_DANGER }
+      // 確認不自動關閉：此例模擬非同步（loading 期間保持開啟），完成後才用 v-model 關閉。
+      function onConfirm() {
+        loading.value = true
+        setTimeout(() => {
+          loading.value = false
+          result.value = '已刪除'
+          open.value = false
+        }, 900)
+      }
+      function onCancel() {
+        result.value = '已取消'
+      }
+      return { open, result, loading, onConfirm, onCancel, TRIGGER }
     },
     template: `
       <div style="padding:40px;font-family:system-ui;display:flex;flex-direction:column;gap:12px;align-items:flex-start">
-        <button :style="BTN" @click="open = true">刪除資料</button>
+        <button :style="TRIGGER" @click="open = true">刪除資料</button>
         <p style="color:#6b7280;font-size:0.875rem">結果：{{ result || '（尚未決定）' }}</p>
         <BaseDialog
           v-model="open"
@@ -206,14 +219,24 @@ export const Confirm: Story = {
           :width="420"
           :close-on-backdrop="false"
           :close-on-escape="false"
+          cancel-text="取消"
+          confirm-text="確認刪除"
+          confirm-color="danger"
+          :confirm-loading="loading"
+          @confirm="onConfirm"
+          @cancel="onCancel"
         >
           <p style="margin:0;color:#374151">刪除後無法復原，確定要刪除這筆資料嗎？</p>
-          <template #footer="{ close }">
-            <button :style="BTN_GHOST" @click="result = '已取消'; close()">取消</button>
-            <button :style="BTN_DANGER" @click="result = '已刪除'; close()">確認刪除</button>
-          </template>
         </BaseDialog>
       </div>
     `,
   }),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          '內建 `confirm-text` / `cancel-text` 動作按鈕：取消會 emit `cancel` 並關閉；確認 emit `confirm` 但**不自動關閉**（此例用 `confirm-loading` 模擬非同步，完成後才以 `v-model` 關閉）。危險操作用 `confirm-color="danger"`。需完全自訂按鈕時仍可改用 `#footer` slot。',
+      },
+    },
+  },
 }

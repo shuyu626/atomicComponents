@@ -61,8 +61,32 @@
             <slot :close="close" />
           </div>
 
-          <footer v-if="$slots.footer" class="base-dialog__footer">
-            <slot name="footer" :close="close" />
+          <footer
+            v-if="$slots.footer || hasBuiltinActions"
+            class="base-dialog__footer"
+          >
+            <!-- 有 #footer slot → 完全自訂；否則以內建「取消 / 確認」按鈕為 fallback。 -->
+            <slot
+              name="footer"
+              :close="close"
+              :confirm="onConfirm"
+              :cancel="onCancel"
+            >
+              <BaseButton
+                v-if="cancelText"
+                variant="outline"
+                color="neutral"
+                @click="onCancel"
+              >{{ cancelText }}</BaseButton>
+              <BaseButton
+                v-if="confirmText"
+                :variant="confirmVariant"
+                :color="confirmColor"
+                :loading="confirmLoading"
+                :disabled="confirmDisabled"
+                @click="onConfirm"
+              >{{ confirmText }}</BaseButton>
+            </slot>
           </footer>
 
           <!--
@@ -100,11 +124,17 @@
 <script setup lang="ts">
 import { computed, useId, useTemplateRef, watch } from 'vue'
 
+import BaseButton from '~/components/atoms/BaseButton.vue'
 import useDrag from '~/composables/useDrag'
 import { useOverlay } from '~/composables/useOverlay'
 import toUnit from '~/utils/toUnit'
 
 type DialogTransition = 'fade' | 'slide-up' | 'slide-down' | 'slide-left' | 'slide-right'
+
+/** 內建確認鈕的語意色（對齊 BaseButton）。 */
+type DialogConfirmColor = 'primary' | 'danger' | 'success' | 'warning' | 'info' | 'neutral'
+/** 內建確認鈕的外觀（對齊 BaseButton）。 */
+type DialogConfirmVariant = 'solid' | 'outline' | 'ghost' | 'text'
 
 interface BaseDialogProps {
   /** 標題列文字。設定後渲染預設標題並自動接 `aria-labelledby`。 */
@@ -138,7 +168,33 @@ interface BaseDialogProps {
   closeOnEscape?: boolean
   /** 開啟時是否鎖定背景捲動。 @default true */
   lockScroll?: boolean
+  /**
+   * 內建「確認」按鈕文字。設定後於 footer 顯示確認鈕並可 emit `confirm`
+   *（未提供 `#footer` slot 時生效；提供 slot 則以 slot 為準）。
+   * 確認鈕**不會自動關閉**對話框——交由父層在流程完成後改 `v-model`（支援非同步 / 驗證，
+   * 期間可用 `confirmLoading` 保持開啟）。
+   */
+  confirmText?: string
+  /**
+   * 內建「取消」按鈕文字。設定後於 footer 顯示取消鈕；點擊會 emit `cancel` 並**關閉**對話框。
+   */
+  cancelText?: string
+  /** 確認鈕語意色。 @default 'primary'（危險操作可設 `'danger'`） */
+  confirmColor?: DialogConfirmColor
+  /** 確認鈕外觀。 @default 'solid' */
+  confirmVariant?: DialogConfirmVariant
+  /** 確認鈕載入中（非同步確認時保持開啟並顯示 loading）。 @default false */
+  confirmLoading?: boolean
+  /** 確認鈕停用。 @default false */
+  confirmDisabled?: boolean
 }
+
+const emit = defineEmits<{
+  /** 內建確認鈕點擊（不自動關閉，父層自行決定後續 / 關閉）。 */
+  confirm: []
+  /** 內建取消鈕點擊（隨後關閉對話框）。 */
+  cancel: []
+}>()
 
 const props = withDefaults(defineProps<BaseDialogProps>(), {
   title: undefined,
@@ -153,6 +209,12 @@ const props = withDefaults(defineProps<BaseDialogProps>(), {
   closeOnBackdrop: true,
   closeOnEscape: true,
   lockScroll: true,
+  confirmText: undefined,
+  cancelText: undefined,
+  confirmColor: 'primary',
+  confirmVariant: 'solid',
+  confirmLoading: false,
+  confirmDisabled: false,
 })
 
 // 父層綁 v-model => 受控；沒綁 => 內部狀態（預設關閉）。
@@ -162,13 +224,30 @@ function close() {
   open.value = false
 }
 
+/** 內建確認：僅 emit（不自動關閉），父層決定後續。 */
+function onConfirm() {
+  emit('confirm')
+}
+
+/** 內建取消：emit 後關閉對話框。 */
+function onCancel() {
+  emit('cancel')
+  close()
+}
+
+// 有設 confirmText / cancelText 且無 #footer slot 時，渲染內建動作 footer。
+const hasBuiltinActions = computed(() => !!props.confirmText || !!props.cancelText)
+
 const slots = defineSlots<{
   /** 對話框主體內容。slot props 提供 `close()`。 */
   default?: (props: { close: () => void }) => unknown
   /** 自訂標題內容（取代 `title` 文字，仍會接 `aria-labelledby`）。 */
   title?: () => unknown
-  /** 底部動作區（如「取消 / 確認」）。未提供則不渲染 footer。 */
-  footer?: (props: { close: () => void }) => unknown
+  /**
+   * 底部動作區。未提供且未設 `confirmText`/`cancelText` 則不渲染 footer；
+   * slot props 提供 `close()` / `confirm()` / `cancel()` 供自訂按鈕復用。
+   */
+  footer?: (props: { close: () => void; confirm: () => void; cancel: () => void }) => unknown
 }>()
 
 const id = useId()

@@ -21,9 +21,15 @@ interface MountOptions {
   closeOnBackdrop?: boolean
   closeOnEscape?: boolean
   lockScroll?: boolean
+  confirmText?: string
+  cancelText?: string
+  confirmColor?: string
+  confirmVariant?: string
+  confirmLoading?: boolean
+  confirmDisabled?: boolean
   default?: (props: { close: () => void }) => unknown
   title_?: () => unknown
-  footer?: (props: { close: () => void }) => unknown
+  footer?: (props: { close: () => void; confirm: () => void; cancel: () => void }) => unknown
 }
 
 function defaultContent(): VNode {
@@ -182,6 +188,49 @@ describe('BaseDialog', () => {
     it('does not render drag sensors in fullscreen even when draggable', () => {
       track(mountDialog({ fullscreen: true, draggable: true }))
       expect(sensors()).toHaveLength(0)
+    })
+  })
+
+  describe('built-in confirm / cancel actions', () => {
+    const footerBtns = () =>
+      Array.from(document.body.querySelectorAll('.base-dialog__footer button')) as HTMLElement[]
+
+    it('renders no footer without a slot or confirm/cancel text', () => {
+      track(mountDialog())
+      expect(document.body.querySelector('.base-dialog__footer')).toBeNull()
+    })
+
+    it('renders built-in confirm / cancel buttons from props', () => {
+      track(mountDialog({ confirmText: '確認', cancelText: '取消' }))
+      const labels = footerBtns().map((b) => b.textContent?.trim())
+      expect(labels).toEqual(['取消', '確認'])
+    })
+
+    it('confirm emits confirm and does NOT close (caller controls)', async () => {
+      const wrapper = track(mountDialog({ confirmText: '確認' }))
+      footerBtns()[0]!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(wrapper.emitted('confirm')).toHaveLength(1)
+      expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    })
+
+    it('cancel emits cancel and closes', async () => {
+      const wrapper = track(mountDialog({ cancelText: '取消' }))
+      footerBtns()[0]!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(wrapper.emitted('cancel')).toHaveLength(1)
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false])
+    })
+
+    it('a #footer slot overrides the built-in buttons', () => {
+      track(mountDialog({
+        confirmText: '確認',
+        cancelText: '取消',
+        footer: () => h('button', { class: 'custom-footer-btn' }, '自訂'),
+      }))
+      expect(document.body.querySelector('.custom-footer-btn')).toBeTruthy()
+      // 內建按鈕不應出現（slot 覆寫 fallback）
+      expect(footerBtns().map((b) => b.textContent?.trim())).toEqual(['自訂'])
     })
   })
 

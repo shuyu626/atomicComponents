@@ -45,6 +45,21 @@ BaseDialog 是「**可拖曳 / 全螢幕對話框**」元件。它與 [`BaseModa
 | `closeOnBackdrop` | `boolean` | `true` | 點擊面板外部是否關閉 |
 | `closeOnEscape` | `boolean` | `true` | 按 Esc 是否關閉（僅最上層回應） |
 | `lockScroll` | `boolean` | `true` | 開啟時鎖定背景捲動並補捲軸寬度 |
+| `confirmText` | `string` | — | 內建「確認」按鈕文字。設定後於 footer 顯示確認鈕（無 `#footer` slot 時）；點擊 emit `confirm`，**不自動關閉** |
+| `cancelText` | `string` | — | 內建「取消」按鈕文字。點擊 emit `cancel` 並**關閉**對話框 |
+| `confirmColor` | `'primary' \| 'danger' \| 'success' \| 'warning' \| 'info' \| 'neutral'` | `'primary'` | 確認鈕語意色（危險操作用 `'danger'`） |
+| `confirmVariant` | `'solid' \| 'outline' \| 'ghost' \| 'text'` | `'solid'` | 確認鈕外觀 |
+| `confirmLoading` | `boolean` | `false` | 確認鈕載入中（非同步確認時保持開啟並顯示 loading） |
+| `confirmDisabled` | `boolean` | `false` | 確認鈕停用（如表單未通過驗證） |
+
+**Events**
+
+| Event | 說明 |
+|---|---|
+| `confirm` | 內建確認鈕點擊。**不自動關閉** —— 由父層在流程完成後改 `v-model`（支援非同步 / 驗證，期間用 `confirmLoading` 保持開啟） |
+| `cancel` | 內建取消鈕點擊，隨後關閉對話框 |
+
+> 仍**沒有** BaseModal / BaseDrawer 的 `open` / `opened` / `close` / `closed` 生命週期 emit 與 `beforeClose`（見 §9）；`confirm` / `cancel` 僅來自內建動作按鈕。
 
 ---
 
@@ -54,7 +69,7 @@ BaseDialog 是「**可拖曳 / 全螢幕對話框**」元件。它與 [`BaseModa
 |---|---|---|
 | `default` | `{ close: () => void }` | 對話框主體內容 |
 | `title` | — | 自訂標題內容（取代 `title` 文字，仍自動接 `aria-labelledby`） |
-| `footer` | `{ close: () => void }` | 底部動作區。未提供則不渲染 footer |
+| `footer` | `{ close, confirm, cancel }` | 底部動作區。未提供 slot 且未設 `confirmText`/`cancelText` 則不渲染 footer；設了則以內建「取消 / 確認」按鈕為 fallback。slot props 提供 `close()` / `confirm()` / `cancel()` 供自訂按鈕復用 |
 
 > 與 BaseModal 的差異：BaseDialog 用 `#title`（只換標題文字、保留標題列與關閉鈕排版）；BaseModal 用 `#header`（接管整條標題列）。需要完全接管標題列排版時請改用 BaseModal。
 
@@ -83,6 +98,44 @@ const open = ref(false)
   </BaseDialog>
 </template>
 ```
+
+### 確認對話框（內建按鈕）
+
+```vue
+<script setup lang="ts">
+const open = ref(false)
+const saving = ref(false)
+
+async function onConfirm() {
+  saving.value = true
+  try {
+    await api.remove()      // 非同步：期間對話框保持開啟 + loading
+    open.value = false      // 成功才關閉（confirm 不自動關閉）
+  } finally {
+    saving.value = false
+  }
+}
+</script>
+
+<template>
+  <BaseDialog
+    v-model="open"
+    title="確認刪除"
+    hide-close-button
+    :close-on-backdrop="false"
+    cancel-text="取消"
+    confirm-text="確認刪除"
+    confirm-color="danger"
+    :confirm-loading="saving"
+    @confirm="onConfirm"
+    @cancel="() => {}"
+  >
+    刪除後無法復原，確定要刪除嗎？
+  </BaseDialog>
+</template>
+```
+
+> 取消鈕會 emit `cancel` 並關閉；確認鈕 emit `confirm` 但**不自動關閉**（讓你做非同步 / 驗證，完成後自行 `v-model` 關閉）。需完全自訂按鈕時改用 `#footer` slot。
 
 ### 全螢幕
 
@@ -175,6 +228,8 @@ const open = ref(false)
 | 在拖曳的 `&__wrapper` 上再寫死 inline `transform` | 會與拖曳 / 進出場動畫互蓋 | 位置交給 `useDrag`，外觀用 `--dialog-*` token |
 | `fullscreen` 還期待能拖曳 | fullscreen 已撐滿、拖曳無意義且被停用 | 二擇一：要移動就別開 fullscreen |
 | `fullscreen` + `hide-close-button` + 鎖 Esc / 外部 | 全螢幕撐滿視窗、無「外部」可點，再隱藏關閉鈕 + 鎖 Esc → 使用者無法關閉 | fullscreen 至少保留關閉鈕，或留 Esc，或自備 `#footer` 關閉入口 |
+| 只給 `confirm-text`（無 `cancel-text`）+ 無 ✕ / 鎖 Esc / 鎖外部 | 確認鈕**不自動關閉**，若同時關掉 ✕（無標題或 `hide-close-button`）、`close-on-escape:false`、`close-on-backdrop:false`，則只剩不會關閉的確認鈕 → 卡死 | 一律保留至少一個關閉入口：加 `cancel-text`、保留 ✕，或留 Esc / 點外部其一 |
+| 非同步確認（`confirm-loading`）期間仍讓使用者按取消關閉 | 對話框關閉後 async 才回來，可能對已卸載狀態操作 → 競態 | loading 期間可用 `confirm-disabled` 或自行在 `#footer` 停用取消鈕，或在 async 回呼內判斷是否仍開啟 |
 | 無 `title` / `ariaLabel` / `#title` 就開對話框 | 對話框無無障礙名稱 | 至少給 `title` 或 `ariaLabel` |
 | 用 `v-if="open"` 包 `<BaseDialog>` 外層 | 直接卸載會跳過 leave 動畫且 scroll-lock 來不及釋放 | 用 `v-model`，讓元件自行處理進出場 |
 
@@ -193,12 +248,12 @@ const open = ref(false)
 | 自訂寬度 | `:width="420"` / `width="60%"` |
 | Esc / 點外部 | 預設可關；`:close-on-escape="false"` / `:close-on-backdrop="false"` 鎖定 |
 | 標題與 a11y | `title` → `aria-labelledby`；`#title` slot 亦可 |
-| 底部動作 | `#footer` 放「取消 / 確認」，`@click="close"` 可關 |
+| 底部動作 | 快速：設 `cancel-text` / `confirm-text` + `@cancel` / `@confirm`（危險操作 `confirm-color="danger"`）。完全自訂：`#footer` slot + `close`/`confirm`/`cancel` |
 | 鎖捲動 | 開啟背景不可捲，關閉還原 |
 | 焦點陷阱 | 連按 Tab 不跑出；關閉還焦 |
 | 與 BaseModal 疊開 | Esc 只關最上層；兩者皆關才解鎖捲動 |
 
-> **與 BaseModal / BaseDrawer 的差異**：BaseDialog 只透過 `defineModel` 暴露 `v-model`，**沒有** BaseModal / BaseDrawer 具備的 `open` / `opened` / `close` / `closed` emit 與 `beforeClose` prop。需要「關閉前攔截確認」或「進出場完成事件」時請改用 BaseModal / BaseDrawer，或在父層自行包裝。
+> **與 BaseModal / BaseDrawer 的差異**：BaseDialog 透過 `defineModel` 暴露 `v-model`，並在使用內建動作按鈕時提供 `confirm` / `cancel` emit；但**沒有** BaseModal / BaseDrawer 具備的 `open` / `opened` / `close` / `closed` 生命週期 emit 與 `beforeClose` prop。需要「關閉前攔截確認」或「進出場完成事件」時請改用 BaseModal / BaseDrawer，或在父層自行包裝。
 
 ---
 
