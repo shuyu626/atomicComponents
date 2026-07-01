@@ -420,6 +420,7 @@ const vIndeterminate = {
               column.headCellClass,
               column.class,
             ]"
+            :style="stickyHeader && column.width ? { width: toUnit(column.width) } : undefined"
             scope="col"
             :aria-sort="getAriaSort(column)"
           >
@@ -505,6 +506,7 @@ const vIndeterminate = {
               column.class,
               bodyCellClass(column, item, index),
             ]"
+            :style="stickyHeader && column.width ? { width: toUnit(column.width) } : undefined"
           >
             <slot
               :name="`column:${column.key}`"
@@ -553,6 +555,7 @@ const vIndeterminate = {
   --table-sort-color: #bfbfbf; // 排序圖示未作用色
   --table-sort-active-color: #1f1f1f; // 作用中方向色
   --table-select-width: 44px;
+  --table-sticky-max-height: 400px; // stickyHeader 時 tbody 捲動區的最大高度
 }
 
 .base-table {
@@ -595,13 +598,60 @@ const vIndeterminate = {
   color: var(--table-head-color);
   background-color: var(--table-head-bg);
 
-  .base-table--sticky & {
-    position: sticky;
-    top: 0;
-    z-index: 1;
+  .base-table__cell { font-weight: 400; }
+}
+
+/* ───────────────────────────────────────────────────────
+ * Sticky header：只讓 tbody 垂直捲動，捲軸不跟著 header
+ *
+ * 作法：table / thead / tbody 改 display:block、其列（.base-table__row）改
+ * display:table + table-layout:fixed —— thead 停在捲動區之外（右側無捲軸），
+ * tbody 內部捲動，捲軸只出現在 header 下方。
+ *
+ * 代價與注意：
+ * - 欄寬改吃「儲存格 width（column.width）」或等分，不再由 <col> 自動撐開
+ *   （table-layout:fixed）；故 column.width 於 sticky 時改補到 th / td 上（見 template）。
+ * - thead 與 tbody 各用 scrollbar-gutter:stable 保留等寬捲軸溝，避免 tbody 出現
+ *   捲軸時最後一欄與表頭錯位（overlay 捲軸不佔空間，天然對齊）。
+ * - sticky 時不與「水平捲動」併用（width:100% 撐滿，不橫向溢出）。
+ * - 捲動區高度由 --table-sticky-max-height（預設 400px）控制。
+ * ─────────────────────────────────────────────────────── */
+.base-table--sticky {
+  overflow: visible; // 容器不再自己垂直捲動，改由 tbody 捲
+
+  .base-table__table,
+  .base-table__head,
+  .base-table__body {
+    display: block;
   }
 
-  .base-table__cell { font-weight: 400; }
+  // 每列各自成為 table 脈絡 → 欄位依 fixed 佈局對齊（依儲存格 width，否則等分）。
+  .base-table__row {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    // 外層 table 變 block 後 border-collapse 會失效，row-table 會退回 separate +
+    // 預設 border-spacing:2px（欄間出現 2px 縫、列分隔線斷開）；在此補回 collapse。
+    border-collapse: collapse;
+  }
+
+  // 選取欄在 fixed 佈局下需自帶寬度（<col> 於 block 表格不生效）。
+  .base-table__cell--select {
+    width: var(--table-select-width);
+  }
+
+  // header：不捲動，但保留與 body 等寬的捲軸溝，避免有捲軸時最後一欄錯位。
+  .base-table__head {
+    overflow: hidden;
+    scrollbar-gutter: stable;
+  }
+
+  // body：唯一的垂直捲動區，捲軸只出現在 header 下方。
+  .base-table__body {
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    max-height: var(--table-sticky-max-height, 400px);
+  }
 }
 
 .base-table__head-content {

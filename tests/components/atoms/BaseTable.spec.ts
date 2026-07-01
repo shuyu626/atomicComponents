@@ -176,6 +176,28 @@ describe('BaseTable', () => {
       expect(mountTable().classes()).not.toContain('base-table--sticky')
       expect(mountTable({ stickyHeader: true }).classes()).toContain('base-table--sticky')
     })
+
+    // sticky 時 tbody 才是捲動區、thead/tbody 走 table-layout:fixed，欄寬需從 <col>
+    // 補到儲存格上才會被 fixed 佈局吃到（否則欄位等分、column.width 失效）。
+    it('applies column.width onto th/td cells only in sticky mode', () => {
+      const widthCols: TableColumn<Row>[] = [
+        { key: 'name', label: '姓名', width: 200 },
+        { key: 'age', label: '年齡' },
+      ]
+
+      // sticky：有 width 的欄，th / td 帶 inline width；沒 width 的欄不帶
+      const sticky = mountTable({ columns: widthCols, stickyHeader: true })
+      const stickyTh = sticky.findAll('thead th')
+      const stickyTd = sticky.findAll('tbody tr:first-child td')
+      expect(stickyTh[0].attributes('style')).toContain('width: 200px')
+      expect(stickyTd[0].attributes('style')).toContain('width: 200px')
+      expect(stickyTh[1].attributes('style') ?? '').not.toContain('width')
+
+      // 非 sticky：欄寬走 <col>（colgroup），儲存格不帶 inline width
+      const normal = mountTable({ columns: widthCols })
+      expect(normal.find('thead th').attributes('style') ?? '').not.toContain('width')
+      expect(normal.find('col:nth-child(1)').attributes('style') ?? '').toContain('width: 200px')
+    })
   })
 
   // ── itemKey ────────────────────────────────────────────────────────────────────

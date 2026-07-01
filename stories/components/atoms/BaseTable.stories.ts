@@ -309,7 +309,7 @@ export const StickyHeader: Story = {
     template: `
       <div style="padding:24px;font-family:system-ui;max-width:720px">
         <BaseTable
-          style="max-height:280px;border:1px solid #eee;border-radius:8px"
+          style="--table-sticky-max-height:280px;border:1px solid #eee;border-radius:8px"
           :columns="columns"
           :items="items"
           sticky-header
@@ -321,7 +321,7 @@ export const StickyHeader: Story = {
     docs: {
       description: {
         story:
-          '`sticky-header` 讓表頭在捲動時固定於頂部。元件根節點本身即捲動容器（預設 `overflow:auto`），只需對 `<BaseTable>` 設 `max-height` 即可。',
+          '`sticky-header` 時只有 tbody 垂直捲動、捲軸不跟著表頭（表頭下方才出現）。捲動區高度由 `--table-sticky-max-height`（預設 400px）控制。',
       },
     },
   },

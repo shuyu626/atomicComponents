@@ -20,7 +20,7 @@ BaseTable 是 **資料表格** 元件：以 `columns` 設定欄位、`items` 提
 | `itemKey` | `string \| ((item, index) => PropertyKey)` | `'id'` | 取列 key 的依據；取不到時退回索引 |
 | `caption` | `string` | — | 表格標題（`<caption>`） |
 | `captionSide` | `'top' \| 'bottom' \| 'hidden'` | `'top'` | caption 位置；`hidden` 視覺隱藏但保留給螢幕閱讀器 |
-| `stickyHeader` | `boolean` | `false` | 固定表頭（捲動時 sticky） |
+| `stickyHeader` | `boolean` | `false` | 固定表頭：只有 tbody 捲動、捲軸不跟著表頭（高度見 `--table-sticky-max-height`） |
 | `headRowClass` | `class` | — | 套用到表頭列的 class |
 | `bodyRowClass` | `class \| ((item, index) => class)` | — | 套用到內容列的 class（可為函式） |
 | `labels` | `BaseTableLabels` | `{}` | a11y / 空狀態文案（i18n 逃生口）；逐欄位 fallback 回預設繁體中文 |
@@ -107,6 +107,7 @@ BaseTable 是 **資料表格** 元件：以 `columns` 設定欄位、`items` 提
 | `--table-sort-color` | `#bfbfbf` | 排序圖示未作用色 |
 | `--table-sort-active-color` | `#1f1f1f` | 作用中排序方向色 / checkbox accent |
 | `--table-select-width` | `44px` | 選取欄寬度 |
+| `--table-sticky-max-height` | `400px` | `stickyHeader` 時 tbody 捲動區的最大高度 |
 
 > 預設 token 皆以 `:where()`（specificity 0）宣告，確保使用端 class 覆寫得動。
 
@@ -200,7 +201,10 @@ const sortedUsers = computed(() => {
 - **列點擊鍵盤可達性**：只有「父層綁定 `@click:row`」時，每列才會補上 `tabindex="0"`、`role="button"`，並支援 `Enter` / `Space` 觸發（會 `preventDefault` 以避免 Space 捲動頁面）。是否可點擊由 vnode props 是否含 `onClick:row` 推導（`click:row` 屬 `defineEmits` 宣告事件，listener 不會落在 `$attrs`）。未綁定時維持原樣，不加任何鍵盤屬性。
 - **跨頁選取邊界**：表頭全選 / 半選狀態只依「當前 `items` 中被選取的筆數」計算（以 `selectedLookup` 命中統計），而非 `selected` 集合總大小。如此一來 `selected` 含跨頁 / 非當頁殘留項目（甚至 `selected.size > items.length`）時，也不會出現「全選與半選同時為 false」或誤判半選的情況。
 - **空狀態**：`items` 為空時隱藏 `<tbody>` 列並顯示 `#empty`。
-- **sticky header**：元件根節點（`.base-table`）本身即捲動容器（預設 `overflow:auto`）。`stickyHeader` 開啟後，**對 `<BaseTable>` 設 `max-height`** 表頭即會吸頂——不要再外包一層捲動容器（會讓 sticky 相對到內層而失效）。
+- **sticky header**：`stickyHeader` 開啟後，**只有 `<tbody>` 垂直捲動**、表頭停在捲動區之外，因此**捲軸只出現在表頭下方、不會跟著表頭**。捲動區高度由 `--table-sticky-max-height`（預設 `400px`）控制，不需再對 `<BaseTable>` 設 `max-height` 或外包捲動容器。
+  - **實作**：sticky 時 `table` / `thead` / `tbody` 改 `display:block`、各列改 `display:table` + `table-layout:fixed`；`thead` 與 `tbody` 各以 `scrollbar-gutter:stable` 保留等寬捲軸溝，避免 tbody 出現捲軸時最後一欄與表頭錯位（overlay 捲軸不佔空間，天然對齊）。
+  - **欄寬**：sticky 時欄寬走 `table-layout:fixed`（依 `column.width`，否則各欄等分），不再由內容自動撐開；`column.width` 會自動補到 `<th>` / `<td>` 上以維持表頭與內容對齊。
+  - **限制**：sticky 模式不與「水平捲動」併用（列 `width:100%` 撐滿，不橫向溢出）；需要極寬表格的橫向捲動時不建議開 `stickyHeader`。此為現代瀏覽器行為（`scrollbar-gutter` 支援 Chrome 94+ / Firefox 97+ / Safari 18.2+；不支援時 overlay 捲軸仍對齊）。`caption-side="bottom"` 在 sticky 模式下（表格為 `display:block`）會渲染到頂端而非底部，如需底部 caption 請避免與 `stickyHeader` 併用。
 - **選取比對採「參考」**：選取以物件參考判定（`Set` / 陣列成員需與 `items` 為同一參考）。若 `selected` 來源與 `items` 非同源（如各自 fetch），請先正規化為同一份資料再傳入。
 
 ---
