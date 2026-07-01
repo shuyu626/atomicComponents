@@ -84,7 +84,7 @@
 | **disabled 防點擊** | 同時設 attribute + `pointer-events: none`(`<a>` 無 native disabled,只靠 attribute 擋不住) |
 | **loading 防重複觸發** | 自動視為 disabled + 設 `aria-busy="true"` |
 | **保留 layout 寬度** | loading 時用 absolute spinner + `visibility: hidden` 內容,避免 layout shift |
-| **原生 DOM 事件不要重包** | `click` / `input` / `focus` 等讓事件透過 attrs fallthrough 自動掛到 root,別 `emit('click')`。`onClick` 內只負責 disabled / loading 時 `e.preventDefault()` + `e.stopImmediatePropagation()` 阻擋 |
+| **原生 DOM 事件不要重包** | `click` / `input` / `focus` 等讓事件透過 attrs fallthrough 自動掛到 root,別 `emit('click')`。`onClick` 內只負責 disabled / loading 時 `e.preventDefault()` + `e.stopPropagation()` 阻擋(**用 `stopPropagation` 而非 `stopImmediatePropagation`** —— 後者會吃掉同一 element 上 `v-on="$attrs"` 透傳的 handler) |
 | **透傳 `data-*` / `aria-*` / `class` / `style`** | 預設行為已可;若用 `inheritAttrs: false`,要顯式 `v-bind="$attrs"` |
 | **不在元件內處理副作用** | confirm dialog、debounce、analytics 都應該由 caller 包裝,Button 只負責 click |
 | **受控與非受控並存** | 有內部狀態的元件(input / select / checkbox / dialog / disclosure)同時支援 v-model(受控)與 defaultValue / defaultOpen prop(非受控)。caller 沒給 v-model 時元件內部自治,給了就完全交出控制權。defineModel 在沒綁定時會回傳獨立 ref,天然支援|
