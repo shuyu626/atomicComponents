@@ -7,16 +7,16 @@
 
 ## 📁 目錄結構
 
-採用 **co-location** — 元件、測試、stories 都放在同一資料夾：
+元件、測試、stories、文件**分目錄放置**，以相同的層級路徑互相對映：
 
 ```
-app/components/atoms/[ComponentName]/
-├── [ComponentName].vue          ← 元件本體
-├── [ComponentName].spec.ts      ← Vitest 單元測試
-└── [ComponentName].stories.ts   ← Storybook stories
+app/components/atoms/[ComponentName].vue               ← 元件本體
+tests/components/atoms/[ComponentName].spec.ts         ← Vitest 單元測試
+stories/components/atoms/[ComponentName].stories.ts    ← Storybook stories
+docs/components/[ComponentName].md                     ← API / 行為文件
 ```
 
-> 不要再切子資料夾。三個檔案同層，搜尋、跳轉、重構最方便。
+> `atoms/` 內元件檔**扁平放置、不切子資料夾**；`tests/`、`stories/` 的目錄層級與 `app/components/` 一一對映，靠檔名即可互相跳轉。
 
 ---
 
@@ -44,14 +44,14 @@ app/components/atoms/[ComponentName]/
 
 ### 1.1 建立 spec 檔
 
-**位置**：與 `.vue` 同目錄，檔名 `[ComponentName].spec.ts`
+**位置**：`tests/components/atoms/`，檔名 `[ComponentName].spec.ts`
 
 ### 1.2 起手範本
 
 ```ts
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-import BaseButton from './BaseButton.vue'
+import BaseButton from '~/components/atoms/BaseButton.vue'
 
 // ── Stub NuxtLink（測試環境無 Nuxt router）─────────────────
 const NuxtLinkStub = {
@@ -112,7 +112,7 @@ pnpm test:coverage
 
 ### 2.1 建立 stories 檔
 
-**位置**：與 `.vue` 同目錄，檔名 `[ComponentName].stories.ts`
+**位置**：`stories/components/atoms/`，檔名 `[ComponentName].stories.ts`
 
 ### 2.2 Meta 區塊範本
 
@@ -120,8 +120,8 @@ pnpm test:coverage
 
 ```ts
 import type { Meta, StoryObj } from '@storybook/vue3-vite'
-import BaseButton from './BaseButton.vue'
-import type { BaseButtonProps } from './BaseButton.vue'
+import BaseButton from '~/components/atoms/BaseButton.vue'
+import type { BaseButtonProps } from '~/components/atoms/BaseButton.vue'
 
 const meta: Meta<typeof BaseButton> = {
   title: 'Atoms/BaseButton',          // sidebar 分類路徑
@@ -282,18 +282,23 @@ viteFinal(config) {
 **原因**：Storybook 跑在純 Vite 環境，沒有 Nuxt context，所以 `NuxtLink`、
 auto-imports、`useRoute` 等 Nuxt 專屬 API 都不存在。
 
-**修法**：在 `.storybook/preview.ts` 用 `setup(app)` 全域註冊 NuxtLink stub：
+**修法**：在 `.storybook/preview.ts` 從 framework 套件 import `setup` 並**呼叫**它，全域註冊 NuxtLink stub（Storybook v10 不再支援 `export function setup(app)` 的 v7/v8 舊寫法，舊寫法會被靜默忽略、stub 從未註冊）：
 
 ```ts
-export function setup(app: App): void {
-  app.component('NuxtLink', defineComponent({
-    name: 'NuxtLink',
-    props: { to: ..., target: ..., rel: ... },
-    setup(props, { slots, attrs }) {
-      return () => h('a', { href: ..., ...attrs }, slots.default?.())
-    },
-  }))
-}
+import { setup, type Preview } from '@storybook/vue3-vite'
+import { defineComponent, h } from 'vue'
+
+const NuxtLinkStub = defineComponent({
+  name: 'NuxtLink',
+  props: { to: ..., target: ..., rel: ... },
+  setup(props, { slots, attrs }) {
+    return () => h('a', { href: ..., ...attrs }, slots.default?.())
+  },
+})
+
+setup((app) => {
+  app.component('NuxtLink', NuxtLinkStub)
+})
 ```
 
 **設計提醒**：這個痛苦點其實是好的約束 — 它逼你在 atoms / molecules 層保持
@@ -308,13 +313,13 @@ Nuxt-agnostic。**只在 organisms / templates 層才依賴 Nuxt 專屬 API**。
 2. **Stories ≠ 測試**：Stories 是**展示與手動驗證**，不該取代 `.spec.ts`。
    未來想用 Storybook 的 interaction test addon 也可以，但仍是補充而非替代。
 3. **a11y 視覺檢查**：未來可加 `@storybook/addon-a11y`（目前未裝）自動掃描。
-4. **下個元件的起手式**：完全複製 BaseButton 的三檔結構，只改內容。
+4. **下個元件的起手式**：完全複製 BaseButton 的四檔結構（元件 / 測試 / stories / 文件，分屬四個目錄），只改內容。
 
 ---
 
 ## 🔗 相關檔案
 
-- 元件範例：`app/components/atoms/BaseButton/`
+- 元件範例：`app/components/atoms/BaseButton.vue`（測試 `tests/components/atoms/BaseButton.spec.ts`、stories `stories/components/atoms/BaseButton.stories.ts`、文件 `docs/components/BaseButton.md`）
 - 測試配置：`vitest.config.ts`（`environment: 'nuxt'` + happy-dom）
 - Storybook 配置：`.storybook/main.ts`、`.storybook/preview.ts`
 - 元件架構規則：`~/.claude/rules/component-architecture.md`

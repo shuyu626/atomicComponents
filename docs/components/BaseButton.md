@@ -19,7 +19,7 @@
 | `type` | `'button' \| 'submit' \| 'reset'` | `'button'` | 預設安全值,避免意外提交 |
 | `block` | `boolean` | `false` | 全寬(手機 CTA、modal footer 常用) |
 | `to` | `RouteLocationRaw` | — | 渲染為 `<NuxtLink>` / `<RouterLink>` |
-| `href` | `string` | — | 渲染為 `<a>` 外部連結 |
+| `href` | `string` | — | 透過 BaseLink 委派渲染(由 fallback chain 決定 NuxtLink / RouterLink / `<a>`) |
 | `target` | `'_self' \| '_blank' \| '_parent' \| '_top'` | — | 配合 `href`。**`_blank` 時自動補 `rel="noopener noreferrer"`** |
 
 ---

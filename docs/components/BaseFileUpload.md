@@ -35,7 +35,8 @@ async function upload() {
 | `maxFiles` | `number` | — | 檔案數上限,超出 reject + `exceed` |
 | `drag` | `boolean` | `true` | 顯示拖放區 |
 | `showFileList` | `boolean` | `true` | 顯示已選檔清單 |
-| `triggerLabel` | `string` | `'上傳檔案'` | 拖放區 aria-label |
+| `triggerLabel` | `string` | `'上傳檔案'` | 拖放區 aria-label(供螢幕閱讀器) |
+| `triggerText` | `string` | `'選擇檔案'` | 拖放區 CTA 按鈕的可見文字 |
 | `rules` | `ValidationRule<File[]>[]` | — | 驗證(如「至少一檔」) |
 
 另繼承 `BaseFormFieldProps`(`label` / `message` / `error` / `required` / `disabled` / `readonly` …)。
@@ -45,7 +46,7 @@ async function upload() {
 | 事件 | payload | 說明 |
 |---|---|---|
 | `update:modelValue` | `File[]` | v-model 更新 |
-| `error` | `{ file: File; reason: 'size' \| 'type' \| 'count' }` | 有檔案被拒絕時逐檔觸發 |
+| `error` | `{ file: File; reason: 'size' \| 'type' }` | 有檔案被拒絕(型別 / 大小)時逐檔觸發;數量超限一律走 `exceed` 事件,**不會**出現 `reason: 'count'` |
 | `exceed` | `{ files: File[]; limit: number }` | 選檔數超過 `maxFiles` |
 
 ## Slots

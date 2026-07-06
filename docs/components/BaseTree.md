@@ -21,7 +21,7 @@ export interface BaseTreeNode {
 | prop | 型別 | 預設 | 說明 |
 |---|---|---|---|
 | `nodes` | `BaseTreeNode[]` | `[]` | 樹資料 |
-| `selectable` | `boolean` | `true` | 單選高亮 current(`v-model:selected`) |
+| `selectable` | `boolean` | `true` | 單選高亮 current(`v-model:selected`);**僅葉節點可被選取**,父節點點擊只切換展開 / 收合 |
 | `checkable` | `boolean` | `false` | 顯示 checkbox(`v-model:checked`) |
 | `checkStrictly` | `boolean` | `false` | true 時父子勾選不連動 |
 | `defaultExpandAll` | `boolean` | `false` | 初始展開所有父節點(非受控預設) |
@@ -79,9 +79,10 @@ const checked = ref<BaseTreeKey[]>([])
 ## 行為
 
 - **展開 / 收合**:點箭頭切換;`defaultExpandAll` 初始展開所有父節點。
-- **單選**:`selectable` 時點 label 高亮並更新 `v-model:selected`;停用節點不可選。
+- **單選**:`selectable` 時**只有葉節點可被選取**——點葉節點高亮並更新 `v-model:selected`;點父節點僅切換展開 / 收合,**不會**更新 `v-model:selected`;停用節點不可選。
 - **Checkbox 連動**:勾父 → 級聯所有啟用子孫;部分子勾 → 父 `indeterminate`;子變動回算祖先。`checkStrictly` 關閉級聯。
 - **Lazy**:`lazy` + `load` 時,展開未載入的非葉節點會呼叫 `load(node)`,期間顯示 inline spinner,結果快取。
+- **Lazy × Checkbox 邊界**:`lazy` 且**尚未載入子節點**的父節點,勾選時視為葉節點——只勾選自己、不級聯;之後展開載入子節點,已勾選狀態**不會**自動下推到新載入的子節點(父節點會因「子孫未全勾」回算為未勾 / indeterminate)。需要載入後同步時,由 caller 在 `load` resolve 後自行更新 `v-model:checked`。
 
 ## A11y
 
@@ -94,7 +95,7 @@ const checked = ref<BaseTreeKey[]>([])
 | → | 收合中的父 → 展開;已展開 → 進第一個子 |
 | ← | 已展開 → 收合;否則 → 回父節點 |
 | Home / End | 第一 / 最後可見節點 |
-| Enter | 選取(selectable) |
+| Enter | 葉節點 → 選取(selectable);父節點 → 展開 / 收合 |
 | Space | 切換 checkbox(checkable) |
 
 ## 反模式

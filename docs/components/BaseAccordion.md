@@ -54,7 +54,7 @@ BaseAccordion 是「可展開 / 收合的內容區塊」元件，以 WAI-ARIA [A
 | `summary` | `string` | — | summary 顯示文字（可被 `#summary` slot 覆寫外觀，仍作為預設內容） |
 | `disabled` | `boolean` | `false` | 禁用此單一 panel |
 | `lazy` | `boolean` | `false` | 延遲掛載：首次展開前不渲染內容，第一次展開後才掛載並保留。內容重（圖表 / 大型清單 / 需 fetch）時可省下初次渲染成本 |
-| `v-model`（`modelValue`） | `boolean` | — | **無父層 BaseAccordion 時**的 standalone 受控展開狀態 |
+| `v-model`（`modelValue`） | `boolean` | `false` | **無父層 BaseAccordion 時**的 standalone 受控展開狀態 |
 
 ---
 

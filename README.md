@@ -23,9 +23,11 @@
 │   ├── app.vue
 │   ├── components/
 │   │   ├── atoms/         # 最小可重用 UI 元件（BaseButton、BaseLink ...）
-│   │   ├── molecules/     # 由 atoms 組合的小型功能單元
-│   │   ├── organisms/     # 由 molecules 組合的區塊
-│   │   └── templates/     # 頁面骨架
+│   │   ├── molecules/     # 由 atoms 組合的小型功能單元（規劃中，目前為空）
+│   │   ├── organisms/     # 由 molecules 組合的區塊（規劃中，目前為空）
+│   │   └── templates/     # 頁面骨架（規劃中，目前為空）
+│   ├── composables/       # 有響應式狀態的邏輯（useToast、usePagination、useValidation ...）
+│   ├── helpers/           # 含 Vue API 的 VNode 工具（findFirstLegitChild、resolveSlotChildren）
 │   └── utils/             # 純函式工具（isFunction、noop、IntersectionObserver helper ...）
 ├── docs/
 │   └── components/        # 各元件設計規範與 API 文件
@@ -101,7 +103,7 @@ pnpm storybook:build    # 建置靜態 Storybook（輸出至 storybook-static/�
 - TypeScript strict mode，禁止 `any`；純型別 import 一律使用 `import type`
 - Vue 3.4+ 雙向綁定統一使用 `defineModel<T>()`，禁止手寫 `modelValue` + `update:modelValue` 樣板
 - Props 用泛型寫法明確定義型別：`defineProps<XxxProps>()`，有預設值搭配 `withDefaults()`
-- Composable 與 utils 規則參考 [`~/.claude/rules/code-reuse.md`](https://docs)（全域規範）
+- Composable 與 utils 規則參考 `~/.claude/rules/code-reuse.md`（開發者本機的全域規範，不隨專案版控）
 
 ### 新增元件流程
 
@@ -139,6 +141,7 @@ docs(components): clarify BaseLink prefetch behavior
 - [Vitest](https://vitest.dev/)
 - [Vue 3 `defineModel`](https://vuejs.org/guide/components/v-model.html)
 - 元件設計細節：見 [`docs/components/`](./docs/components/) 內各元件文件
+- SSR 相容性與防護慣例：[`docs/components/ssr-compatibility.md`](./docs/components/ssr-compatibility.md)
 
 ## License
 

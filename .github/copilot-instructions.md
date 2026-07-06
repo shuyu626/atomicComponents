@@ -3,7 +3,7 @@
 > **寫給**:跨專案共用的 `Base*` 元件實作參考。
 > **範圍**:Vue 3 + TypeScript;原則大多跨框架通用(React / Solid / Web Components 適用)。
 > **配套**:`~/.claude/rules/component-architecture.md`(元件放置決策)、`~/.claude/rules/code-reuse.md`(函式 / store / composable 複用)。
-> **個別元件規格**:見 `docs/component/` 資料夾,例如 [`button.md`](../component/button.md)。
+> **個別元件規格**:見 `docs/components/` 資料夾,例如 [`BaseButton.md`](../docs/components/BaseButton.md)。
 
 本文件分兩部分:
 1. **跨元件通用原則** — 適用所有 `Base*` 元件
@@ -96,7 +96,7 @@
 |---|---|
 |**Teleport 與 SSR 共存**| `<Teleport to="body">` 的 target 在 hydration 前不存在。SSR 階段用 disabled prop 關掉 teleport,或用 `<ClientOnly>`包裝。Nuxt 用 `<Teleport to="body" :disabled="!isMounted">` pattern |
 | **不在 setup 階段碰 DOM** | `document` / `window` 只能在 `onMounted` 內或 `import.meta.client` guard 內使用 |
-| **避免 hydration mismatch** | 隨機值用 seeded random(本專案有 `createSeededRandom`);id 用 Vue `useId()` |
+| **避免 hydration mismatch** | 避免在 render 期間產生隨機值(SSR 與 client 會算出不同結果;必要時自行以 seeded random 確保兩端一致);id 用 Vue `useId()` |
 | **RTL 友善** | padding / margin 用 logical properties(`padding-inline-start`),Tailwind 用 `ps-*` / `pe-*` |
 | **不依賴 ResizeObserver / IntersectionObserver 等 API 在 SSR** | 用 `import.meta.client` 包起來 |
 

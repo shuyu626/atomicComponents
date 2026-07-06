@@ -198,7 +198,7 @@ const sortedUsers = computed(() => {
 - **選取相容 Array / Set**：依傳入集合型別決定寫回型別；全選 / 取消全選由表頭 checkbox 控制，部分選取時表頭呈 indeterminate。
 - **不就地 mutate**：選取寫回一律建立新集合（`[...arr]` / `new Set()`）整體取代，符合單向資料流。
 - **列點擊**：整列可觸發 `click:row`；選取欄的 checkbox 以 `@click.stop` 阻止冒泡，避免誤觸列點擊。
-- **列點擊鍵盤可達性**：只有「父層綁定 `@click:row`」時，每列才會補上 `tabindex="0"`、`role="button"`，並支援 `Enter` / `Space` 觸發（會 `preventDefault` 以避免 Space 捲動頁面）。是否可點擊由 vnode props 是否含 `onClick:row` 推導（`click:row` 屬 `defineEmits` 宣告事件，listener 不會落在 `$attrs`）。未綁定時維持原樣，不加任何鍵盤屬性。
+- **列點擊鍵盤可達性**：只有「父層綁定 `@click:row`」時，每列才會補上 `tabindex="0"`，並支援 `Enter` / `Space` 觸發（會 `preventDefault` 以避免 Space 捲動頁面）。可點擊列**不使用 `role="button"`**——覆寫 `<tr>` 的 role 會破壞 `<table>` 的表格語意（螢幕閱讀器將不再以列 / 欄脈絡朗讀）。是否可點擊由 vnode props 是否含 `onClick:row` 推導（`click:row` 屬 `defineEmits` 宣告事件，listener 不會落在 `$attrs`）。未綁定時維持原樣，不加任何鍵盤屬性。
 - **跨頁選取邊界**：表頭全選 / 半選狀態只依「當前 `items` 中被選取的筆數」計算（以 `selectedLookup` 命中統計），而非 `selected` 集合總大小。如此一來 `selected` 含跨頁 / 非當頁殘留項目（甚至 `selected.size > items.length`）時，也不會出現「全選與半選同時為 false」或誤判半選的情況。
 - **空狀態**：`items` 為空時隱藏 `<tbody>` 列並顯示 `#empty`。
 - **sticky header**：`stickyHeader` 開啟後，**只有 `<tbody>` 垂直捲動**、表頭停在捲動區之外，因此**捲軸只出現在表頭下方、不會跟著表頭**。捲動區高度由 `--table-sticky-max-height`（預設 `400px`）控制，不需再對 `<BaseTable>` 設 `max-height` 或外包捲動容器。
@@ -214,7 +214,8 @@ const sortedUsers = computed(() => {
 - 採語意化 `<table>` / `<caption>` / `<thead>` / `<tbody>`，表頭儲存格為 `<th scope="col">`。
 - 可排序欄位提供 `aria-sort`（`ascending` / `descending` / `none`），非排序欄不輸出該屬性。需 `sortable` 且父層綁定 `v-model:sort` 才輸出（未綁定排序時，`getAriaSort` 回傳 `undefined`、不輸出該屬性）。
 - 排序按鈕、選取 checkbox 皆有 `aria-label`（如「依『姓名』排序」「選取第 N 列」「全選」），並可透過 `labels` prop 覆寫（i18n）。
-- 可點擊列（綁定 `@click:row`）提供完整鍵盤路徑：`tabindex="0"`、`role="button"`、`Enter` / `Space` 觸發；未綁定列點擊則不加這些屬性。
+- 可點擊列（綁定 `@click:row`）提供鍵盤路徑：`tabindex="0"` + `Enter` / `Space` 觸發；未綁定列點擊則不加這些屬性。可點擊列**不加 `role="button"`**，避免覆蓋 `<tr>` 的表格語意（`row` role 被覆寫後，螢幕閱讀器會失去列 / 欄導覽脈絡）。
+- 列點擊屬**滑鼠 / 鍵盤的操作增強**，對螢幕閱讀器使用者不易被發現。重要操作（開啟詳情、編輯、刪除等）建議同時透過欄位 slot（`#column:<key>`）提供明確的列內控制項（`<button>` / 連結），確保所有使用者都有可及的操作入口。
 - `captionSide="hidden"` 以 sr-only 樣式保留 caption 給螢幕閱讀器（取代參考的全域 `@include sr-only`）。
 - 排序圖示 `<svg>` 標記 `aria-hidden="true"`，語意由按鈕 `aria-label` 與表頭 `aria-sort` 承載。
 
@@ -245,7 +246,7 @@ const sortedUsers = computed(() => {
   - 空狀態：預設訊息、`#empty` slot、有資料時隱藏。
   - caption：prop 渲染、`captionSide`、未提供時不渲染。
   - sticky / itemKey（函式）/ `click:row`（item + index）。
-  - 列鍵盤可達性：未綁 `click:row` 不加 `tabindex` / `role`、綁定後加 `tabindex=0` / `role=button`、`Enter` / `Space` 觸發、其他鍵忽略。
+  - 列鍵盤可達性：未綁 `click:row` 不加 `tabindex`、綁定後加 `tabindex=0`（不加 `role="button"`，保留 `<tr>` 表格語意）、`Enter` / `Space` 觸發、其他鍵忽略。
   - 文案 labels：預設繁體中文、字串覆寫、函式覆寫（`sortBy` / `selectRow`）、逐欄位 fallback。
   - 跨頁選取：僅依當頁命中計算全選 / 半選；`selected` 含非當頁殘留（含 `size > items.length`）時不誤判。
   - 排序：未綁 `v-model:sort` 不顯示按鈕、方向循環 asc→desc→無、`aria-sort` 各狀態、非排序欄不輸出 `aria-sort`。
