@@ -147,16 +147,16 @@ export const Closable: Story = {
     template: `
       <div style="display:flex;flex-direction:column;gap:12px;padding:32px;max-width:36rem;font-family:system-ui">
         <BaseAlert
-          v-if="visible.value"
+          v-if="visible"
           color="warning"
           title="系統維護通知"
           closable
           close-label="關閉通知"
-          @close="visible.value = false"
+          @close="visible = false"
         >
           系統將於今晚 02:00 進行維護，屆時服務可能短暫中斷。
         </BaseAlert>
-        <button v-else style="align-self:flex-start" @click="visible.value = true">重新顯示</button>
+        <button v-else style="align-self:flex-start" @click="visible = true">重新顯示</button>
       </div>
     `,
   }),
