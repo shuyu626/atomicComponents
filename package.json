@@ -8,6 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -26,12 +27,14 @@
   "devDependencies": {
     "@nuxt/test-utils": "^4.0.3",
     "@storybook/vue3-vite": "10",
-    "@types/node": "^25.9.1",
+    "@types/node": "^22.20.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/test-utils": "^2.4.10",
     "happy-dom": "^20.9.0",
     "sass": "^1.99.0",
     "storybook": "10",
-    "vitest": "^4.1.7"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7",
+    "vue-tsc": "^3.3.6"
   }
 }

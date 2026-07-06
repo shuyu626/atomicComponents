@@ -13,7 +13,7 @@ export default defineVitestConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      include: ['app/components/**'],
+      include: ['app/components/**', 'app/composables/**', 'app/utils/**', 'app/helpers/**'],
     },
   },
 })
