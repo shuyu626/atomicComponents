@@ -190,7 +190,8 @@ function close() {
 //   掛載時即為開啟者 watch 不會觸發，故 onMounted 補發 open（修正 appear 只發 opened 的不對稱）。
 // - opened / closed（動畫「後」）：由 <Transition> 的 after-enter / after-leave hook 發出。
 watch(open, (value) => {
-  emit(value ? 'open' : 'close')
+  if (value) emit('open')
+  else emit('close')
 })
 
 onMounted(() => {

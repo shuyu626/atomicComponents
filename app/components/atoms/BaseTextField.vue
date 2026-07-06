@@ -123,7 +123,7 @@ export interface BaseTextFieldProps extends BaseFormFieldProps {
   /** 最小字元數（HTML `minlength`）。 */
   minlength?: number
   /** input `autocomplete`（如 `'email'`、`'current-password'`、`'off'`）。 */
-  autocomplete?: InputHTMLAttributes['autocomplete']
+  autocomplete?: string
   /** input `inputmode`（行動裝置鍵盤型別，如 `'numeric'`、`'tel'`）。 */
   inputmode?: InputHTMLAttributes['inputmode']
   /** 顯示字數計數（以 grapheme cluster 計，emoji / 中日韓算 1 字）；`type="number"` 或 `.number` modifier 時自動關閉。 @default false */

@@ -97,7 +97,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, watchEffect } from 'vue'
 
-import type { Component, InputHTMLAttributes } from 'vue'
+import type { Component } from 'vue'
 
 import BaseFormField from '~/components/atoms/BaseFormField.vue'
 import type { BaseFormFieldProps } from '~/components/atoms/BaseFormField.vue'
@@ -123,7 +123,7 @@ export interface BaseTextareaProps extends BaseFormFieldProps {
   /** 最小字元數（HTML `minlength`）。 */
   minlength?: number
   /** textarea `autocomplete`（如 `'off'`、`'on'`）。 */
-  autocomplete?: InputHTMLAttributes['autocomplete']
+  autocomplete?: string
   /** 初始 / 最小可見行數（HTML `rows`）；`autosize` 時作為高度下界。 @default 2 */
   rows?: number
   /** `autosize` 時的最大行數上界；未設則不限制（內容多長就多高）。 */

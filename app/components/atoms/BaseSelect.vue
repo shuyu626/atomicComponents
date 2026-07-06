@@ -638,7 +638,7 @@ function nextEnabledIndex(start: number, direction: 1 | -1): number {
   let idx = start
   for (let i = 0; i < n; i++) {
     idx = (idx + direction + n) % n
-    if (!list[idx].disabled) return idx
+    if (!list[idx]?.disabled) return idx
   }
   return -1
 }

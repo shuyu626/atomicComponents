@@ -66,11 +66,10 @@ export const BASE_CHECKBOX_GROUP_INJECT_KEY: InjectionKey<BaseCheckboxGroupConte
 </script>
 
 <script setup lang="ts" generic="Value = string | number">
-import { computed, provide, toRef } from 'vue'
+import { computed, provide } from 'vue'
 
 import BaseFormField from '~/components/atoms/BaseFormField.vue'
 import type { BaseFormFieldProps } from '~/components/atoms/BaseFormField.vue'
-import type { BaseCheckboxColor } from '~/components/atoms/BaseCheckbox.vue'
 import useFormFieldProps from '~/composables/useFormFieldProps'
 import useValidation from '~/composables/useValidation'
 import isSet from '~/utils/isSet'
@@ -151,9 +150,9 @@ provide(BASE_CHECKBOX_GROUP_INJECT_KEY, {
   isSelected: isSelected as (value: unknown) => boolean,
   toggle: toggle as (value: unknown) => void,
   touch: validation.touch,
-  name: toRef(() => props.name),
-  color: toRef(() => props.color),
-  disabled: toRef(() => !!props.disabled),
+  name: computed(() => props.name),
+  color: computed(() => props.color),
+  disabled: computed(() => !!props.disabled),
 })
 </script>
 

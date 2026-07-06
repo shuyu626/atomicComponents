@@ -66,11 +66,10 @@ export const BASE_RADIO_GROUP_INJECT_KEY: InjectionKey<BaseRadioGroupContext> =
 </script>
 
 <script setup lang="ts" generic="Value = string | number">
-import { computed, provide, toRef, useId } from 'vue'
+import { computed, provide, useId } from 'vue'
 
 import BaseFormField from '~/components/atoms/BaseFormField.vue'
 import type { BaseFormFieldProps } from '~/components/atoms/BaseFormField.vue'
-import type { BaseRadioColor } from '~/components/atoms/BaseRadio.vue'
 import useFormFieldProps from '~/composables/useFormFieldProps'
 import useValidation from '~/composables/useValidation'
 import type { ValidationRule } from '~/utils/validators'
@@ -141,8 +140,8 @@ provide(BASE_RADIO_GROUP_INJECT_KEY, {
   select: select as (value: unknown) => void,
   touch: validation.touch,
   name: effectiveName,
-  color: toRef(() => props.color),
-  disabled: toRef(() => !!props.disabled),
+  color: computed(() => props.color),
+  disabled: computed(() => !!props.disabled),
 })
 </script>
 

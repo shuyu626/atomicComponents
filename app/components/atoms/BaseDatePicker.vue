@@ -216,7 +216,7 @@
                   <span
                     v-if="paneViewMode(vi) === 'year'"
                     class="base-date-picker__title-range"
-                  >{{ rangeYearPage[vi] }} - {{ rangeYearPage[vi] + 11 }}</span>
+                  >{{ rangeYearPageAt(vi) }} - {{ rangeYearPageAt(vi) + 11 }}</span>
                   <template v-else>
                     <button
                       type="button"
@@ -556,7 +556,7 @@ function matrixOf(view: { year: number; month: number }): Date[][] {
 }
 
 const rotatedWeekdays = computed<string[]>(() =>
-  props.weekdayLabels.map((_, i) => props.weekdayLabels[(props.firstDayOfWeek + i) % 7]),
+  props.weekdayLabels.map((_, i) => props.weekdayLabels[(props.firstDayOfWeek + i) % 7] ?? ''),
 )
 
 // ── 日狀態 ──────────────────────────────────────────────────────────────────
@@ -735,6 +735,11 @@ function navPane(paneIndex: number, unit: 'month' | 'year', delta: number) {
 const rangePaneMode = ref<('date' | 'month' | 'year')[]>(['date', 'date'])
 const rangeYearPage = ref<number[]>([2000, 2000])
 
+/** 該面板年份快選頁起始年;封裝索引存取避免 undefined。 */
+function rangeYearPageAt(pane: number): number {
+  return rangeYearPage.value[pane] ?? 0
+}
+
 /** 該面板目前檢視模式;單選一律 date（單選走共用 header 的 viewMode）。 */
 function paneViewMode(pane: number): 'date' | 'month' | 'year' {
   return props.range ? (rangePaneMode.value[pane] ?? 'date') : 'date'
@@ -750,7 +755,7 @@ function setPaneYearOnly(pane: number, year: number) {
   else viewYear2.value = year
 }
 function paneYearCells(pane: number): number[] {
-  const startYear = rangeYearPage.value[pane]
+  const startYear = rangeYearPageAt(pane)
   return Array.from({ length: 12 }, (_, i) => startYear + i)
 }
 function paneIsCurrentMonth(pane: number, month: number): boolean {
@@ -782,7 +787,7 @@ function pickPaneMonth(pane: number, month: number) {
 // 標題兩側 «/» 依模式切換單位:日曆翻年、月快選翻年、年快選翻頁（12 年）。
 function paneNavBlock(pane: number, delta: number) {
   const mode = paneViewMode(pane)
-  if (mode === 'year') rangeYearPage.value[pane] += delta * 12
+  if (mode === 'year') rangeYearPage.value[pane] = rangeYearPageAt(pane) + delta * 12
   else if (mode === 'month') setPaneYearOnly(pane, paneYearAt(pane) + delta)
   else navPane(pane, 'year', delta)
 }

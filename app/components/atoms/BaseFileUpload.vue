@@ -297,7 +297,8 @@ function addFiles(incoming: File[]) {
 
   if (!props.multiple) {
     // 單檔:以最後一個通過驗證的檔取代;無通過檔則保留原值。
-    if (accepted.length) model.value = [accepted[accepted.length - 1]]
+    const last = accepted[accepted.length - 1]
+    if (last) model.value = [last]
     return
   }
 
