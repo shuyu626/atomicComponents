@@ -441,6 +441,12 @@ describe('BasePagination', () => {
       expect(model.value).toBe(2)
     })
 
+    it('初始 page 超出初始 pageCount 時立即收斂(immediate)', async () => {
+      const { model } = createWrapper({ total: 30 }, 10) // count=3, page=10 超出
+      await nextTick()
+      expect(model.value).toBe(3)
+    })
+
     it('total 變 0(pageCount < 1)時不把 page 收斂成 0', async () => {
       const { wrapper, model } = createWrapper({ total: 100 }, 5)
       await wrapper.setProps({ total: 0 }) // pageCount=0,不渲染也不改 page

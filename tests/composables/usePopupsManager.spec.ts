@@ -163,6 +163,30 @@ describe('createPopupsManager', () => {
       m.unlock(token('ghost'))
       expect(document.body.style.overflow).toBe('hidden')
     })
+
+    // 宿主 App 可能自己在 body 設了 inline 樣式：解鎖不能直接清成 ''，
+    // 必須還原鎖定前保存的原值。
+    it('restores pre-existing body inline styles after the last unlock', () => {
+      document.body.style.overflow = 'scroll'
+      document.body.style.paddingRight = '12px'
+
+      const m = createPopupsManager()
+      const a = token('a')
+      const b = token('b')
+
+      m.lock(a)
+      m.lock(b)
+      expect(document.body.style.overflow).toBe('hidden')
+
+      // 中間層解鎖不還原。
+      m.unlock(a)
+      expect(document.body.style.overflow).toBe('hidden')
+
+      // 最後解鎖 → 還原宿主原本的 inline 樣式。
+      m.unlock(b)
+      expect(document.body.style.overflow).toBe('scroll')
+      expect(document.body.style.paddingRight).toBe('12px')
+    })
   })
 })
 

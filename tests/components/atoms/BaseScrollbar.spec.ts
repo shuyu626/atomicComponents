@@ -8,9 +8,33 @@ import BaseScrollbar from '~/components/atoms/BaseScrollbar.vue'
 //
 // happy-dom 沒有真實版面，offsetHeight / scrollHeight 等幾何全為 0，overlay 捲軸
 // 因此永遠不會出現。測試一律「手動在 viewport 元素上以 defineProperty 灌入幾何」，
-// 再 forceUpdate 觸發元件的 onUpdated → update()，讓 thumb 尺寸算出來、track 渲染。
+// 再手動觸發 ResizeObserver callback → update()，讓 thumb 尺寸算出來、track 渲染
+// （元件靠 ResizeObserver 觀察 viewport + content，happy-dom 不會真的派發 resize）。
 //
 // scrollTop / scrollLeft 改成可讀寫的儲存屬性，讓拖曳 / 點軌道的寫入能被讀回驗證。
+
+/** 收集所有 ResizeObserver callback，讓測試能手動派發 resize 通知。 */
+type ResizeCallback = (entries: Array<{ target: Element }>) => void
+
+const resizeCallbacks = new Set<ResizeCallback>()
+
+class ResizeObserverStub {
+  private readonly callback: ResizeCallback
+
+  constructor(callback: ResizeCallback) {
+    this.callback = callback
+    resizeCallbacks.add(callback)
+  }
+
+  observe() {}
+  unobserve() {}
+
+  disconnect() {
+    resizeCallbacks.delete(this.callback)
+  }
+}
+
+vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 
 interface Geometry {
   offsetHeight?: number
@@ -62,10 +86,14 @@ type Wrapper = ReturnType<typeof mountScrollbar>
 const viewportOf = (w: Wrapper) =>
   w.find('.base-scrollbar__viewport').element as HTMLElement
 
-/** 灌幾何後觸發 onUpdated → update()，讓 thumb 尺寸重算、track 渲染。 */
+/** 灌幾何後派發 resize 通知觸發 update()，讓 thumb 尺寸重算、track 渲染。 */
 async function applyGeometry(w: Wrapper, geo: Geometry) {
+  // useResizeObserver 走 flush: 'post' watch，先等一輪讓 observe 完成
+  await nextTick()
   stubGeometry(viewportOf(w), geo)
-  w.vm.$forceUpdate()
+  // 以 content 元素為 target 派發（模擬「內容尺寸變化」被 ResizeObserver 抓到）
+  const content = w.find('.base-scrollbar__content').element
+  for (const callback of resizeCallbacks) callback([{ target: content }])
   await nextTick()
   await nextTick()
 }

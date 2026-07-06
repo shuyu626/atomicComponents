@@ -16,7 +16,13 @@
       class="base-scrollbar__viewport"
       @scroll="onScroll"
     >
-      <slot />
+      <!-- content 包一層：讓 ResizeObserver 能觀察「內容本身」的尺寸變化 -->
+      <div
+        ref="contentRef"
+        class="base-scrollbar__content"
+      >
+        <slot />
+      </div>
     </div>
 
     <!-- native 模式：直接用瀏覽器原生捲軸，不渲染任何 overlay -->
@@ -112,7 +118,7 @@ type OrientationKey = keyof Orientation
 </script>
 
 <script setup lang="ts">
-import { computed, onUnmounted, onUpdated, ref, useId, useTemplateRef } from 'vue'
+import { computed, onUnmounted, ref, useId, useTemplateRef } from 'vue'
 
 import useResizeObserver from '~/composables/useResizeObserver'
 
@@ -135,6 +141,7 @@ const active = ref(false)
 /** 是否正在拖曳 thumb（拖曳期間強制顯示，不受自動隱藏影響）。 */
 const dragging = ref(false)
 const viewportRef = useTemplateRef<HTMLElement>('viewportRef')
+const contentRef = useTemplateRef<HTMLElement>('contentRef')
 
 // ── 拖曳 / 自動隱藏的非響應式暫存（不需驅動 render，用一般變數省去 ref 開銷）──
 let hideTimer: ReturnType<typeof setTimeout> | undefined
@@ -330,9 +337,11 @@ function computeRatio(original: number, size: number, offset: number): number {
   return original / originalGap / (size / sizeGap)
 }
 
-// 容器尺寸變化（resize）與內容重渲染（updated）都重算 thumb。
+// 容器（viewport）與內容（content）尺寸變化都重算 thumb。
+// 只觀察 viewport 抓不到「內容增長」（scrollHeight 變了但容器尺寸沒變），
+// 故同時觀察 content —— 取代原本 onUpdated(update) 每次重渲染都強制 reflow 的做法。
 useResizeObserver(viewportRef, update)
-onUpdated(update)
+useResizeObserver(contentRef, update)
 
 // ── 卸載清理：補掉原參考實作沒處理的兩個洩漏點 ──────────────────────────────
 onUnmounted(() => {
@@ -374,6 +383,15 @@ onUnmounted(() => {
   &__viewport {
     height: inherit;
     overflow: auto;
+  }
+
+  // content 包一層供 ResizeObserver 觀察內容尺寸：
+  // inline-block 讓寬度跟著內容（max-content）長，水平溢出時 content 自身變寬、觀察得到；
+  // min-width: 100% 保證不窄於 viewport，一般文字流仍照常換行。
+  &__content {
+    display: inline-block;
+    min-width: 100%;
+    vertical-align: top;
   }
 
   // 非 native 模式才隱藏原生捲軸（保留可捲動但不顯示系統捲軸）。

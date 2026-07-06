@@ -480,7 +480,6 @@ const vIndeterminate = {
           class="base-table__row"
           :class="rowClass(item, index)"
           :tabindex="isRowClickable ? 0 : undefined"
-          :role="isRowClickable ? 'button' : undefined"
           @click="emit('click:row', item, index)"
           @keydown="onRowKeydown($event, item, index)"
         >

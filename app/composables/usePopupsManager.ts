@@ -44,6 +44,11 @@ export function createPopupsManager(): PopupsManager {
   const popups = shallowReactive<PopupToken[]>([])
   const locks: PopupToken[] = []
 
+  // 首次鎖定時保存宿主 App 原本設在 body 上的 inline 樣式，最後解鎖時據以還原——
+  // 直接清成 '' 會抹掉宿主自己的 overflow / paddingRight 設定。
+  let savedOverflow = ''
+  let savedPaddingRight = ''
+
   const add = (token: PopupToken): void => {
     if (popups.includes(token)) return
     popups.push(token)
@@ -63,8 +68,12 @@ export function createPopupsManager(): PopupsManager {
   const lock = (token: PopupToken): void => {
     if (locks.includes(token)) return
 
-    // 第一筆鎖 → 真正鎖住 body 並補上捲軸寬度，避免捲軸消失造成版面橫向跳動。
+    // 第一筆鎖 → 先保存原始 inline 樣式，再真正鎖住 body 並補上捲軸寬度，
+    // 避免捲軸消失造成版面橫向跳動。
     if (!locks.length && canUseDOM) {
+      savedOverflow = document.body.style.overflow
+      savedPaddingRight = document.body.style.paddingRight
+
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
       if (scrollbarWidth > 0) document.body.style.paddingRight = toUnit(scrollbarWidth)
       document.body.style.overflow = 'hidden'
@@ -79,10 +88,10 @@ export function createPopupsManager(): PopupsManager {
 
     locks.splice(index, 1)
 
-    // 最後一筆鎖被撤除 → 還原 body。
+    // 最後一筆鎖被撤除 → 還原鎖定前保存的 body inline 樣式。
     if (!locks.length && canUseDOM) {
-      document.body.style.paddingRight = ''
-      document.body.style.overflow = ''
+      document.body.style.paddingRight = savedPaddingRight
+      document.body.style.overflow = savedOverflow
     }
   }
 

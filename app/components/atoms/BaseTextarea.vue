@@ -95,13 +95,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import type { Component } from 'vue'
 
 import BaseFormField from '~/components/atoms/BaseFormField.vue'
 import type { BaseFormFieldProps } from '~/components/atoms/BaseFormField.vue'
-import useFormFieldProps from '~/composables/useFormFieldProps'
+import useComposingModel from '~/composables/useComposingModel'
+import useFieldValidation from '~/composables/useFieldValidation'
 import useResizeObserver from '~/composables/useResizeObserver'
 import useStringLength from '~/composables/useStringLength'
 import useValidation from '~/composables/useValidation'
@@ -183,69 +184,20 @@ const emit = defineEmits<{
  */
 const [model, modifiers] = defineModel<string>()
 
-/** 從 DOM 字串套用 `.trim` modifier，轉成最終要寫入 model 的值。 */
-function readValue(raw: string): string {
-  return modifiers.trim ? raw.trim() : raw
-}
-
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 
-// IME 組字狀態：注音 / 拼音 / 日文等組字途中不提交中途值，對齊原生 v-model
-// （`vModelText` 內建以 `el.composing` 達成，改用 defineModel 後在此手動補回）。
-let composing = false
-
-function onCompositionStart() {
-  composing = true
-}
-
-function onCompositionEnd(event: Event) {
-  if (!composing) return
-  composing = false
-  // 組字結束才提交最終值；`.lazy` 仍留待 change 提交。
-  if (!modifiers.lazy) {
-    model.value = readValue((event.target as HTMLTextAreaElement).value)
-  }
-}
-
-function onInput(event: Event) {
-  // 組字中 / `.lazy`（改在 change 提交）期間不更新 model，但仍即時調整高度。
-  if (composing || modifiers.lazy) {
-    calcTextareaHeight()
-    return
-  }
-  model.value = readValue((event.target as HTMLTextAreaElement).value)
-  calcTextareaHeight()
-}
-
-function onChange(event: Event) {
-  const el = event.target as HTMLTextAreaElement
-  // change（blur）一律提交：涵蓋 `.lazy`，也讓 `.trim` 在失焦後把顯示值正規化（去尾隨空白）——
-  // 此時 model 可能未變、watchEffect 不會觸發，故在這裡直接把 el.value 同步成正規化後的字串。
-  model.value = readValue(el.value)
-  const canonical = model.value == null ? '' : String(model.value)
-  if (el.value !== canonical) el.value = canonical
-}
-
 /**
- * model → textarea 同步：手動指派 `el.value` 並複刻 Vue `vModelText.beforeUpdate` 的守衛——
- * 聚焦中 / 組字中且「修整後的值與 model 相等」時不覆寫，避免吃掉使用者正在輸入的字
- * （如 `.trim` 的尾隨空白）。用模板 ref + watchEffect 取代 `:value` 綁定
- * （`:value` 會在每次 model 變動無條件覆寫，破壞上述輸入體驗）。
+ * IME 組字 + v-model 同步（`.trim` / `.lazy` modifiers、組字期間不提交、
+ * model → textarea 回寫守衛）抽至共用 composable，詳見 `useComposingModel`。
+ * textarea 值恆為字串，不啟用數字轉型；`onAfterInput` 讓每次 input（含組字中）
+ * 都即時重算 autosize 高度。
  */
-watchEffect(() => {
-  const el = inputRef.value
-  if (!el) return
-
-  const value = model.value
-  const next = value == null ? '' : String(value)
-
-  if (typeof document !== 'undefined' && document.activeElement === el) {
-    if (composing || modifiers.lazy) return
-    if (modifiers.trim && el.value.trim() === value) return
-  }
-
-  if (el.value !== next) el.value = next
-})
+const { onCompositionStart, onCompositionEnd, onInput, onChange } = useComposingModel(
+  model,
+  modifiers,
+  inputRef,
+  { onAfterInput: calcTextareaHeight },
+)
 
 /**
  * 驗證：用 `useValidation` 把 `rules` 套在目前值上（touched-gated）。值以 `?? ''` 收斂，
@@ -268,20 +220,10 @@ defineExpose({
 })
 
 /**
- * 合併「外部 props」與「驗證結果」後再轉發給 BaseFormField：
- * - error：`props.error` 或驗證失敗任一為真即錯誤（讓父層仍可用 error prop 強制錯誤，如 server 端驗證）。
- * - message：驗證**錯誤訊息優先**（讓使用者看到「為何不合規」）；無驗證錯誤時退回 `props.message`
- *   靜態提示（如說明文字）。沒有 rules 時 validation.message 恆為 undefined，等同只顯示 `props.message`。
+ * 合併「外部 props」與「驗證結果」（error 任一為真即錯誤、驗證訊息優先）後
+ * 轉發給 BaseFormField，詳見 `useFieldValidation`。
  */
-const displayError = computed(() => props.error || validation.error.value)
-const displayMessage = computed(() => validation.message.value ?? props.message)
-
-/** 從完整 props 收斂出欄位語意（label / error / required…），並以合併後的 error / message 覆寫，轉發給 BaseFormField。 */
-const fieldProps = useFormFieldProps(() => ({
-  ...props,
-  error: displayError.value,
-  message: displayMessage.value,
-}))
+const { displayMessage, fieldProps } = useFieldValidation(() => props, validation)
 
 const shouldShowCount = computed(() => props.showCount)
 

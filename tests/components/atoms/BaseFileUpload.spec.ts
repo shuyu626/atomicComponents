@@ -93,6 +93,31 @@ describe('BaseFileUpload — validation', () => {
   })
 })
 
+describe('BaseFileUpload — a11y naming', () => {
+  it('links the dropzone to the field label via aria-labelledby when label is set', () => {
+    const w = mount(BaseFileUpload, { props: { label: '附件' }, attachTo: document.body })
+    const zone = w.find('.base-file-upload__dropzone')
+
+    const labelledby = zone.attributes('aria-labelledby')
+    expect(labelledby).toBeTruthy()
+    // labelledby 指到 BaseFormField 的 label 元素,且內容即使用者的 label
+    const labelEl = document.getElementById(labelledby!)
+    expect(labelEl).not.toBeNull()
+    expect(labelEl!.textContent).toContain('附件')
+    // labelledby 優先:不再補固定的 aria-label
+    expect(zone.attributes('aria-label')).toBeUndefined()
+    w.unmount()
+  })
+
+  it('falls back to aria-label (triggerLabel) when no label is provided', () => {
+    const w = mount(BaseFileUpload, { attachTo: document.body })
+    const zone = w.find('.base-file-upload__dropzone')
+    expect(zone.attributes('aria-labelledby')).toBeUndefined()
+    expect(zone.attributes('aria-label')).toBe('上傳檔案')
+    w.unmount()
+  })
+})
+
 describe('BaseFileUpload — thumbnails', () => {
   it('renders an img thumbnail for image files', async () => {
     const w = mount(BaseFileUpload, { props: { multiple: true, accept: 'image/*' }, attachTo: document.body })

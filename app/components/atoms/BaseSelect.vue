@@ -300,7 +300,7 @@ import BaseFormField from '~/components/atoms/BaseFormField.vue'
 import type { BaseFormFieldProps } from '~/components/atoms/BaseFormField.vue'
 import BasePopover from '~/components/atoms/BasePopover.vue'
 import type { BasePopoverPlacement } from '~/components/atoms/BasePopover.vue'
-import useFormFieldProps from '~/composables/useFormFieldProps'
+import useFieldValidation from '~/composables/useFieldValidation'
 import useValidation from '~/composables/useValidation'
 import { moveFocus, nextItem, previousItem } from '~/utils/dom'
 import isFunction from '~/utils/isFunction'
@@ -743,16 +743,9 @@ defineExpose({
 
 /**
  * 合併「外部 props」與「驗證結果」後轉發給 BaseFormField：error 任一為真即錯誤；
- * message 驗證錯誤優先、無則退回 props.message。
+ * message 驗證錯誤優先、無則退回 props.message。詳見 `useFieldValidation`。
  */
-const displayError = computed(() => props.error || validation.error.value)
-const displayMessage = computed(() => validation.message.value ?? props.message)
-
-const fieldProps = useFormFieldProps(() => ({
-  ...props,
-  error: displayError.value,
-  message: displayMessage.value,
-}))
+const { displayMessage, fieldProps } = useFieldValidation(() => props, validation)
 </script>
 
 <style scoped lang="scss">

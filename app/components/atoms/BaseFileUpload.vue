@@ -10,11 +10,13 @@
       <slot name="label" />
     </template>
 
-    <template #default="{ id, describedby, invalid, disabled: isDisabledState }">
+    <template #default="{ id, labelledby, describedby, invalid, disabled: isDisabledState }">
       <div class="base-file-upload__body">
         <!--
           拖放區:role="button" 可鍵盤觸發檔案對話框;拖放事件切換 --dragging 狀態。
           真正的 <input type="file"> 視覺隱藏但仍由這裡的 open() 觸發。
+          取名:有使用者 label(labelledby 存在)時以 aria-labelledby 關聯欄位標籤優先,
+          此時不再補 aria-label;無 label 才退回固定的 triggerLabel。
         -->
         <div
           class="base-file-upload__dropzone"
@@ -25,7 +27,8 @@
           }"
           role="button"
           :tabindex="isDisabledState ? -1 : 0"
-          :aria-label="triggerLabel"
+          :aria-labelledby="labelledby"
+          :aria-label="labelledby ? undefined : triggerLabel"
           :aria-disabled="isDisabledState || undefined"
           :aria-describedby="describedby"
           @click="open"
@@ -100,7 +103,7 @@
         >
           <li
             v-for="(file, index) in files"
-            :key="`${file.name}-${index}`"
+            :key="`${file.name}-${file.size}-${file.lastModified}`"
             class="base-file-upload__item"
           >
             <slot
@@ -195,7 +198,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 
 import BaseFormField from '~/components/atoms/BaseFormField.vue'
 import type { BaseFormFieldProps } from '~/components/atoms/BaseFormField.vue'
-import useFormFieldProps from '~/composables/useFormFieldProps'
+import useFieldValidation from '~/composables/useFieldValidation'
 import useValidation from '~/composables/useValidation'
 import formatBytes from '~/utils/formatBytes'
 import type { ValidationRule } from '~/utils/validators'
@@ -385,14 +388,8 @@ const validation = useValidation<File[]>(
   () => props.rules,
 )
 
-const displayError = computed(() => props.error || validation.error.value)
-const displayMessage = computed(() => validation.message.value ?? props.message)
-
-const fieldProps = useFormFieldProps(() => ({
-  ...props,
-  error: displayError.value,
-  message: displayMessage.value,
-}))
+/** 合併「外部 props」與「驗證結果」後轉發給 BaseFormField,詳見 `useFieldValidation`。 */
+const { displayMessage, fieldProps } = useFieldValidation(() => props, validation)
 
 defineExpose({
   /** 強制驗證;回傳是否通過。 */

@@ -234,11 +234,12 @@ const pageCount = computed(() => {
 // total 縮小使 pageCount < 當前頁時,當前頁會落在不存在的頁。
 // 收斂到最後一頁(pageCount),透過 v-model emit 通知父層;pageCount < 1(無資料)
 // 時不動作 —— 此時不渲染 <nav>,且不該把 page 改成 0。
+// immediate:初始 page 就超出初始 pageCount 時也立即收斂(callback 只用新值,首跑相容)。
 watch(pageCount, (count) => {
   if (count >= 1 && page.value > count) {
     page.value = count
   }
-})
+}, { immediate: true })
 
 const items = usePagination(() => ({
   page: page.value,

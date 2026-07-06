@@ -404,11 +404,12 @@ describe('BaseTable', () => {
       expect(w.emitted('click:row')).toBeFalsy()
     })
 
-    it('adds tabindex=0 and role=button when click:row is bound', () => {
+    it('adds tabindex=0 without a role override when click:row is bound', () => {
       const w = mountTable({ 'onClick:row': () => {} })
       const row = w.findAll('tbody tr')[1]
       expect(row.attributes('tabindex')).toBe('0')
-      expect(row.attributes('role')).toBe('button')
+      // 不覆寫 role:role="button" 會蓋掉 tr 的 row 語意,連帶讓 td 失去 cell 語意
+      expect(row.attributes('role')).toBeUndefined()
     })
 
     it('activates click:row on Enter', async () => {

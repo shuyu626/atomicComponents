@@ -79,9 +79,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, useId, useTemplateRef, watch } from 'vue'
+import { computed, useId, useTemplateRef } from 'vue'
 
 import { useOverlay } from '~/composables/useOverlay'
+import { useOverlayLifecycle } from '~/composables/useOverlayLifecycle'
 import toUnit from '~/utils/toUnit'
 
 export type DrawerAnchor = 'top' | 'right' | 'bottom' | 'left'
@@ -158,44 +159,15 @@ const emit = defineEmits<{
   closed: []
 }>()
 
-/**
- * 關閉時統一經此把關：有 `beforeClose` 則交由它決定何時呼叫 `done()`，否則直接關閉。
- * 開啟方向不攔截。所有「使用者觸發」的關閉路徑（Esc / 點外部 / 關閉鈕 / slot close）皆寫入
- * 此 ref，因此都會過 `beforeClose`；父層透過 `v-model` 直接改 `open` 屬於程式化關閉、不經此。
- */
-const guardedOpen = computed<boolean>({
-  get: () => open.value,
-  set(value) {
-    if (value) {
-      open.value = true
-      return
-    }
-    if (props.beforeClose) {
-      props.beforeClose(() => {
-        open.value = false
-      })
-    }
-    else {
-      open.value = false
-    }
-  },
-})
-
-function close() {
-  guardedOpen.value = false
-}
-
-// 生命週期事件：
-// - open / close（動畫「前」）：watch 預設 flush:'pre'，在 DOM 更新與動畫開始前發出。
-//   掛載時即為開啟者 watch 不會觸發，故 onMounted 補發 open（修正 appear 只發 opened 的不對稱）。
-// - opened / closed（動畫「後」）：由 <Transition> 的 after-enter / after-leave hook 發出。
-watch(open, (value) => {
-  if (value) emit('open')
-  else emit('close')
-})
-
-onMounted(() => {
-  if (open.value) emit('open')
+// 關閉把關（beforeClose）與生命週期 open / close 事件（動畫「前」）抽到
+// useOverlayLifecycle（與 BaseModal 共用同一套樣板）：所有「使用者觸發」的關閉路徑
+// （Esc / 點外部 / 關閉鈕 / slot close）皆寫入 guardedOpen、會過 beforeClose；
+// 父層透過 v-model 直接改 open 屬於程式化關閉、不經此。
+// opened / closed（動畫「後」）仍由 <Transition> 的 after-enter / after-leave hook 發出。
+const { guardedOpen, close } = useOverlayLifecycle(open, {
+  beforeClose: () => props.beforeClose,
+  emitOpen: () => emit('open'),
+  emitClose: () => emit('close'),
 })
 
 const slots = defineSlots<{

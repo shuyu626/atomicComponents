@@ -274,6 +274,27 @@ describe('BasePopover', () => {
       expect(isOpen()).toBe(false)
     })
 
+    // 回歸：在浮層內按住選取文字、滑到浮層外放開，觸發的 click 不應誤關；
+    // 只有「按下與放開都在外部」才算點擊外部。
+    it('does not close when the press starts inside the popover and releases outside', async () => {
+      const wrapper = track(mountPopover())
+      await wrapper.find('.trigger').trigger('click')
+      expect(isOpen()).toBe(true)
+
+      // mousedown 起始於浮層內 → 之後落在外部的 click 不關
+      const content = popoverEl()!.querySelector('.popover-content') as HTMLElement
+      content.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(isOpen()).toBe(true)
+
+      // 起點狀態不殘留：下一次「按下與放開都在外部」仍正常關閉
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(isOpen()).toBe(false)
+    })
+
     it('does not close when clicking inside the popover', async () => {
       const wrapper = track(mountPopover())
       await wrapper.find('.trigger').trigger('click')

@@ -400,30 +400,51 @@ function onEscKeydown(event: KeyboardEvent) {
   setOpen(false)
 }
 
-function onClickOutside(event: Event) {
-  if (!open.value) return
-
+/** 事件是否發生在 reference 與浮層之外（點外部判斷的共用依據）。 */
+function isOutsideEvent(event: Event): boolean {
   // composedPath 回傳「事件從目標冒泡到頂層」經過的所有節點(含 shadow DOM 內部)
   const path = event.composedPath()
   const reference = referenceRef.value
   const floating = popoverRef.value
 
-  // 點擊路徑裡若包含 reference → 點在按鈕上,不關(否則點按鈕想開卻又被關)
-  if (reference && path.includes(reference)) return
-  // 點擊路徑裡若包含浮層 → 點在浮層內部,不關(使用者在操作浮層內容)
-  if (floating && path.includes(floating)) return
+  // 點擊路徑裡若包含 reference → 點在按鈕上,不算外部(否則點按鈕想開卻又被關)
+  if (reference && path.includes(reference)) return false
+  // 點擊路徑裡若包含浮層 → 點在浮層內部,不算外部(使用者在操作浮層內容)
+  if (floating && path.includes(floating)) return false
+
+  return true
+}
+
+// 與 useOverlay 同思路：記錄 mousedown 是否起始於外部，避免「在浮層內按住選取文字 →
+// 滑到浮層外放開」觸發的 click 誤關 —— 只有「按下與放開都在外部」才算點擊外部。
+// null 代表這次 click 前沒有對應的 mousedown（如鍵盤觸發的 click），視為起點在外部。
+let pressedOutside: boolean | null = null
+
+function onDocumentMousedown(event: Event) {
+  pressedOutside = isOutsideEvent(event)
+}
+
+function onClickOutside(event: Event) {
+  const startedOutside = pressedOutside ?? true
+  pressedOutside = null
+
+  if (!open.value) return
+  if (!startedOutside || !isOutsideEvent(event)) return
 
   setOpen(false)
 }
 
 function addGlobalListeners() {
+  document.addEventListener('mousedown', onDocumentMousedown)
   document.addEventListener('click', onClickOutside)
   document.addEventListener('keydown', onEscKeydown)
 }
 
 function removeGlobalListeners() {
+  document.removeEventListener('mousedown', onDocumentMousedown)
   document.removeEventListener('click', onClickOutside)
   document.removeEventListener('keydown', onEscKeydown)
+  pressedOutside = null
 }
 
 // 以 shouldRenderPopover（= 未禁用 + 有兩端 slot + 開啟）為準進出堆疊與掛/解監聽。

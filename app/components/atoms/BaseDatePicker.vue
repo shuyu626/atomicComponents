@@ -126,8 +126,11 @@
           </div>
         </template>
 
-        <!-- 浮層內容：月曆面板。 -->
-        <div class="base-date-picker__panel">
+        <!-- 浮層內容：月曆面板。ref 供 focusDay 範圍化查找,避免多實例同開時聚焦錯元素。 -->
+        <div
+          ref="panelRef"
+          class="base-date-picker__panel"
+        >
           <!-- 單選共用 header（含年 / 月快選觸發）。區間改為每個面板各自的 header。 -->
           <div
             v-if="!range"
@@ -189,7 +192,7 @@
             class="base-date-picker__months"
           >
             <div
-              v-for="(view, vi) in monthsToRender"
+              v-for="(view, vi) in monthViews"
               :key="vi"
               class="base-date-picker__month"
             >
@@ -268,26 +271,27 @@
                   @keydown="onGridKeydown"
                 >
                   <div
-                    v-for="(week, ri) in matrixOf(view)"
+                    v-for="(week, ri) in view.weeks"
                     :key="ri"
                     class="base-date-picker__week"
                     role="row"
                   >
+                    <!-- 靜態 class 讀視圖模型快取;hover 相關的區間 class 以 dayRangeClasses 疊加。 -->
                     <button
-                      v-for="day in week"
-                      :key="toISO(day)"
+                      v-for="cell in week"
+                      :key="cell.iso"
                       type="button"
                       role="gridcell"
                       class="base-date-picker__day"
-                      :class="dayClasses(day, view.month, vi)"
-                      :data-iso="toISO(day)"
-                      :tabindex="dayTabindex(day, view.month)"
-                      :disabled="isDisabled(day)"
-                      :aria-selected="isSelected(day) || undefined"
-                      :aria-disabled="isDisabled(day) || undefined"
-                      @click="pick(day)"
-                      @mouseenter="onDayHover(day)"
-                    >{{ day.getDate() }}</button>
+                      :class="[cell.classes, dayRangeClasses(cell)]"
+                      :data-iso="cell.iso"
+                      :tabindex="cell.tabindex"
+                      :disabled="cell.disabled"
+                      :aria-selected="cell.selected || undefined"
+                      :aria-disabled="cell.disabled || undefined"
+                      @click="pick(cell.date)"
+                      @mouseenter="onDayHover(cell.date)"
+                    >{{ cell.label }}</button>
                   </div>
                 </div>
               </template>
@@ -394,7 +398,7 @@ import BaseFormField from '~/components/atoms/BaseFormField.vue'
 import type { BaseFormFieldProps } from '~/components/atoms/BaseFormField.vue'
 import BasePopover from '~/components/atoms/BasePopover.vue'
 import type { BasePopoverPlacement } from '~/components/atoms/BasePopover.vue'
-import useFormFieldProps from '~/composables/useFormFieldProps'
+import useFieldValidation from '~/composables/useFieldValidation'
 import useValidation from '~/composables/useValidation'
 import { buildMonthMatrix, isAfter, isBefore, isSameDay, parseISO, toISO } from '~/utils/date'
 import type { ValidationRule } from '~/utils/validators'
@@ -469,6 +473,7 @@ defineSlots<{
 const model = defineModel<BaseDatePickerModel>()
 
 const controlRef = ref<HTMLElement | null>(null)
+const panelRef = ref<HTMLElement | null>(null)
 const active = ref(false)
 
 // 面板檢視中的年月。單選 / 區間左面板用 viewYear/viewMonth;
@@ -551,10 +556,6 @@ const monthsToRender = computed(() => {
   return list
 })
 
-function matrixOf(view: { year: number; month: number }): Date[][] {
-  return buildMonthMatrix(view.year, view.month, props.firstDayOfWeek)
-}
-
 const rotatedWeekdays = computed<string[]>(() =>
   props.weekdayLabels.map((_, i) => props.weekdayLabels[(props.firstDayOfWeek + i) % 7] ?? ''),
 )
@@ -609,33 +610,92 @@ function rangeEndpoint(day: Date): 'start' | 'end' | null {
   return null
 }
 
-function dayClasses(day: Date, month: number, viewIndex: number) {
-  const endpoint = props.range ? rangeEndpoint(day) : null
-  const inRange = isInRange(day)
+function dayTabindex(day: Date, month: number): number {
+  if (day.getMonth() !== month) return -1
+  return focusedDate.value && isSameDay(day, focusedDate.value) ? 0 : -1
+}
+
+// ── 日格視圖模型 ─────────────────────────────────────────────────────────────
+/** 單一日格的視圖模型:每格預先算好 iso / class / tabindex 等,template 只讀屬性。 */
+interface DayCellView {
+  /** 該格日期物件,供 click / hover handler 與區間 class 判斷使用。 */
+  date: Date
+  /** ISO 字串:作 v-for key 與 data-iso（focusDay 查找用）。 */
+  iso: string
+  /** 顯示文字（幾號）。 */
+  label: number
+  /** 該日在該列的欄位(0=週首, 6=週尾),供色帶分列收圓用。 */
+  col: number
+  disabled: boolean
+  selected: boolean
+  tabindex: number
+  /** 與 hover 預覽無關的靜態 class;區間色帶 class 由 `dayRangeClasses` 於 template 疊加。 */
+  classes: Record<string, boolean>
+}
+
+/** 單一月份面板的視圖模型（區間為左右兩個）。 */
+interface MonthView {
+  year: number
+  month: number
+  weeks: DayCellView[][]
+}
+
+/**
+ * 月份視圖模型:把 template 巢狀 v-for 內原本逐格重複呼叫的 toISO / isDisabled /
+ * isSelected / dayTabindex 收斂進 computed,單/雙面板每格只算一次並快取。
+ * 注意:hover（區間預覽）相關 class 依賴 hoverDate / pendingStart,若放進本 computed
+ * 會讓滑過每一格都整月重算（含 disabledDate 使用者 callback）,故拆到
+ * `dayRangeClasses` 於 template 疊加,本 computed 不追蹤 hover 狀態。
+ */
+const monthViews = computed<MonthView[]>(() =>
+  monthsToRender.value.map((view, vi) => ({
+    year: view.year,
+    month: view.month,
+    weeks: buildMonthMatrix(view.year, view.month, props.firstDayOfWeek).map((week) =>
+      week.map((day): DayCellView => {
+        const disabled = isDisabled(day)
+        const selected = isSelected(day)
+        return {
+          date: day,
+          iso: toISO(day),
+          label: day.getDate(),
+          col: (day.getDay() - props.firstDayOfWeek + 7) % 7,
+          disabled,
+          selected,
+          tabindex: dayTabindex(day, view.month),
+          classes: {
+            'base-date-picker__day--adjacent': day.getMonth() !== view.month,
+            'base-date-picker__day--today': isToday(day),
+            'base-date-picker__day--selected': !props.range && selected,
+            // 僅用於避免同一日在雙月都拿到 roving 焦點時的視覺重複（保留擴充點）。
+            'base-date-picker__day--secondary': vi > 0,
+          },
+        }
+      }),
+    ),
+  })),
+)
+
+/**
+ * 區間色帶 class:依賴 hover 預覽（hoverDate / pendingStart）,刻意留在 template
+ * 逐格呼叫（輕量判斷）而不進 monthViews,避免 hover 造成整月視圖模型重算。
+ */
+function dayRangeClasses(cell: DayCellView): Record<string, boolean> {
+  if (!props.range) return {}
+  const endpoint = rangeEndpoint(cell.date)
+  const inRange = isInRange(cell.date)
   const hasBand = !!endpoint || inRange
-  // 該日在該列的欄位(0=週首, 6=週尾),供色帶分列收圓用。
-  const col = (day.getDay() - props.firstDayOfWeek + 7) % 7
   // 單日區間(起訖同日):端點需兩側皆收圓,避免只丸半邊的半膠囊。
   const r = activeRange.value
   const isSingleDay = !!endpoint && !!r && isSameDay(r[0], r[1])
   return {
-    'base-date-picker__day--adjacent': day.getMonth() !== month,
-    'base-date-picker__day--today': isToday(day),
-    'base-date-picker__day--selected': !props.range && isSelected(day),
     'base-date-picker__day--in-range': inRange,
     'base-date-picker__day--range-start': endpoint === 'start',
     'base-date-picker__day--range-end': endpoint === 'end',
     // 色帶每列收圓:區間端點或該列左/右緣(週首 / 週尾)處收圓角。
-    'base-date-picker__day--cap-left': hasBand && (endpoint === 'start' || isSingleDay || col === 0),
-    'base-date-picker__day--cap-right': hasBand && (endpoint === 'end' || isSingleDay || col === 6),
-    // 僅用於避免同一日在雙月都拿到 roving 焦點時的視覺重複（保留擴充點）。
-    'base-date-picker__day--secondary': viewIndex > 0,
+    'base-date-picker__day--cap-left': hasBand && (endpoint === 'start' || isSingleDay || cell.col === 0),
+    'base-date-picker__day--cap-right': hasBand && (endpoint === 'end' || isSingleDay || cell.col === 6),
   }
-}
-
-function dayTabindex(day: Date, month: number): number {
-  if (day.getMonth() !== month) return -1
-  return focusedDate.value && isSameDay(day, focusedDate.value) ? 0 : -1
 }
 
 // ── 互動 ────────────────────────────────────────────────────────────────────
@@ -837,7 +897,8 @@ function addDays(date: Date, n: number): Date {
 
 function focusDay(day: Date) {
   nextTick(() => {
-    const el = document.querySelector<HTMLElement>(`.base-date-picker__day[data-iso="${toISO(day)}"]`)
+    // 範圍化查找:限定在本實例的面板內,避免多個 DatePicker 同開時聚焦到別的元件。
+    const el = panelRef.value?.querySelector<HTMLElement>(`.base-date-picker__day[data-iso="${toISO(day)}"]`)
     el?.focus()
   })
 }
@@ -906,14 +967,11 @@ const validation = useValidation<BaseDatePickerModel | undefined>(
   () => props.rules,
 )
 
-const displayError = computed(() => props.error || validation.error.value)
-const displayMessage = computed(() => validation.message.value ?? props.message)
-
-const fieldProps = useFormFieldProps(() => ({
-  ...props,
-  error: displayError.value,
-  message: displayMessage.value,
-}))
+/**
+ * 合併「外部 props」與「驗證結果」後轉發給 BaseFormField：error 任一為真即錯誤；
+ * message 驗證錯誤優先、無則退回 props.message。詳見 `useFieldValidation`。
+ */
+const { displayMessage, fieldProps } = useFieldValidation(() => props, validation)
 
 defineExpose({
   /** 強制驗證（會顯示錯誤即使尚未 touch）；回傳是否通過。 */
