@@ -164,7 +164,7 @@ import { computed, ref, useId, useSlots } from 'vue'
 import useValidation from '~/composables/useValidation'
 import type { ValidationRule } from '~/utils/validators'
 
-interface BaseRatingProps {
+export interface BaseRatingProps {
   /** 星數上限。 @default 5 */
   max?: number
   /** 允許半星（0.5 級距）。 @default false */

@@ -63,7 +63,7 @@ import { computed, provide, toRef, useId } from 'vue'
 import { moveFocus, nextItem, previousItem } from '~/utils/dom'
 import isNullOrUndefined from '~/utils/isNullOrUndefined'
 
-interface BaseTabsProps {
+export interface BaseTabsProps<T> {
   /** tabs 列表 */
   items: BaseTabsItem<T>[]
   /** 整體禁用（所有 tab 不可點 / 不可聚焦） @default false */
@@ -99,7 +99,7 @@ interface BaseTabsProps {
   onBeforeChange?: (value: T) => boolean | void | Promise<boolean | void>
 }
 
-const props = withDefaults(defineProps<BaseTabsProps>(), {
+const props = withDefaults(defineProps<BaseTabsProps<T>>(), {
   disabled: false,
   orientation: 'horizontal',
   activation: 'manual',

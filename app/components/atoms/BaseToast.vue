@@ -72,7 +72,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import type { ToastType } from '~/composables/useToast'
 
-interface BaseToastProps {
+export interface BaseToastProps {
   /** 主要訊息（可用 `#default` slot 取代）。 */
   message?: string
   /** 選填標題，渲染在訊息上方。 */

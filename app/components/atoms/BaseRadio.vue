@@ -67,7 +67,7 @@ import { BASE_RADIO_GROUP_INJECT_KEY } from '~/components/atoms/BaseRadioGroup.v
 import useValidation from '~/composables/useValidation'
 import type { ValidationRule } from '~/utils/validators'
 
-interface BaseRadioProps<V> {
+export interface BaseRadioProps<V> {
   /** 此選項代表的值（群組模式必填；獨立模式為選中時 v-model 的值）。 */
   value?: V
   /** 標籤文字（或用 `#default` / `#label` slot）。 */
@@ -87,7 +87,7 @@ interface BaseRadioProps<V> {
   /** 錯誤狀態（獨立模式）。 @default false */
   error?: boolean
   /** 驗證規則（獨立模式；touched-gated，change / blur 後顯示）。 */
-  rules?: ValidationRule<Value | undefined>[]
+  rules?: ValidationRule<V | undefined>[]
 }
 
 const props = withDefaults(defineProps<BaseRadioProps<Value>>(), {

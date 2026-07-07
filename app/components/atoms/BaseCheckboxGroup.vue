@@ -77,6 +77,8 @@ import type { ValidationRule } from '~/utils/validators'
 
 type GroupModel = Value[] | Set<Value>
 
+// NOTE: 無法 export —— 前方有依賴元件泛型的 setup 範圍 type alias（GroupModel），
+// vue-tsc 在此情境 export 泛型 Props interface 會報 TS1184。維持未 export（B5 例外）。
 interface BaseCheckboxGroupProps extends BaseFormFieldProps {
   /** 廣播給所有子框的 name。 */
   name?: string

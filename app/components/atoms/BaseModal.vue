@@ -15,6 +15,7 @@
         v-if="open"
         class="base-modal"
         role="presentation"
+        :style="{ '--modal-z': zIndex }"
         @mousedown="onOverlayMousedown"
         @click="onOverlayClick"
       >
@@ -71,7 +72,7 @@ import { useId, useTemplateRef } from 'vue'
 import { useOverlay } from '~/composables/useOverlay'
 import { useOverlayLifecycle } from '~/composables/useOverlayLifecycle'
 
-interface BaseModalProps {
+export interface BaseModalProps {
   /** 標題列文字。設定後會渲染預設標題並自動接上 `aria-labelledby`。 */
   title?: string
   /**
@@ -154,7 +155,7 @@ const panelRef = useTemplateRef<HTMLElement>('panelRef')
 // 浮層共用行為（focus-trap / Esc / 點外部關閉 / scroll-lock / 堆疊 / 遮罩渲染）
 // 抽到 useOverlay，與 BaseDialog 共用同一套堆疊與 focus-trap 堆疊。
 // 傳入 guardedOpen：useOverlay 內部關閉（Esc / 點外部）也會過 beforeClose 把關。
-const { showBackdrop, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, guardedOpen, {
+const { showBackdrop, zIndex, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, guardedOpen, {
   closeOnEscape: () => props.closeOnEscape,
   closeOnBackdrop: () => props.closeOnBackdrop,
   lockScroll: () => props.lockScroll,

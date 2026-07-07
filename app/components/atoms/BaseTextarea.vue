@@ -35,6 +35,7 @@
           :id="id"
           ref="inputRef"
           class="base-textarea__input"
+          :value="initialModelValue"
           :name="name"
           :placeholder="placeholder"
           :maxlength="maxlength"
@@ -183,6 +184,14 @@ const emit = defineEmits<{
  * `.trim` / `.lazy` 等修飾符，行為對齊原生 v-model。textarea 值恆為字串，故不支援 `.number`。
  */
 const [model, modifiers] = defineModel<string>()
+
+/**
+ * SSR 首渲值：useComposingModel 只在 client 端把 model 同步進 DOM（且聚焦中刻意不覆寫，
+ * 以保留 `.trim` 打字時的尾隨空白等行為），SSR 因此渲不出 value。用「初始快照」綁 :value
+ * 讓 server 輸出初值；因是常數，client 掛載後不再由此綁定覆寫（交由 useComposingModel 管理），
+ * 不影響聚焦編輯體驗。
+ */
+const initialModelValue = model.value
 
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 

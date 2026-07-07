@@ -18,7 +18,7 @@ import { computed, inject, nextTick, onMounted, ref, watch } from 'vue'
 import { BASE_TABS_INJECT_KEY } from '~/components/atoms/BaseTabs.vue'
 import isNullOrUndefined from '~/utils/isNullOrUndefined'
 
-interface BaseTabPanelProps {
+export interface BaseTabPanelProps {
   /** 對應某個 tab 的 `value`；等於目前選中值時顯示 */
   value: unknown
   /**

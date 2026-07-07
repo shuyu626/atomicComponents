@@ -13,7 +13,7 @@
           'base-dialog--dragging': isDragging,
         }"
         role="presentation"
-        :style="{ '--dialog-width': toUnit(width) }"
+        :style="{ '--dialog-width': toUnit(width), '--dialog-z': zIndex }"
         @mousedown="onOverlayMousedown"
         @click="onOverlayClick"
       >
@@ -136,7 +136,7 @@ type DialogConfirmColor = 'primary' | 'danger' | 'success' | 'warning' | 'info' 
 /** 內建確認鈕的外觀（對齊 BaseButton）。 */
 type DialogConfirmVariant = 'solid' | 'outline' | 'ghost' | 'text'
 
-interface BaseDialogProps {
+export interface BaseDialogProps {
   /** 標題列文字。設定後渲染預設標題並自動接 `aria-labelledby`。 */
   title?: string
   /**
@@ -262,7 +262,7 @@ const hasHeader = computed(() => hasTitle.value || props.fullscreen)
 const panelRef = useTemplateRef<HTMLElement>('panelRef')
 
 // 共用浮層行為（與 BaseModal 同一套堆疊 / focus-trap 堆疊）。
-const { showBackdrop, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, open, {
+const { showBackdrop, zIndex, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, open, {
   closeOnEscape: () => props.closeOnEscape,
   closeOnBackdrop: () => props.closeOnBackdrop,
   lockScroll: () => props.lockScroll,

@@ -28,6 +28,8 @@ export interface PopupsManager {
   isTop: (token: PopupToken) => boolean
   /** 此浮層是否位於堆疊最底層（決定由誰渲染遮罩 —— 只有最底層畫，避免疊加變暗與閃爍）。 */
   isBottom: (token: PopupToken) => boolean
+  /** 浮層在堆疊中的位置（0 起算的開啟順序；不存在回 -1）。供依開啟序派發 z-index。 */
+  getIndex: (token: PopupToken) => number
 }
 
 /** SSR 安全：只有在有 DOM 的環境（瀏覽器）才操作 `document` / `window`。 */
@@ -65,6 +67,10 @@ export function createPopupsManager(): PopupsManager {
   const isBottom = (token: PopupToken): boolean =>
     popups.length > 0 && popups[0] === token
 
+  // popups 為 shallowReactive：indexOf 讀取 length / 索引，於 computed 中會建立響應依賴，
+  // add / remove 改動堆疊時自動重算（供 useOverlay 依開啟序派發 z-index）。
+  const getIndex = (token: PopupToken): number => popups.indexOf(token)
+
   const lock = (token: PopupToken): void => {
     if (locks.includes(token)) return
 
@@ -95,7 +101,7 @@ export function createPopupsManager(): PopupsManager {
     }
   }
 
-  return { add, remove, lock, unlock, isTop, isBottom }
+  return { add, remove, lock, unlock, isTop, isBottom, getIndex }
 }
 
 // 應用端共用的單例：跨所有 BaseModal 共享同一個堆疊與鎖定狀態。

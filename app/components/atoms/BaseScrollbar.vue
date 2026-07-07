@@ -101,14 +101,14 @@ const ORIENTATION_MAP = {
     size: 'offsetHeight',
     scroll: 'scrollTop',
     scrollSize: 'scrollHeight',
-    page: 'pageY',
+    client: 'clientY',
     direction: 'top',
   },
   horizontal: {
     size: 'offsetWidth',
     scroll: 'scrollLeft',
     scrollSize: 'scrollWidth',
-    page: 'pageX',
+    client: 'clientX',
     direction: 'left',
   },
 } as const
@@ -122,7 +122,7 @@ import { computed, onUnmounted, ref, useId, useTemplateRef } from 'vue'
 
 import useResizeObserver from '~/composables/useResizeObserver'
 
-interface BaseScrollbarProps {
+export interface BaseScrollbarProps {
   /**
    * 退回瀏覽器原生捲軸：不隱藏原生捲軸、不渲染 overlay thumb / track。
    * 適合不需要客製外觀、或要保留作業系統捲軸行為的場景。
@@ -147,7 +147,7 @@ const contentRef = useTemplateRef<HTMLElement>('contentRef')
 let hideTimer: ReturnType<typeof setTimeout> | undefined
 /** 目前拖曳中的方向設定；null 代表未在拖曳。 */
 let currentOrientation: Orientation[OrientationKey] | null = null
-/** 拖曳起點的指標座標（pageX / pageY）。 */
+/** 拖曳起點的指標座標（clientX / clientY，與 getBoundingClientRect() 同座標系）。 */
 let mousePosition = 0
 /** 拖曳起點的捲動位移（scrollTop / scrollLeft）。 */
 let scrollOffset = 0
@@ -176,8 +176,8 @@ const onThumbPointerdown = (event: PointerEvent, orientation: OrientationKey) =>
   const viewport = viewportRef.value
   if (!viewport) return
 
-  const { page, scroll } = (currentOrientation = ORIENTATION_MAP[orientation])
-  mousePosition = event[page]
+  const { client, scroll } = (currentOrientation = ORIENTATION_MAP[orientation])
+  mousePosition = event[client]
   scrollOffset = viewport[scroll]
 
   // 清掉既有選取並暫時禁止選取，避免拖曳反白文字。
@@ -195,9 +195,9 @@ const onDocumentPointermove = (event: PointerEvent) => {
 
   dragging.value = true
 
-  const { page, scroll, scrollSize, size } = currentOrientation
+  const { client, scroll, scrollSize, size } = currentOrientation
   // 指標位移換算成捲動比例，再乘上可捲動總長 → 新的 scrollTop / scrollLeft。
-  const offset = (event[page] - mousePosition) / (viewport[size] - GAP)
+  const offset = (event[client] - mousePosition) / (viewport[size] - GAP)
   viewport[scroll] = scrollOffset + offset * viewport[scrollSize]
 }
 
@@ -229,7 +229,7 @@ const onTrackPointerdown = (event: PointerEvent, orientation: OrientationKey) =>
   const viewport = viewportRef.value
   if (!viewport) return
 
-  const { scroll, scrollSize, size, page, direction } = ORIENTATION_MAP[orientation]
+  const { scroll, scrollSize, size, client, direction } = ORIENTATION_MAP[orientation]
 
   const track = event.currentTarget as HTMLElement
   // 用 firstElementChild 而非 childNodes[0]:後者含文字 / 註解節點,
@@ -240,7 +240,7 @@ const onTrackPointerdown = (event: PointerEvent, orientation: OrientationKey) =>
   const rect = track.getBoundingClientRect()
   const thumbHalf = thumb[size] / 2
   // 點擊位置距離 track 起點的距離，扣掉半個 thumb → thumb 中心對齊點擊處。
-  const position = Math.abs(rect[direction] - event[page])
+  const position = Math.abs(rect[direction] - event[client])
   viewport[scroll] = (position - thumbHalf) * (viewport[scrollSize] / track[size])
 }
 

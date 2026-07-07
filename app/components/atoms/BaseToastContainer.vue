@@ -47,7 +47,7 @@ import BaseToast from '~/components/atoms/BaseToast.vue'
 import { useToast } from '~/composables/useToast'
 import type { ToastItem, ToastManager, ToastPlacement } from '~/composables/useToast'
 
-interface BaseToastContainerProps {
+export interface BaseToastContainerProps {
   /**
    * 要綁定的管理器實例；預設取全應用共用單例。
    * 需要多組獨立佇列（如測試或微前端）時可傳入自建的 `createToastManager()`。

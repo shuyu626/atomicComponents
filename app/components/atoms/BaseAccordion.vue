@@ -38,7 +38,7 @@ import { computed, provide, ref, toRef, watch } from 'vue'
 
 import toArray from '~/utils/toArray'
 
-interface BaseAccordionProps {
+export interface BaseAccordionProps {
   /**
    * 是否允許同時展開多個 panel。
    * - `false`（預設）：互斥，展開新的會收合其它；`v-model` 進出皆為單值。

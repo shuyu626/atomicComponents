@@ -83,7 +83,7 @@ import { computed, getCurrentInstance, toRaw } from 'vue'
 import isFunction from '~/utils/isFunction'
 import toUnit from '~/utils/toUnit'
 
-interface BaseTableProps {
+export interface BaseTableProps<Item extends TableItem = TableItem> {
   /** 欄位設定。 */
   columns: TableColumn<Item>[]
   /** 表格資料。@default [] */
@@ -130,7 +130,7 @@ interface BaseTableSlots {
   }) => VNode[]
 }
 
-const props = withDefaults(defineProps<BaseTableProps>(), {
+const props = withDefaults(defineProps<BaseTableProps<Item>>(), {
   items: () => [],
   itemKey: 'id',
   caption: undefined,
@@ -250,12 +250,36 @@ const toggleRow = (item: Item, checked: boolean) => {
     : value.filter((it) => toRaw(it) !== raw)
 }
 
-/** 全選 / 取消全選。寫回原始物件，避免把 proxy 漏給父層。 */
+/**
+ * 全選 / 取消全選：僅作用於「當前頁 items」，並保留其他頁的既有選取
+ * （對齊 {@link toggleRow} 的增量語意與 selectedOnPageCount / isAllChecked 的當頁判準，
+ * 支援 BaseTable.md 記載的跨頁選取模型）。全選＝把當前頁併入既有集合、
+ * 取消＝從既有集合移除當前頁；一律以 `toRaw` 比對 / 寫回，避免把 proxy 漏給父層。
+ */
 const toggleAll = (checked: boolean) => {
   const value = selected.value
   if (!value) return
-  const next = checked ? props.items.map((it) => toRaw(it)) : []
-  selected.value = value instanceof Set ? new Set(next) : next
+  const pageRaws = props.items.map((it) => toRaw(it))
+
+  if (value instanceof Set) {
+    const next = new Set(value)
+    for (const raw of pageRaws) {
+      if (checked) next.add(raw)
+      else next.delete(raw)
+    }
+    selected.value = next
+    return
+  }
+
+  if (checked) {
+    const existing = new Set(value.map((it) => toRaw(it)))
+    const toAdd = pageRaws.filter((raw) => !existing.has(raw))
+    selected.value = toAdd.length ? [...value, ...toAdd] : value
+  }
+  else {
+    const pageSet = new Set(pageRaws)
+    selected.value = value.filter((it) => !pageSet.has(toRaw(it)))
+  }
 }
 
 // ── 排序 ─────────────────────────────────────────────────────

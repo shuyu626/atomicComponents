@@ -100,7 +100,7 @@ import { BASE_CHECKBOX_GROUP_INJECT_KEY } from '~/components/atoms/BaseCheckboxG
 import useValidation from '~/composables/useValidation'
 import type { ValidationRule } from '~/utils/validators'
 
-interface BaseCheckboxProps<V> {
+export interface BaseCheckboxProps<V> {
   /** 在群組中此框代表的值（群組模式必填；獨立模式忽略）。 */
   value?: V
   /** 勾選時 v-model 的值（獨立模式）。 @default true */
@@ -126,7 +126,7 @@ interface BaseCheckboxProps<V> {
   /** 錯誤狀態（獨立模式）。 @default false */
   error?: boolean
   /** 驗證規則（獨立模式；touched-gated，change / blur 後顯示）。 */
-  rules?: ValidationRule<Value | boolean | undefined>[]
+  rules?: ValidationRule<V | boolean | undefined>[]
 }
 
 const props = withDefaults(defineProps<BaseCheckboxProps<Value>>(), {

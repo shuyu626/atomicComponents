@@ -435,7 +435,16 @@ function onCheck(node: BaseTreeNode, value: boolean) {
 
 // ── 鍵盤 roving ─────────────────────────────────────────────────────────────
 const focusedKey = ref<BaseTreeKey | undefined>(undefined)
-const activeFocusKey = computed(() => focusedKey.value ?? visible.value[0]?.node.key)
+// roving tabindex 的落點：必須是「目前可見」的節點，否則整棵樹沒有任何 treeitem
+// 拿到 tabindex=0（鍵盤永遠 Tab 不進來）。故 focusedKey 被收合 / 移除而不在 visible
+// 清單時，退回第一個可見節點。
+const activeFocusKey = computed(() => {
+  const focused = focusedKey.value
+  if (focused != null && visible.value.some((flat) => flat.node.key === focused)) {
+    return focused
+  }
+  return visible.value[0]?.node.key
+})
 
 function focusItem(key: BaseTreeKey | undefined) {
   if (key == null) return

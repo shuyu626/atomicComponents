@@ -48,7 +48,7 @@ import type {
   BasePopoverTrigger,
 } from '~/components/atoms/BasePopover.vue'
 
-interface BaseTooltipProps {
+export interface BaseTooltipProps {
   /** 提示文字。複雜內容（含 HTML / 元件）請改用 `#content` slot。 */
   content?: string
   /**

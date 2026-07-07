@@ -18,7 +18,7 @@
         class="base-drawer"
         :class="`base-drawer--${anchor}`"
         role="presentation"
-        :style="{ '--drawer-size': toUnit(size) }"
+        :style="{ '--drawer-size': toUnit(size), '--drawer-z': zIndex }"
         @mousedown="onOverlayMousedown"
         @click="onOverlayClick"
       >
@@ -195,7 +195,7 @@ const panelRef = useTemplateRef<HTMLElement>('panelRef')
 
 // 共用浮層行為（與 BaseModal / BaseDialog 同一套堆疊 / focus-trap 堆疊）。
 // 傳入 guardedOpen：useOverlay 內部關閉（Esc / 點外部）也會過 beforeClose 把關。
-const { showBackdrop, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, guardedOpen, {
+const { showBackdrop, zIndex, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, guardedOpen, {
   closeOnEscape: () => props.closeOnEscape,
   closeOnBackdrop: () => props.closeOnBackdrop,
   lockScroll: () => props.lockScroll,

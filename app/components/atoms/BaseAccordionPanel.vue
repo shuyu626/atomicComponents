@@ -58,7 +58,7 @@ import { computed, inject, nextTick, ref, useId, watch } from 'vue'
 import { BASE_ACCORDION_INJECT_KEY } from '~/components/atoms/BaseAccordion.vue'
 import isNullOrUndefined from '~/utils/isNullOrUndefined'
 
-interface BaseAccordionPanelProps {
+export interface BaseAccordionPanelProps<T extends string | number | symbol> {
   /** 對應 BaseAccordion `v-model` 的識別值；有父層 context 時必填才會受 context 控制 */
   value?: T
   /** summary 顯示文字（可被 `#summary` slot 覆寫外觀，仍作為預設內容） */
@@ -73,7 +73,7 @@ interface BaseAccordionPanelProps {
   lazy?: boolean
 }
 
-const props = withDefaults(defineProps<BaseAccordionPanelProps>(), {
+const props = withDefaults(defineProps<BaseAccordionPanelProps<T>>(), {
   value: undefined,
   summary: undefined,
   disabled: false,

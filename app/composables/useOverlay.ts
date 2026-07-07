@@ -24,6 +24,14 @@ import { usePopupsManager } from '~/composables/usePopupsManager'
  */
 export const overlayTrapStack: FocusTrap[] = []
 
+/**
+ * overlay 堆疊的 z-index 基準值。與 BaseModal / BaseDialog / BaseDrawer 的
+ * `--modal-z` / `--dialog-z` / `--drawer-z` CSS 預設一致（1100）；實際 z-index
+ * 依開啟順序在此基準上遞增，確保後開的浮層永遠疊在先開的之上（而非依 Teleport
+ * 錨點的掛載順序）。
+ */
+const OVERLAY_BASE_Z = 1100
+
 export interface UseOverlayOptions {
   /** 按 Esc 是否關閉（僅最上層浮層回應）。 @default true */
   closeOnEscape?: MaybeRefOrGetter<boolean>
@@ -38,6 +46,11 @@ export interface UseOverlayOptions {
 export interface UseOverlayReturn {
   /** 是否渲染遮罩：未隱藏且自身為堆疊最底層（避免疊加變暗 / 閃爍）。 */
   showBackdrop: ComputedRef<boolean>
+  /**
+   * 依「開啟順序」派發的 z-index（後開的更高）。綁到 overlay 根元素，
+   * 讓視覺疊序＝開啟序，而非 Teleport 錨點的掛載序。
+   */
+  zIndex: ComputedRef<number>
   /** 綁在 overlay 容器上：記錄 mousedown 是否起始於面板外（防誤關）。 */
   onOverlayMousedown: (event: MouseEvent) => void
   /** 綁在 overlay 容器上：按下與放開都在面板外才視為點擊外部 → 關閉。 */
@@ -76,6 +89,13 @@ export function useOverlay(
 
   // 多層疊開時只有「最底層」渲染遮罩：疊加過程遮罩恆定，零閃爍、不疊暗。
   const showBackdrop = computed(() => !hideBackdrop() && popups.isBottom(token))
+
+  // z-index 依開啟順序遞增：getIndex 讀 stack 建立響應依賴，add / remove 時自動重算。
+  // 未在堆疊中（尚未開啟）時 getIndex 回 -1，夾回基準值即可（此時浮層未顯示，值不影響畫面）。
+  const zIndex = computed(() => {
+    const index = popups.getIndex(token)
+    return OVERLAY_BASE_Z + (index < 0 ? 0 : index)
+  })
 
   // ---- 點擊外部關閉 ----
   // 記錄 mousedown 是否起始於面板外：避免「在面板內按住選取文字 → 滑出到外部放開」
@@ -174,6 +194,7 @@ export function useOverlay(
 
   return {
     showBackdrop,
+    zIndex,
     onOverlayMousedown,
     onOverlayClick,
   }

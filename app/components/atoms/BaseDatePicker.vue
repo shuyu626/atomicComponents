@@ -895,6 +895,18 @@ function addDays(date: Date, n: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + n)
 }
 
+/**
+ * 位移 n 個月，並把「日」夾到目標月的天數上界。
+ * 直接 `new Date(y, m±1, d)` 會在來源日超過目標月天數時溢位（如 5/31 往前一月
+ * 變成 5/1 而非 4/30）；此處以「目標月下個月的第 0 天」取得該月最後一日再 clamp。
+ */
+function addMonthsClamped(date: Date, n: number): Date {
+  const year = date.getFullYear()
+  const month = date.getMonth() + n
+  const daysInTargetMonth = new Date(year, month + 1, 0).getDate()
+  return new Date(year, month, Math.min(date.getDate(), daysInTargetMonth))
+}
+
 function focusDay(day: Date) {
   nextTick(() => {
     // 範圍化查找:限定在本實例的面板內,避免多個 DatePicker 同開時聚焦到別的元件。
@@ -915,8 +927,8 @@ function onGridKeydown(event: KeyboardEvent) {
     case 'ArrowUp': next = addDays(cur, -7); break
     case 'Home': next = addDays(cur, -((cur.getDay() - props.firstDayOfWeek + 7) % 7)); break
     case 'End': next = addDays(cur, 6 - ((cur.getDay() - props.firstDayOfWeek + 7) % 7)); break
-    case 'PageUp': next = new Date(cur.getFullYear(), cur.getMonth() - 1, cur.getDate()); break
-    case 'PageDown': next = new Date(cur.getFullYear(), cur.getMonth() + 1, cur.getDate()); break
+    case 'PageUp': next = addMonthsClamped(cur, -1); break
+    case 'PageDown': next = addMonthsClamped(cur, 1); break
     case 'Enter':
     case ' ':
       event.preventDefault()

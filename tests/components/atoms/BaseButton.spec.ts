@@ -299,4 +299,24 @@ describe('BaseButton', () => {
       expect(wrapper.attributes('rel')).toBeUndefined()
     })
   })
+
+  // ── href 外部連結語意 (C1-9 regression) ───────────────────────────────────────
+  // href 過去只是 to 的 alias，無 protocol 的路徑（如 /file.pdf）會被判為內部路由走
+  // SPA 導航，令 download 等原生行為失效。修正後 href 會強制 BaseLink 以原生 <a> 渲染。
+  describe('href external semantics (C1-9 regression)', () => {
+    it('使用 href 時委派 BaseLink 並標記為外部連結（原生 <a>，不走 SPA 路由）', () => {
+      const link = createWrapper({ href: '/file.pdf' }).findComponent(BaseLink)
+      expect(link.props('external')).toBe(true)
+    })
+
+    it('使用 to（內部路由）時不外部化', () => {
+      const link = createWrapper({ to: '/home' }).findComponent(BaseLink)
+      expect(link.props('external')).toBe(false)
+    })
+
+    it('同時給 to 與 href 時以 to 優先，不外部化', () => {
+      const link = createWrapper({ to: '/home', href: '/file.pdf' }).findComponent(BaseLink)
+      expect(link.props('external')).toBe(false)
+    })
+  })
 })

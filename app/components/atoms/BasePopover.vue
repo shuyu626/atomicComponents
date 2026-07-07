@@ -103,7 +103,7 @@ import findFirstLegitChild from '~/helpers/findFirstLegitChild'
 import toArray from '~/utils/toArray'
 import toUnit from '~/utils/toUnit'
 
-interface BasePopoverProps {
+export interface BasePopoverProps {
   /**
    * 觸發方式，可單選或陣列複選。
    * - `click`（預設）：點擊 / Enter / Space 切換
@@ -353,9 +353,25 @@ const onPopoverMouseenter = withTrigger(openByHover, 'hover')
 const onPopoverMouseleave = withTrigger(closeByHover, 'hover')
 
 const onFocus = withTrigger(() => setOpen(true), 'focus')
-const onBlur = withTrigger(() => setOpen(false), 'focus')
+const onBlur = withTrigger((event: FocusEvent) => {
+  // 焦點移進浮層內部、或回到 reference 時不關閉：避免使用者 Tab 進浮層內容
+  // （或浮層內元素取得焦點）造成 reference blur → 立即關閉 → 再聚焦開啟的無限震盪。
+  const next = event.relatedTarget as Node | null
+  if (next && (popoverRef.value?.contains(next) || referenceRef.value?.contains(next))) return
+  setOpen(false)
+}, 'focus')
 
 const onTouchstart = withTrigger(() => setOpen(!open.value), 'touch')
+
+/**
+ * 是否啟用浮層內的 focus trap。只有 click / touch 這類「開啟後持續互動」的觸發
+ * 才 trap（如 dropdown / select / menu）；hover / focus 這類非持久提示浮層一律不 trap，
+ * 否則 `trap.activate()` 會把鍵盤焦點強行移入浮層（hover 滑過偷焦、focus 開關震盪）。
+ */
+const shouldTrapFocus = computed(() => {
+  const triggers = toArray(props.trigger)
+  return triggers.includes('click') || triggers.includes('touch')
+})
 
 // reference 錨點：將 slot 傳入元素轉為 DOM，供 useFloating 定位
 
@@ -491,8 +507,15 @@ watch(popoverRef, (popover) => {
     return
   }
   
-  // 浮層出現,但「停用了 trap」或「裡面沒有任何可聚焦元素」→ 不啟用
-  if (props.disableFocusTrap || tabbable(popover).length === 0) return
+  // 浮層出現，但下列情況不啟用 trap：
+  //   1. 明確停用（disableFocusTrap）
+  //   2. 觸發方式不含 click / touch（見 shouldTrapFocus）——避免 hover / focus 偷焦、震盪
+  //   3. 浮層內沒有任何可聚焦元素
+  if (
+    props.disableFocusTrap ||
+    !shouldTrapFocus.value ||
+    tabbable(popover).length === 0
+  ) return
 
   // 建立並啟用 focus trap,把鍵盤焦點鎖在浮層內
   trap = createFocusTrap(popover, {
@@ -500,6 +523,9 @@ watch(popoverRef, (popover) => {
     // 下層 Modal 的 trap 會自動暫停，兩個 trap 不互搶焦點（關閉後再恢復下層）。
     trapStack: overlayTrapStack,
     clickOutsideDeactivates: true, // 點外面時自動解除 trap(配合上面 onClickOutside 的點外關閉)
+    // 點外部解除 trap 時不把焦點搶回 reference：否則使用者點頁面上其他輸入框，
+    // 焦點會被 focus-trap 預設的 returnFocusOnDeactivate 拉回 trigger。
+    returnFocusOnDeactivate: false,
     escapeDeactivates: false, // Esc 交由 onEscKeydown 統一處理(含頂層判斷)，不讓 focus-trap 自行解除
   })
   trap.activate()

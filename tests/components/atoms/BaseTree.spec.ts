@@ -126,3 +126,21 @@ describe('BaseTree — keyboard a11y', () => {
     w.unmount()
   })
 })
+
+// ── roving tabindex 在收合後仍有效 (C1-3 regression) ──────────────────────────────
+// activeFocusKey 過去只看 focusedKey，未檢查它是否仍可見；聚焦節點被收合後所有 treeitem
+// 都變 tabindex=-1，鍵盤永遠 Tab 不進來。修正後會退回第一個可見節點。
+describe('BaseTree — roving tabindex survives collapse (C1-3 regression)', () => {
+  it('聚焦節點被收合後，仍恰有一個可見 treeitem 保持 tabindex=0', async () => {
+    const w = mount(BaseTree, { props: { nodes, defaultExpandAll: true }, attachTo: document.body })
+    // 鍵盤下移，把 focusedKey 設到第一個父的子節點（Apple, key 11）
+    await w.find('.base-tree__item').trigger('keydown', { key: 'ArrowDown' })
+    await nextTick()
+    // 收合全部：先前聚焦的子節點不再可見
+    ;(w.vm as unknown as { collapseAll: () => void }).collapseAll()
+    await nextTick()
+    const focusable = w.findAll('.base-tree__item').filter((i) => i.attributes('tabindex') === '0')
+    expect(focusable).toHaveLength(1)
+    w.unmount()
+  })
+})

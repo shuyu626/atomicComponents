@@ -62,14 +62,14 @@ function stubGeometry(el: HTMLElement, geo: Geometry) {
   })
 }
 
-/** 帶 pageX / pageY 的 PointerEvent（happy-dom 不從 clientX/Y 推算 pageX/Y，需手動補）。 */
+/** 帶 clientX / clientY 的 PointerEvent（happy-dom 不自動帶座標；track / thumb 計算讀 viewport 座標）。 */
 function pointerEvent(
   type: string,
-  init: { pageX?: number; pageY?: number; button?: number; ctrlKey?: boolean } = {},
+  init: { clientX?: number; clientY?: number; button?: number; ctrlKey?: boolean } = {},
 ) {
   const ev = new PointerEvent(type, { bubbles: true, button: init.button ?? 0, ctrlKey: init.ctrlKey })
-  Object.defineProperty(ev, 'pageX', { get: () => init.pageX ?? 0 })
-  Object.defineProperty(ev, 'pageY', { get: () => init.pageY ?? 0 })
+  Object.defineProperty(ev, 'clientX', { get: () => init.clientX ?? 0 })
+  Object.defineProperty(ev, 'clientY', { get: () => init.clientY ?? 0 })
   return ev
 }
 
@@ -236,9 +236,9 @@ describe('BaseScrollbar', () => {
       const thumb = w.find('.base-scrollbar__track--vertical .base-scrollbar__thumb').element as HTMLElement
       const viewport = viewportOf(w)
 
-      thumb.dispatchEvent(pointerEvent('pointerdown', { pageY: 0 }))
+      thumb.dispatchEvent(pointerEvent('pointerdown', { clientY:0 }))
       // 指標下移 48px：offset = 48 / (offsetHeight 100 - GAP 4) = 0.5 → scrollTop = 0.5 * 400 = 200
-      document.dispatchEvent(pointerEvent('pointermove', { pageY: 48 }))
+      document.dispatchEvent(pointerEvent('pointermove', { clientY:48 }))
       expect(viewport.scrollTop).toBe(200)
 
       document.dispatchEvent(pointerEvent('pointerup'))
@@ -251,8 +251,8 @@ describe('BaseScrollbar', () => {
       const thumb = w.find('.base-scrollbar__track--vertical .base-scrollbar__thumb').element as HTMLElement
       const viewport = viewportOf(w)
 
-      thumb.dispatchEvent(pointerEvent('pointerdown', { pageY: 0, button: 2 }))
-      document.dispatchEvent(pointerEvent('pointermove', { pageY: 48 }))
+      thumb.dispatchEvent(pointerEvent('pointerdown', { clientY:0, button: 2 }))
+      document.dispatchEvent(pointerEvent('pointermove', { clientY:48 }))
       // 右鍵按下不啟動拖曳 → scrollTop 不變
       expect(viewport.scrollTop).toBe(0)
     })
@@ -296,7 +296,7 @@ describe('BaseScrollbar', () => {
       trackEl.getBoundingClientRect = () =>
         ({ top: 0, left: 0, right: 0, bottom: 100, width: 0, height: 100, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect
 
-      trackEl.dispatchEvent(pointerEvent('pointerdown', { pageY: 50 }))
+      trackEl.dispatchEvent(pointerEvent('pointerdown', { clientY:50 }))
       // position = |0 - 50| = 50；thumbHalf = 20/2 = 10
       // scrollTop = (50 - 10) * (scrollHeight 400 / track 100) = 40 * 4 = 160
       expect(viewport.scrollTop).toBe(160)
@@ -321,6 +321,31 @@ describe('BaseScrollbar', () => {
       expect(remove).toHaveBeenCalledWith('pointermove', expect.any(Function))
       expect(remove).toHaveBeenCalledWith('pointerup', expect.any(Function))
       remove.mockRestore()
+    })
+  })
+
+  // ── track 點擊使用 viewport 座標 (C1-2 regression) ────────────────────────────
+  // 過去用 event.pageY（document 座標）減 rect.top（viewport 座標），頁面捲動後產生
+  // 等同捲動量的固定偏移。修正後改用 clientY（與 getBoundingClientRect 同座標系）。
+  describe('track click uses viewport coordinates (C1-2 regression)', () => {
+    it('track 頂端有 offset 時以 clientY - rect.top 計算', async () => {
+      const w = track(mountScrollbar())
+      await applyGeometry(w, VERTICAL_OVERFLOW)
+
+      const trackEl = w.find('.base-scrollbar__track--vertical').element as HTMLElement
+      const thumbEl = w.find('.base-scrollbar__track--vertical .base-scrollbar__thumb').element as HTMLElement
+      const viewport = viewportOf(w)
+
+      Object.defineProperty(trackEl, 'offsetHeight', { configurable: true, get: () => 100 })
+      Object.defineProperty(thumbEl, 'offsetHeight', { configurable: true, get: () => 20 })
+      // track 在 viewport 中 top=30（版面偏移 / 頁面捲動）
+      trackEl.getBoundingClientRect = () =>
+        ({ top: 30, left: 0, right: 0, bottom: 130, width: 0, height: 100, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect
+
+      // 點擊 viewport 座標 clientY=80 → position = |30 - 80| = 50
+      trackEl.dispatchEvent(pointerEvent('pointerdown', { clientY: 80 }))
+      // scrollTop = (50 - 10) * (scrollHeight 400 / track 100) = 40 * 4 = 160
+      expect(viewport.scrollTop).toBe(160)
     })
   })
 })

@@ -159,3 +159,37 @@ describe('BaseDatePicker — clear, validation, a11y', () => {
     expect(document.body.querySelector('.base-date-picker__day[role="gridcell"]')).not.toBeNull()
   })
 })
+
+// ── PageUp / PageDown 月底 clamp (C1-4 regression) ────────────────────────────────
+// 過去以 new Date(y, m±1, d) 換月，來源日超過目標月天數時會溢位（5/31 PageUp → 5/1）。
+// 修正後對目標月天數 clamp。此前 DatePicker 完全沒有鍵盤導航測試（bug 因此漏網）。
+describe('BaseDatePicker — PageUp/PageDown 月底 clamp (C1-4 regression)', () => {
+  function pressPageKey(key: 'PageUp' | 'PageDown') {
+    document.body
+      .querySelector('[role="grid"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+  }
+  function focusedISO(): string | undefined {
+    return document.body.querySelector<HTMLElement>(
+      '.base-date-picker__day[tabindex="0"]',
+    )?.dataset.iso
+  }
+
+  it('5/31 PageUp 落在 4/30（不溢位成 5/1）', async () => {
+    const w = track(mount(BaseDatePicker, {
+      props: { modelValue: '2026-05-31' }, attachTo: document.body,
+    }))
+    await control(w).trigger('click'); await nextTick()
+    pressPageKey('PageUp'); await nextTick()
+    expect(focusedISO()).toBe('2026-04-30')
+  })
+
+  it('1/31 PageUp 跨年落在前一年 12/31', async () => {
+    const w = track(mount(BaseDatePicker, {
+      props: { modelValue: '2026-01-31' }, attachTo: document.body,
+    }))
+    await control(w).trigger('click'); await nextTick()
+    pressPageKey('PageUp'); await nextTick()
+    expect(focusedISO()).toBe('2025-12-31')
+  })
+})

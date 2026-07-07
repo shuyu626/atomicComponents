@@ -85,7 +85,7 @@ import noop from '~/utils/noop'
 
 import type { BasePopoverPlacement, BasePopoverTrigger } from '~/components/atoms/BasePopover.vue'
 
-interface BaseDropdownProps {
+export interface BaseDropdownProps<Value extends string | number | symbol = string | number, Context = unknown> {
   /** 選單項清單。空陣列則只渲染容器、無項目 @default [] */
   items?: BaseDropdownItem<Value, Context>[]
   /**
@@ -112,7 +112,7 @@ interface BaseDropdownProps {
   autoFit?: boolean
 }
 
-const props = withDefaults(defineProps<BaseDropdownProps>(), {
+const props = withDefaults(defineProps<BaseDropdownProps<Value, Context>>(), {
   items: () => [],
   trigger: 'click',
   placement: 'bottom-start',

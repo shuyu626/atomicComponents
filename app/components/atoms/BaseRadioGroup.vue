@@ -74,7 +74,7 @@ import useFieldValidation from '~/composables/useFieldValidation'
 import useValidation from '~/composables/useValidation'
 import type { ValidationRule } from '~/utils/validators'
 
-interface BaseRadioGroupProps extends BaseFormFieldProps {
+export interface BaseRadioGroupProps<Value = string | number> extends BaseFormFieldProps {
   /** 廣播給所有子圈的 name（未指定時自動產生，仍能讓原生 radio 同組）。 */
   name?: string
   /** 廣播給所有子圈的選取色（子圈可自行覆寫）。 */
@@ -83,7 +83,7 @@ interface BaseRadioGroupProps extends BaseFormFieldProps {
   rules?: ValidationRule<Value | undefined>[]
 }
 
-const props = withDefaults(defineProps<BaseRadioGroupProps>(), {
+const props = withDefaults(defineProps<BaseRadioGroupProps<Value>>(), {
   name: undefined,
   color: undefined,
   rules: undefined,

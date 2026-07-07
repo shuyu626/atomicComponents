@@ -5,6 +5,7 @@
     :type="isNativeButton ? type : undefined"
     :disabled="isNativeButton && isInactive ? true : undefined"
     :to="!isNativeButton ? linkTo : undefined"
+    :external="!isNativeButton ? isExternalLink : undefined"
     :target="!isNativeButton ? target : undefined"
     :tabindex="!isNativeButton && isInactive ? -1 : undefined"
     :aria-disabled="!isNativeButton && isInactive ? true : undefined"
@@ -87,7 +88,7 @@ export interface BaseButtonCoreProps {
   type?: ButtonHTMLAttributes['type']
   /** 路由位置或 URL，提供後委派 BaseLink 渲染（NuxtLink / RouterLink / `<a>` 自動偵測） */
   to?: RouteLocationRaw
-  /** 外部連結 URL（語意 alias，等同 `to` 傳 string）；同樣委派 BaseLink，`to` 存在時優先 */
+  /** 外部連結 / 原生導航 URL；委派 BaseLink 並強制以原生 `<a>` 渲染，不走 SPA 路由（`download` 等原生行為生效）。`to` 存在時優先 */
   href?: string
   /** 連結開啟目標，`_blank` 由 BaseLink 自動補 `rel="noopener noreferrer"` */
   target?: '_blank' | '_parent' | '_self' | '_top'
@@ -148,6 +149,13 @@ const isInactive = computed(() => props.disabled || props.loading)
  * BaseLink 內部自行判斷 internal / external(含 `hasProtocol` 完整檢查),不重複造輪子。
  */
 const linkTo = computed<RouteLocationRaw>(() => props.to ?? props.href ?? '')
+
+/**
+ * `href` 語意為「外部 / 原生連結」（規範附錄 A：外部 → href、內部路由 → to）。
+ * 使用 href（且未同時提供 to）時，強制 BaseLink 以原生 `<a>` 渲染，避免無 protocol 的
+ * 路徑（如 `/file.pdf`）被判為內部路由走 SPA 導航，導致 `download` 等原生行為失效。
+ */
+const isExternalLink = computed(() => props.to == null && props.href != null)
 
 const rootClass = computed(() => [
   'base-button',

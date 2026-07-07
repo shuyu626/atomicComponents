@@ -310,6 +310,8 @@ import type { ValidationRule } from '~/utils/validators'
 /** 多選 v-model 的容器型別：陣列或 Set。 */
 type SelectModel = T | T[] | Set<T>
 
+// NOTE: 無法 export —— 前方有依賴元件泛型的 setup 範圍 type alias（SelectModel），
+// vue-tsc 在此情境 export 泛型 Props interface 會報 TS1184。維持未 export（B5 例外）。
 interface BaseSelectProps<Value> extends BaseFormFieldProps {
   /** 選項清單。 */
   options?: BaseSelectOption<Value>[]
@@ -348,7 +350,7 @@ interface BaseSelectProps<Value> extends BaseFormFieldProps {
    * 驗證規則陣列（touched-gated）：每條規則回傳 `true`（通過）或字串（錯誤訊息）。
    * 浮層關閉時觸發 `touch`（等同失焦）。父層可透過模板 ref 呼叫 `validate()` / `reset()`。
    */
-  rules?: ValidationRule<SelectModel | undefined>[]
+  rules?: ValidationRule<Value | Value[] | Set<Value> | undefined>[]
 }
 
 const props = withDefaults(defineProps<BaseSelectProps<T>>(), {

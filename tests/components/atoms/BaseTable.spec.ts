@@ -520,4 +520,39 @@ describe('BaseTable', () => {
       expect(header.indeterminate).toBe(false)
     })
   })
+
+  // ── 跨頁選取 (C1-1 regression) ────────────────────────────────────────────────
+  // toggleAll 過去以「當前頁 items 或 []」整批取代 selected，會摧毀其他頁的既有選取。
+  // 修正後改為增量：全選＝把當前頁併入既有集合、取消＝只移除當前頁。
+  describe('cross-page selection (C1-1 regression)', () => {
+    // 模擬「其他頁」已選取、但不在當前 items 中的項目
+    const otherPageRow: Row = { id: 99, name: 'OtherPage', age: 40 }
+
+    it('全選當前頁時保留其他頁的既有選取 (Array)', async () => {
+      const w = mountTable({ selected: [otherPageRow] })
+      await w.find('thead .base-table__checkbox').setValue(true)
+      const emitted = w.emitted('update:selected')!.at(-1)![0] as Row[]
+      // 既有項在父層是 reactive proxy，用結構比對（toContainEqual）而非參考比對
+      expect(emitted).toContainEqual(otherPageRow)
+      for (const item of items) expect(emitted).toContainEqual(item)
+      expect(emitted).toHaveLength(items.length + 1)
+    })
+
+    it('取消全選只移除當前頁，保留其他頁 (Array)', async () => {
+      const w = mountTable({ selected: [otherPageRow, ...items] })
+      await w.find('thead .base-table__checkbox').setValue(false)
+      const emitted = w.emitted('update:selected')!.at(-1)![0] as Row[]
+      expect(emitted).toEqual([otherPageRow])
+    })
+
+    it('Set 模型全選同樣保留其他頁選取', async () => {
+      const w = mountTable({ selected: new Set<Row>([otherPageRow]) })
+      await w.find('thead .base-table__checkbox').setValue(true)
+      const emitted = w.emitted('update:selected')!.at(-1)![0] as Set<Row>
+      expect(emitted).toBeInstanceOf(Set)
+      // 既有項在父層是 reactive proxy，用結構比對
+      expect([...emitted]).toContainEqual(otherPageRow)
+      expect(emitted.size).toBe(items.length + 1)
+    })
+  })
 })

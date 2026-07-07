@@ -89,7 +89,7 @@ import { computed, useId, useTemplateRef } from 'vue'
 import useValidation from '~/composables/useValidation'
 import type { ValidationRule } from '~/utils/validators'
 
-interface BaseSwitchProps<V> {
+export interface BaseSwitchProps<V> {
   /** 開啟時 v-model 的值。 @default true */
   activeValue?: V | boolean
   /** 關閉時 v-model 的值。 @default false */
@@ -115,7 +115,7 @@ interface BaseSwitchProps<V> {
   /** 錯誤狀態。 @default false */
   error?: boolean
   /** 驗證規則（touched-gated，change / blur 後顯示）。 */
-  rules?: ValidationRule<Value | boolean | undefined>[]
+  rules?: ValidationRule<V | boolean | undefined>[]
 }
 
 const props = withDefaults(defineProps<BaseSwitchProps<Value>>(), {
