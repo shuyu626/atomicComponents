@@ -277,21 +277,31 @@
                     role="row"
                   >
                     <!-- 靜態 class 讀視圖模型快取;hover 相關的區間 class 以 dayRangeClasses 疊加。 -->
-                    <button
+                    <template
                       v-for="cell in week"
                       :key="cell.iso"
-                      type="button"
-                      role="gridcell"
-                      class="base-date-picker__day"
-                      :class="[cell.classes, dayRangeClasses(cell)]"
-                      :data-iso="cell.iso"
-                      :tabindex="cell.tabindex"
-                      :disabled="cell.disabled"
-                      :aria-selected="cell.selected || undefined"
-                      :aria-disabled="cell.disabled || undefined"
-                      @click="pick(cell.date)"
-                      @mouseenter="onDayHover(cell.date)"
-                    >{{ cell.label }}</button>
+                    >
+                      <!-- 區間雙月曆:相鄰月溢出日不顯示,以空白格佔位維持 7 欄對齊。 -->
+                      <span
+                        v-if="range && cell.outside"
+                        class="base-date-picker__day-blank"
+                        aria-hidden="true"
+                      />
+                      <button
+                        v-else
+                        type="button"
+                        role="gridcell"
+                        class="base-date-picker__day"
+                        :class="[cell.classes, dayRangeClasses(cell)]"
+                        :data-iso="cell.iso"
+                        :tabindex="cell.tabindex"
+                        :disabled="cell.disabled"
+                        :aria-selected="cell.selected || undefined"
+                        :aria-disabled="cell.disabled || undefined"
+                        @click="pick(cell.date)"
+                        @mouseenter="onDayHover(cell.date)"
+                      >{{ cell.label }}</button>
+                    </template>
                   </div>
                 </div>
               </template>
@@ -624,8 +634,8 @@ interface DayCellView {
   iso: string
   /** 顯示文字（幾號）。 */
   label: number
-  /** 該日在該列的欄位(0=週首, 6=週尾),供色帶分列收圓用。 */
-  col: number
+  /** 是否為相鄰月的溢出日(非本面板月份)。區間雙月曆據此隱藏為空白格。 */
+  outside: boolean
   disabled: boolean
   selected: boolean
   tabindex: number
@@ -648,23 +658,22 @@ interface MonthView {
  * `dayRangeClasses` 於 template 疊加,本 computed 不追蹤 hover 狀態。
  */
 const monthViews = computed<MonthView[]>(() =>
-  monthsToRender.value.map((view, vi) => ({
-    year: view.year,
-    month: view.month,
-    weeks: buildMonthMatrix(view.year, view.month, props.firstDayOfWeek).map((week) =>
+  monthsToRender.value.map((view, vi) => {
+    const weeks = buildMonthMatrix(view.year, view.month, props.firstDayOfWeek).map((week) =>
       week.map((day): DayCellView => {
+        const outside = day.getMonth() !== view.month
         const disabled = isDisabled(day)
         const selected = isSelected(day)
         return {
           date: day,
           iso: toISO(day),
           label: day.getDate(),
-          col: (day.getDay() - props.firstDayOfWeek + 7) % 7,
+          outside,
           disabled,
           selected,
           tabindex: dayTabindex(day, view.month),
           classes: {
-            'base-date-picker__day--adjacent': day.getMonth() !== view.month,
+            'base-date-picker__day--adjacent': outside,
             'base-date-picker__day--today': isToday(day),
             'base-date-picker__day--selected': !props.range && selected,
             // 僅用於避免同一日在雙月都拿到 roving 焦點時的視覺重複（保留擴充點）。
@@ -672,29 +681,29 @@ const monthViews = computed<MonthView[]>(() =>
           },
         }
       }),
-    ),
-  })),
+    )
+    return {
+      year: view.year,
+      month: view.month,
+      // 區間雙月曆隱藏相鄰月溢出日,順帶移除「整列皆為溢出日」的尾端空列;
+      // 單選維持完整 6 列(溢出日灰顯),grid 高度不塌縮。
+      weeks: props.range ? weeks.filter((week) => week.some((cell) => !cell.outside)) : weeks,
+    }
+  }),
 )
 
 /**
- * 區間色帶 class:依賴 hover 預覽（hoverDate / pendingStart）,刻意留在 template
+ * 區間高亮 class:依賴 hover 預覽（hoverDate / pendingStart）,刻意留在 template
  * 逐格呼叫（輕量判斷）而不進 monthViews,避免 hover 造成整月視圖模型重算。
+ * 每格獨立呈現圓角方形（in-range 淺底 / 端點實心），不再是跨格連續色帶。
  */
 function dayRangeClasses(cell: DayCellView): Record<string, boolean> {
   if (!props.range) return {}
   const endpoint = rangeEndpoint(cell.date)
-  const inRange = isInRange(cell.date)
-  const hasBand = !!endpoint || inRange
-  // 單日區間(起訖同日):端點需兩側皆收圓,避免只丸半邊的半膠囊。
-  const r = activeRange.value
-  const isSingleDay = !!endpoint && !!r && isSameDay(r[0], r[1])
   return {
-    'base-date-picker__day--in-range': inRange,
+    'base-date-picker__day--in-range': isInRange(cell.date),
     'base-date-picker__day--range-start': endpoint === 'start',
     'base-date-picker__day--range-end': endpoint === 'end',
-    // 色帶每列收圓:區間端點或該列左/右緣(週首 / 週尾)處收圓角。
-    'base-date-picker__day--cap-left': hasBand && (endpoint === 'start' || isSingleDay || cell.col === 0),
-    'base-date-picker__day--cap-right': hasBand && (endpoint === 'end' || isSingleDay || cell.col === 6),
   }
 }
 
@@ -1106,7 +1115,7 @@ defineExpose({
  */
 .base-date-picker__panel {
   --date-accent: #1d4ed8;
-  --date-in-range-bg: color-mix(in srgb, var(--date-accent) 12%, transparent);
+  --date-in-range-bg: color-mix(in srgb, var(--date-accent) 16%, transparent);
   --date-cell-size: 2rem;
 
   min-width: 15rem;
@@ -1263,9 +1272,15 @@ defineExpose({
   display: grid;
   grid-template-columns: repeat(7, var(--date-cell-size));
 
-  // 列與列之間留間距,讓區間色帶分段成獨立膠囊。
-  & + & {
-    margin-top: 4px;
+  // 列間不另加 margin:上下間距全由日格 ::before 的 inset 提供,與左右間距一致。
+}
+
+// 區間雙月曆隱藏溢出日後的空白佔位:只佔一欄與維持列高,無互動 / 無視覺。
+.base-date-picker__day-blank {
+  height: var(--date-cell-size);
+
+  @media (pointer: coarse) {
+    height: max(var(--date-cell-size), 44px);
   }
 }
 
@@ -1285,13 +1300,15 @@ defineExpose({
   cursor: pointer;
   outline: none;
 
-  // 圓形高亮層(hover / today / selected / 端點),比格子內縮 → 與色帶留間距。
+  // 圓角方形高亮層(hover / today / in-range / 端點),略小於格子 → 相鄰格之間留間距。
+  // inset 同時決定「左右」與「上下(含各自一半)」間距;搭配 __week 的 margin-top: 0,
+  // 讓上下、左右間距一致(皆 = 2 × inset)。
   &::before {
     content: '';
     position: absolute;
-    inset: 3px;
+    inset: 2px;
     z-index: -1;
-    border-radius: 50%;
+    border-radius: 4px;
     transition: background-color 0.12s ease, box-shadow 0.12s ease;
   }
 
@@ -1307,6 +1324,12 @@ defineExpose({
     color: #d1d5db;
   }
 
+  // 區間內:每格獨立的淺色圓角方形填底。
+  &--in-range::before {
+    background-color: var(--date-in-range-bg);
+  }
+
+  // 今天:圓角方形外框。
   &--today {
     font-weight: 700;
 
@@ -1315,25 +1338,7 @@ defineExpose({
     }
   }
 
-  // 區間色帶：填滿整格,圓點浮於其上。
-  &--in-range,
-  &--range-start,
-  &--range-end {
-    background-color: var(--date-in-range-bg);
-  }
-
-  // 色帶分列收圓:每列左 / 右緣(或區間端點)收圓角,形成分段膠囊。
-  &--cap-left {
-    border-top-left-radius: 999px;
-    border-bottom-left-radius: 999px;
-  }
-
-  &--cap-right {
-    border-top-right-radius: 999px;
-    border-bottom-right-radius: 999px;
-  }
-
-  // 選取日 / 區間端點：置中實心圓(小於格子),文字反白。
+  // 選取日 / 區間端點:實心圓角方形,文字反白。
   &--selected,
   &--range-start,
   &--range-end {
