@@ -14,6 +14,7 @@
           :id="labelId"
           class="base-form-field__label-content"
           :for="fieldId"
+          @click="onLabelClick"
         >
           <slot
             name="label"
@@ -29,7 +30,10 @@
           控制項插槽：把 a11y 接線資訊（id / aria-describedby / aria-invalid…）
           以 scoped slot props 暴露給使用端，由使用端綁到實際的 input / select 上。
         -->
-        <div class="base-form-field__control">
+        <div
+          ref="controlRef"
+          class="base-form-field__control"
+        >
           <slot
             :id="fieldId"
             :labelledby="(label || $slots.label) ? labelId : undefined"
@@ -67,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useId } from 'vue'
+import { computed, useId, useTemplateRef } from 'vue'
 
 import type { CSSProperties } from 'vue'
 
@@ -158,6 +162,46 @@ const labelId = computed(() => `${fieldId.value}-label`)
 
 /** 訊息容器 id；同時給控制項的 aria-describedby 參照（見 template）。 */
 const messageId = computed(() => `${fieldId.value}-message`)
+
+/**
+ * 原生 labelable 元素——`<label for>` 點擊時瀏覽器會自動聚焦這些控制項。
+ * 清單見 HTML 規範：button / input / select / textarea / meter / output / progress。
+ */
+const LABELABLE_TAGS = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'METER', 'OUTPUT', 'PROGRESS'])
+
+const controlRef = useTemplateRef<HTMLElement>('controlRef')
+
+/**
+ * 點 `<label>` 聚焦控制項。原生 `<label for>` 只會聚焦 labelable 元素，涵蓋不了：
+ *
+ * 1. `role="combobox"` / `role="button"` 的 `<div>` 型控制項（BaseSelect / BaseDatePicker）
+ *    —— 有 `id=fieldId`，直接 `focus()`。
+ * 2. radio / checkbox 群組（BaseRadioGroup / BaseCheckboxGroup）—— 容器是 `role=group`
+ *    的 `<div>`，無單一 `id=fieldId` 目標；改聚焦控制項區內「已選中，否則第一個」可聚焦選項。
+ *
+ * 原生 labelable 控制項（input / textarea / button…）交還瀏覽器處理，不重複 `focus()`。
+ */
+function onLabelClick(event: MouseEvent) {
+  const control = (event.currentTarget as HTMLElement).ownerDocument.getElementById(fieldId.value)
+  if (control) {
+    if (LABELABLE_TAGS.has(control.tagName)) return
+    // 對齊原生 <label>：停用中的控制項不聚焦（div 型控制項以 aria-disabled 表示停用）。
+    if (control.getAttribute('aria-disabled') === 'true') return
+    control.focus()
+    return
+  }
+
+  // 群組情境：無 id=fieldId 的單一控制項，聚焦控制項區內第一個可聚焦選項（優先已選中）。
+  const container = controlRef.value
+  if (!container) return
+  const focusables = Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'input:not([disabled]):not([type="hidden"]), button:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  )
+  const target = focusables.find((el) => (el as HTMLInputElement).checked) ?? focusables[0]
+  target?.focus()
+}
 
 const rootClass = computed(() => [
   `base-form-field--label-${props.labelPlacement}`,

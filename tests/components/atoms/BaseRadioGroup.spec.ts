@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { h, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 
@@ -133,5 +133,27 @@ describe('BaseRadioGroup', () => {
   it('per-child color overrides the group color', () => {
     const wrapper = mountGroup({ modelValue: undefined, color: 'success' }, { color: 'danger' })
     expect(wrapper.findAll('.base-radio').every((c) => c.classes().includes('base-radio--danger'))).toBe(true)
+  })
+
+  // 群組容器是 role=radiogroup 的 <div>（無單一 labelable 目標）：點群組標題 label
+  // 由 BaseFormField 聚焦轉發到「已選中，否則第一個」radio。
+  it('focuses the checked radio when the group label is clicked', async () => {
+    const wrapper = mountGroup({ label: '方案', modelValue: 'pro' })
+    const rs = radios(wrapper)
+    const checkedSpy = vi.spyOn(rs[1]!.element as HTMLElement, 'focus')
+
+    await wrapper.find('label.base-form-field__label-content').trigger('click')
+
+    expect(checkedSpy).toHaveBeenCalled()
+  })
+
+  it('focuses the first radio when the group label is clicked with nothing selected', async () => {
+    const wrapper = mountGroup({ label: '方案', modelValue: undefined })
+    const rs = radios(wrapper)
+    const firstSpy = vi.spyOn(rs[0]!.element as HTMLElement, 'focus')
+
+    await wrapper.find('label.base-form-field__label-content').trigger('click')
+
+    expect(firstSpy).toHaveBeenCalled()
   })
 })

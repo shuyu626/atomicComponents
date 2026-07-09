@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { h } from 'vue'
 
@@ -39,6 +39,115 @@ describe('BaseFormField', () => {
       const inputId = w.find('input').attributes('id')
       expect(forAttr).toBeTruthy()
       expect(forAttr).toBe(inputId)
+    })
+  })
+
+  // ── 點 label 聚焦（div 型控制項的聚焦轉發）─────────────────────────────────────────
+  // 原生 <label for> 只會聚焦 labelable 元素；本容器也承載 role="combobox" / "button"
+  // 的 <div> 型控制項（BaseSelect / BaseDatePicker），需由元件手動補聚焦。
+  describe('label click focus forwarding', () => {
+    it('focuses a non-labelable (role=combobox <div>) control when its label is clicked', async () => {
+      const w = mount(BaseFormField, {
+        props: { label: 'Fruit' },
+        slots: {
+          default: (p: { id: string }) =>
+            h('div', { id: p.id, role: 'combobox', tabindex: '0' }),
+        },
+        attachTo: document.body,
+      })
+      const control = w.find('[role="combobox"]').element as HTMLElement
+      const focusSpy = vi.spyOn(control, 'focus')
+
+      await w.find('label').trigger('click')
+
+      expect(focusSpy).toHaveBeenCalled()
+      w.unmount()
+    })
+
+    it('does not focus a disabled (aria-disabled) non-labelable control', async () => {
+      const w = mount(BaseFormField, {
+        props: { label: 'Fruit', disabled: true },
+        slots: {
+          default: (p: { id: string; disabled?: true }) =>
+            h('div', { id: p.id, role: 'combobox', tabindex: '-1', 'aria-disabled': p.disabled }),
+        },
+        attachTo: document.body,
+      })
+      const control = w.find('[role="combobox"]').element as HTMLElement
+      const focusSpy = vi.spyOn(control, 'focus')
+
+      await w.find('label').trigger('click')
+
+      expect(focusSpy).not.toHaveBeenCalled()
+      w.unmount()
+    })
+
+    // 群組（radio / checkbox）：容器無 id=fieldId 目標，改聚焦區內第一個可聚焦選項。
+    it('focuses the checked option when a group label is clicked', async () => {
+      const w = mount(BaseFormField, {
+        props: { label: 'Fruit' },
+        slots: {
+          default: (p: { labelledby?: string }) =>
+            h('div', { role: 'radiogroup', 'aria-labelledby': p.labelledby }, [
+              h('input', { type: 'radio', name: 'g' }),
+              h('input', { type: 'radio', name: 'g', checked: true }),
+            ]),
+        },
+        attachTo: document.body,
+      })
+      const radios = w.findAll('input')
+      const firstSpy = vi.spyOn(radios[0]!.element as HTMLElement, 'focus')
+      const checkedSpy = vi.spyOn(radios[1]!.element as HTMLElement, 'focus')
+
+      await w.find('label').trigger('click')
+
+      expect(checkedSpy).toHaveBeenCalled()
+      expect(firstSpy).not.toHaveBeenCalled()
+      w.unmount()
+    })
+
+    it('focuses the first option when a group has no checked item', async () => {
+      const w = mount(BaseFormField, {
+        props: { label: 'Fruit' },
+        slots: {
+          default: (p: { labelledby?: string }) =>
+            h('div', { role: 'group', 'aria-labelledby': p.labelledby }, [
+              h('input', { type: 'checkbox', name: 'g' }),
+              h('input', { type: 'checkbox', name: 'g' }),
+            ]),
+        },
+        attachTo: document.body,
+      })
+      const boxes = w.findAll('input')
+      const firstSpy = vi.spyOn(boxes[0]!.element as HTMLElement, 'focus')
+
+      await w.find('label').trigger('click')
+
+      expect(firstSpy).toHaveBeenCalled()
+      w.unmount()
+    })
+
+    it('skips disabled options and focuses the first enabled one in a group', async () => {
+      const w = mount(BaseFormField, {
+        props: { label: 'Fruit' },
+        slots: {
+          default: (p: { labelledby?: string }) =>
+            h('div', { role: 'radiogroup', 'aria-labelledby': p.labelledby }, [
+              h('input', { type: 'radio', name: 'g', disabled: true }),
+              h('input', { type: 'radio', name: 'g' }),
+            ]),
+        },
+        attachTo: document.body,
+      })
+      const radios = w.findAll('input')
+      const disabledSpy = vi.spyOn(radios[0]!.element as HTMLElement, 'focus')
+      const enabledSpy = vi.spyOn(radios[1]!.element as HTMLElement, 'focus')
+
+      await w.find('label').trigger('click')
+
+      expect(disabledSpy).not.toHaveBeenCalled()
+      expect(enabledSpy).toHaveBeenCalled()
+      w.unmount()
     })
   })
 
