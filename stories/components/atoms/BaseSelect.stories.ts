@@ -37,6 +37,7 @@ const meta = {
     searchPlaceholder: { control: { type: 'text' }, description: 'filterable 時搜尋框 placeholder。預設「搜尋」' },
     clearable: { control: { type: 'boolean' }, description: '有選取時顯示叉叉清除鈕（hover 控制項才顯形）。預設 true' },
     chips: { control: { type: 'boolean' }, description: '多選時以可刪除的 chip 顯示已選項（取代逗號文字）。預設 false' },
+    maxCollapseTags: { control: { type: 'number' }, description: 'chips 模式顯示上限：超過的收斂成一顆 +N（僅 multiple + chips 生效）。0=不限制。預設 0' },
     placement: {
       control: { type: 'select' },
       options: ['bottom-start', 'bottom', 'bottom-end', 'top-start', 'top', 'top-end'],
@@ -328,5 +329,49 @@ export const Themed: Story = {
   }),
   parameters: {
     docs: { description: { story: '覆寫 `--field-height` / `--field-active-color` / `--field-radius` 等 token 即可主題化（combobox 外框、focus ring、已選項色自動跟著變）。' } },
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ChipsCollapse —— maxCollapseTags 收斂成 +N（避免多選破版）
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ChipsCollapse: Story = {
+  render: () => ({
+    components: { BaseSelect },
+    setup() {
+      const skills: BaseSelectOption<string>[] = [
+        { label: 'HTML', value: 'html' },
+        { label: 'CSS', value: 'css' },
+        { label: 'JavaScript', value: 'js' },
+        { label: 'TypeScript', value: 'ts' },
+        { label: 'Vue', value: 'vue' },
+        { label: 'React', value: 'react' },
+        { label: 'Nuxt', value: 'nuxt' },
+        { label: 'Vite', value: 'vite' },
+        { label: 'Figma', value: 'figma' },
+      ]
+      const collapsed = ref<string[]>(['html', 'css', 'js', 'ts', 'vue', 'react', 'nuxt'])
+      const unlimited = ref<string[]>(['html', 'css', 'js', 'ts', 'vue', 'react', 'nuxt'])
+      return { skills, collapsed, unlimited }
+    },
+    template: WRAP(`
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <BaseSelect
+          v-model="collapsed" :options="skills" multiple chips filterable
+          :max-collapse-tags="3"
+          label="maxCollapseTags = 3" label-placement="top"
+          message="超過 3 顆收斂成 +N,滑到 +N 上可看被收斂的項目"
+        />
+        <BaseSelect
+          v-model="unlimited" :options="skills" multiple chips filterable
+          label="不設上限（預設 0）" label-placement="top"
+          message="所有 chip 全展開,選很多時高度會往上長"
+        />
+      </div>
+    `),
+  }),
+  parameters: {
+    docs: { description: { story: '`maxCollapseTags`（對齊 Element Plus 語義）：chips 模式下只顯示前 N 顆可刪除 chip，其餘收斂成一顆不可刪除的 `+N`（被收斂項的 label 放在原生 `title`，hover 可見），避免多選過多時輸入框高度膨脹破版。上例上限 3、下例不設上限做對照。' } },
   },
 }

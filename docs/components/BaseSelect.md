@@ -28,6 +28,7 @@ BaseSelect 額外的控制項 props，加上**全部** [`BaseFormField` 的欄�
 | `clearLabel` | `string` | `'清除'` | 清除鈕的 `aria-label`（i18n 覆寫點） |
 | `chips` | `boolean` | `false` | 多選時以可刪除的 chip 顯示已選項（取代逗號文字）；單選無效。複用 [`BaseChip`](./BaseChip.md) |
 | `removeLabel` | `string \| ((label: string) => string)` | `` (label) => `移除 ${label}` `` | chip 刪除鈕的 `aria-label`（i18n 覆寫點）：字串原樣 / 函式接收該項 `label` |
+| `maxCollapseTags` | `number` | `0` | chips 模式顯示上限：已選數超過時只顯示前 N 顆可刪除 chip，其餘收斂成一顆不可刪除的 `+N`（被收斂項 label 放入原生 `title`），避免多選過多時輸入框高度膨脹破版。僅 `multiple` + `chips` 生效；`0` 不限制 |
 | `placement` | `BasePopoverPlacement` | `'bottom-start'` | 浮層位置（空間不足時 `flip` / `shift` 自動調整） |
 | `emptyText` | `string` | `'查無選項'` | 無選項時的提示（可用 `#empty` slot 覆寫） |
 | `rules` | `ValidationRule<T \| T[] \| Set<T> \| undefined>[]` | — | 驗證規則陣列；touched-gated。見 §6 |

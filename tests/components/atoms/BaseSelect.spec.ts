@@ -19,12 +19,22 @@ const defaultOptions: BaseSelectOption<string>[] = [
   { label: '櫻桃', value: 'cherry' },
 ]
 
+// chips 收斂測試用：需要多於 3 個選項才能驗證 +N。
+const manyOptions: BaseSelectOption<string>[] = [
+  { label: '蘋果', value: 'apple' },
+  { label: '香蕉', value: 'banana' },
+  { label: '櫻桃', value: 'cherry' },
+  { label: '葡萄', value: 'grape' },
+  { label: '芒果', value: 'mango' },
+]
+
 interface MountOptions {
   options?: BaseSelectOption<string>[]
   modelValue?: unknown
   multiple?: boolean
   filterable?: boolean
   chips?: boolean
+  maxCollapseTags?: number
   placeholder?: string
   label?: string
   name?: string
@@ -514,6 +524,77 @@ describe('BaseSelect', () => {
       const wrapper = track(mountSelect({ chips: true, modelValue: 'apple' }))
       expect(wrapper.find('.base-chip').exists()).toBe(false)
       expect(wrapper.find('.base-select__value').text()).toBe('蘋果')
+    })
+  })
+
+  // ── maxCollapseTags（chips 收斂成 +N，避免多選破版）────────────────────────────
+  describe('chips collapse (maxCollapseTags)', () => {
+    it('collapses selected chips beyond the limit into a single +N chip', () => {
+      const wrapper = track(mountSelect({
+        options: manyOptions,
+        multiple: true,
+        chips: true,
+        maxCollapseTags: 2,
+        modelValue: ['apple', 'banana', 'cherry', 'grape'],
+      }))
+      // 前 2 顆一般 chip + 1 顆收斂 chip = 3 顆
+      const chips = wrapper.findAll('.base-select__control .base-chip')
+      expect(chips).toHaveLength(3)
+      // 前 2 顆為前兩個已選（options 順序）
+      const visible = wrapper.findAll('.base-select__control .base-chip:not(.base-select__collapse)')
+      expect(visible.map((c) => c.text())).toEqual(['蘋果', '香蕉'])
+      // 收斂 chip 顯示剩餘數量 +2
+      const collapse = wrapper.find('.base-select__collapse')
+      expect(collapse.exists()).toBe(true)
+      expect(collapse.text()).toBe('+2')
+    })
+
+    it('does not collapse when the selection count is within the limit', () => {
+      const wrapper = track(mountSelect({
+        options: manyOptions,
+        multiple: true,
+        chips: true,
+        maxCollapseTags: 3,
+        modelValue: ['apple', 'banana'],
+      }))
+      expect(wrapper.find('.base-select__collapse').exists()).toBe(false)
+      expect(wrapper.findAll('.base-select__control .base-chip')).toHaveLength(2)
+    })
+
+    it('defaults to no collapse (renders every chip) when maxCollapseTags is 0', () => {
+      const wrapper = track(mountSelect({
+        options: manyOptions,
+        multiple: true,
+        chips: true,
+        modelValue: ['apple', 'banana', 'cherry', 'grape'],
+      }))
+      expect(wrapper.find('.base-select__collapse').exists()).toBe(false)
+      expect(wrapper.findAll('.base-select__control .base-chip')).toHaveLength(4)
+    })
+
+    it('makes the +N chip non-deletable and lists the hidden labels in its title', () => {
+      const wrapper = track(mountSelect({
+        options: manyOptions,
+        multiple: true,
+        chips: true,
+        maxCollapseTags: 1,
+        modelValue: ['apple', 'banana', 'cherry'],
+      }))
+      const collapse = wrapper.find('.base-select__collapse')
+      expect(collapse.text()).toBe('+2')
+      expect(collapse.attributes('title')).toBe('香蕉, 櫻桃')
+      expect(collapse.find('.base-chip__delete').exists()).toBe(false)
+    })
+
+    it('ignores maxCollapseTags without chips (comma text stays intact)', () => {
+      const wrapper = track(mountSelect({
+        options: manyOptions,
+        multiple: true,
+        maxCollapseTags: 1,
+        modelValue: ['apple', 'banana', 'cherry'],
+      }))
+      expect(wrapper.find('.base-chip').exists()).toBe(false)
+      expect(wrapper.find('.base-select__value').text()).toBe('蘋果, 香蕉, 櫻桃')
     })
   })
 

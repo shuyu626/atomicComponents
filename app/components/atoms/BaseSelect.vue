@@ -57,13 +57,22 @@
                 class="base-select__chips"
               >
                 <BaseChip
-                  v-for="opt in (selected as BaseSelectOption<T>[])"
+                  v-for="opt in visibleChips"
                   :key="String(opt.value)"
                   size="sm"
                   :label="opt.label"
                   :deletable="!isDisabled && !isReadonly"
                   :delete-aria-label="removeAriaLabel(opt.label)"
                   @delete="onChipDelete($event, opt)"
+                />
+                <!-- 收斂 chip：超過 maxCollapseTags 的部分合併成不可刪除的 +N（title 列出被收斂項）。
+                     不指定 color，與一般已選 chip 統一走 BaseChip 預設色（primary / ghost）。 -->
+                <BaseChip
+                  v-if="collapsedCount > 0"
+                  class="base-select__collapse"
+                  size="sm"
+                  :label="`+${collapsedCount}`"
+                  :title="collapsedTitle"
                 />
               </span>
 
@@ -342,6 +351,13 @@ interface BaseSelectProps<Value> extends BaseFormFieldProps {
    * 回傳字串的函式。 @default (label) => `移除 ${label}`
    */
   removeLabel?: string | ((label: string) => string)
+  /**
+   * chips 模式的顯示上限：已選數超過此值時，只顯示前 `maxCollapseTags` 顆可刪除 chip，
+   * 其餘收斂成一顆不可刪除的 `+N` chip（被收斂項的 label 放入其原生 `title` 供 hover 檢視），
+   * 避免多選過多時輸入框高度無限膨脹破版。僅 `multiple` + `chips` 生效。
+   * `0`（或負值）表示不限制——維持全部顯示、多行換行。 @default 0
+   */
+  maxCollapseTags?: number
   /** 浮層位置（`flip` / `shift` 會在空間不足時自動調整）。 @default 'bottom-start' */
   placement?: BasePopoverPlacement
   /** 無選項時的提示文字（可用 `#empty` slot 覆寫）。 @default '查無選項' */
@@ -364,6 +380,7 @@ const props = withDefaults(defineProps<BaseSelectProps<T>>(), {
   clearLabel: '清除',
   chips: false,
   removeLabel: () => (label: string) => `移除 ${label}`,
+  maxCollapseTags: 0,
   placement: 'bottom-start',
   emptyText: '查無選項',
   rules: undefined,
@@ -504,6 +521,34 @@ const showClear = computed(() => props.clearable && hasDisplay.value)
 
 /** 是否以 chip 顯示已選項（僅多選有效）。 */
 const chipsEnabled = computed(() => props.multiple && props.chips)
+
+/** chips 模式下的已選項清單（維持 options 順序，供收斂計算與渲染）。 */
+const selectedChips = computed<BaseSelectOption<T>[]>(() =>
+  chipsEnabled.value && Array.isArray(selected.value) ? selected.value : [],
+)
+
+/** 顯示上限：>0 才收斂，否則不限制（Infinity → 全部顯示）。 */
+const collapseLimit = computed(() =>
+  props.maxCollapseTags > 0 ? props.maxCollapseTags : Number.POSITIVE_INFINITY,
+)
+
+/** 實際渲染的可刪除 chip（前 `collapseLimit` 顆）。 */
+const visibleChips = computed<BaseSelectOption<T>[]>(() =>
+  selectedChips.value.slice(0, collapseLimit.value),
+)
+
+/** 被收斂（隱藏）的數量；0 表示不需要 `+N` chip。 */
+const collapsedCount = computed(() =>
+  Math.max(0, selectedChips.value.length - collapseLimit.value),
+)
+
+/** `+N` chip 的原生 title：被收斂項的 label 以逗號串接，供 hover 檢視。 */
+const collapsedTitle = computed(() =>
+  selectedChips.value
+    .slice(collapseLimit.value)
+    .map((option) => option.label)
+    .join(', '),
+)
 
 /**
  * 送出表單用的序列化值：hidden input 提交「值」而非顯示 label。
