@@ -17,6 +17,7 @@
         :aria-describedby="displayMessage ? messageId : undefined"
         :aria-invalid="displayError || undefined"
         @change="onChange"
+        @click.stop
         @blur="onBlur"
       >
 

@@ -1,7 +1,8 @@
-import { computed, ref, toValue } from 'vue'
+import { computed, onScopeDispose, ref, toValue } from 'vue'
 
 import type { ComputedRef, MaybeRefOrGetter, Ref } from 'vue'
 
+import { injectFormContext } from '~/composables/useFormContext'
 import type { ValidationRule } from '~/utils/validators'
 
 interface UseValidationReturn {
@@ -74,6 +75,11 @@ export default function useValidation<T>(
     touched.value = true
     return firstError.value == null
   }
+
+  // 在 BaseForm 內自動註冊 validate / reset，讓表單能整表驗證；不在 form 內為 no-op。
+  // onScopeDispose：欄位（v-if 動態掛卸）卸載時自動反註冊，避免幽靈欄位參與驗證。
+  const form = injectFormContext()
+  if (form) onScopeDispose(form.register({ validate, reset }))
 
   return { error, message, touched, touch, validate, reset }
 }
