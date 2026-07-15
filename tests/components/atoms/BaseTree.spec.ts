@@ -144,3 +144,18 @@ describe('BaseTree — roving tabindex survives collapse (C1-3 regression)', () 
     w.unmount()
   })
 })
+
+describe('BaseTree — defaultExpandAll 與非同步載入', () => {
+  it('nodes 初始為空、之後才載入時仍套用 defaultExpandAll', async () => {
+    const w = mount(BaseTree, {
+      props: { nodes: [] as BaseTreeNode[], defaultExpandAll: true },
+      attachTo: document.body,
+    })
+    await w.setProps({
+      nodes: [{ key: 'p', label: '父節點', children: [{ key: 'c', label: '子節點' }] }],
+    })
+    await nextTick()
+    expect(w.text()).toContain('子節點')
+    w.unmount()
+  })
+})

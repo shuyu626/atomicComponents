@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 
 import BaseTextField from '~/components/atoms/BaseTextField.vue'
 
@@ -302,6 +302,55 @@ describe('BaseTextField', () => {
       vm.reset()
       await nextTick()
       expect(w.find('.base-form-field').classes()).not.toContain('base-form-field--error')
+    })
+  })
+
+  // ── 父層綁定 v-model（受控模式）──────────────────────────────────────────────
+  // defineModel 受控語意：父層綁 v-model 時，寫 model.value 不會同步回讀。
+  // useComposingModel 的 onChange 若回讀 model 組正規化字串，會把畫面改回舊值。
+  // 另外 Vue 對 <input> 的 :value 有強制 re-patch 語意（renderer 對 key === 'value'
+  // 不做同值跳過）——SSR 快照若直接綁 :value，父層驅動的 re-render 會把 DOM 蓋回初值。
+  describe('controlled v-model (parent-bound)', () => {
+    it('keeps typed text on parent-driven re-render (no stomp back to the SSR snapshot)', async () => {
+      const Host = defineComponent({
+        components: { BaseTextField },
+        setup() {
+          const text = ref('old')
+          return { text }
+        },
+        template: '<BaseTextField v-model="text" />',
+      })
+      const w = mount(Host, { attachTo: document.body })
+      const input = w.find<HTMLInputElement>('input')
+
+      input.element.focus()
+      await input.setValue('ab') // input 事件 → model 提交 → 父層 re-render 子元件
+      await nextTick()
+
+      expect(w.vm.text).toBe('ab')
+      expect(input.element.value).toBe('ab') // 不應被 :value 初始快照蓋回 'old'
+      w.unmount()
+    })
+
+    it('keeps the typed value visible after v-model.lazy commits on change while focused', async () => {
+      const Host = defineComponent({
+        components: { BaseTextField },
+        setup() {
+          const text = ref('old')
+          return { text }
+        },
+        template: '<BaseTextField v-model.lazy="text" />',
+      })
+      const w = mount(Host, { attachTo: document.body })
+      const input = w.find<HTMLInputElement>('input')
+
+      input.element.focus()
+      input.element.value = 'new'
+      await input.trigger('change')
+
+      expect(w.vm.text).toBe('new') // model 拿到新值
+      expect(input.element.value).toBe('new') // 顯示不應回退為舊值
+      w.unmount()
     })
   })
 })

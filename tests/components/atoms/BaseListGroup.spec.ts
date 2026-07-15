@@ -22,14 +22,16 @@ const isPanelOpen = (w: ReturnType<typeof mountGroup>) =>
 describe('BaseListGroup', () => {
   // ── 結構 / a11y ──────────────────────────────────────────────────────────────
   describe('structure & a11y', () => {
-    it('renders an <li role="listitem"> with a button header and a role="group" panel', () => {
+    // 子清單必須是 role="list"：ARIA 規定 listitem 的 owner 必須是 list，
+    // role="group" 內放 listitem 是 invalid ARIA（axe: aria-required-parent）。
+    it('renders an <li role="listitem"> with a button header and a role="list" panel', () => {
       const w = mountGroup({ title: '後台主檔資料管理' })
       expect(w.find('.base-list-group').element.tagName).toBe('LI')
       expect(w.find('.base-list-group').attributes('role')).toBe('listitem')
       expect(headerOf(w).element.tagName).toBe('BUTTON')
       expect(headerOf(w).text()).toContain('後台主檔資料管理')
       expect(itemsOf(w).element.tagName).toBe('UL')
-      expect(itemsOf(w).attributes('role')).toBe('group')
+      expect(itemsOf(w).attributes('role')).toBe('list')
     })
 
     it('links header to panel via aria-controls / aria-expanded', () => {

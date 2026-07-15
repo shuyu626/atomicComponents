@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { defineComponent, nextTick, ref } from 'vue'
 
 import BaseInputNumber from '~/components/atoms/BaseInputNumber.vue'
 import { required } from '~/utils/validators'
@@ -287,6 +287,95 @@ describe('BaseInputNumber', () => {
         vi.advanceTimersByTime(2000)
         expect(w.emitted('update:modelValue')).toHaveLength(afterCommit)
         expect(lastEmit(w)).toEqual([3])
+      })
+    })
+  })
+
+  // ── 父層綁定 v-model（受控模式）──────────────────────────────────────────────
+  // defineModel 受控語意：父層綁 v-model 時，寫 model.value 不會同步回讀（要等父層
+  // flush 才回流）。同 tick 內「寫後讀」會拿到舊值——本區塊固定以真實父元件掛載，
+  // 守住這條其他測試（僅傳 modelValue prop、無 update 監聽）走不到的路徑。
+  describe('controlled v-model (parent-bound)', () => {
+    function mountControlled(initial: number | null, extra: Record<string, unknown> = {}) {
+      const Host = defineComponent({
+        components: { BaseInputNumber },
+        setup() {
+          const value = ref<number | null>(initial)
+          return { value, extra }
+        },
+        template: '<BaseInputNumber v-model="value" v-bind="extra" />',
+      })
+      return mount(Host)
+    }
+
+    const findHostInput = (w: ReturnType<typeof mountControlled>) =>
+      w.find<HTMLInputElement>('input.base-input-number__input')
+
+    it('type then ArrowUp steps from the just-committed draft (7 → 8), not the stale model', async () => {
+      const w = mountControlled(null)
+      const input = findHostInput(w)
+
+      await input.setValue('7')
+      await input.trigger('keydown', { key: 'ArrowUp' })
+      await nextTick()
+
+      expect(w.vm.value).toBe(8)
+    })
+
+    it('type then ArrowUp emits the full change sequence [4, 5] (no stale-model dedupe)', async () => {
+      // 受控下 commit 的 changed 判斷若回讀 model，第二次 commit 會拿打字前的舊值
+      // 誤判「值沒變」而漏發 change——v-model 正確但事件流與最終值不一致。
+      const w = mountControlled(5)
+      const input = findHostInput(w)
+
+      await input.setValue('4')
+      await input.trigger('keydown', { key: 'ArrowUp' })
+      await nextTick()
+
+      expect(w.vm.value).toBe(5)
+      expect(w.findComponent(BaseInputNumber).emitted('change')).toEqual([[4], [5]])
+    })
+
+    it('derives step precision from the just-committed draft (7.25 + 1 → 8.25)', async () => {
+      const w = mountControlled(5)
+      const input = findHostInput(w)
+
+      await input.setValue('7.25')
+      await input.trigger('keydown', { key: 'ArrowUp' })
+      await nextTick()
+
+      expect(w.vm.value).toBe(8.25)
+    })
+
+    describe('long-press auto repeat (fake timers)', () => {
+      beforeEach(() => vi.useFakeTimers())
+      afterEach(() => vi.useRealTimers())
+
+      it('keeps repeating past the first tick when parent-bound', async () => {
+        const w = mountControlled(0)
+        const increase = w.find('.base-input-number__button--increase')
+
+        await increase.trigger('pointerdown') // 立即步進 0 → 1
+        expect(w.vm.value).toBe(1)
+
+        await vi.advanceTimersByTimeAsync(500) // → 2
+        await vi.advanceTimersByTimeAsync(160) // → 3、4
+        expect(w.vm.value).toBeGreaterThanOrEqual(4)
+
+        await increase.trigger('pointerup')
+      })
+
+      it('still self-stops at the bound when parent-bound', async () => {
+        const w = mountControlled(8, { max: 10 })
+        const increase = w.find('.base-input-number__button--increase')
+
+        await increase.trigger('pointerdown') // 8 → 9
+        await vi.advanceTimersByTimeAsync(500) // 9 → 10（到界）
+        await vi.advanceTimersByTimeAsync(80) // 值未變 → 自我停止
+        expect(w.vm.value).toBe(10)
+
+        await vi.advanceTimersByTimeAsync(2000)
+        expect(w.vm.value).toBe(10)
       })
     })
   })

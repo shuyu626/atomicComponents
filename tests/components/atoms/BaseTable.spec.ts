@@ -556,3 +556,32 @@ describe('BaseTable', () => {
     })
   })
 })
+
+describe('BaseTable — click:row 與儲存格互動元素', () => {
+  it('點擊自訂欄 slot 內的按鈕不誤觸 click:row；點擊列的其他區域才觸發', async () => {
+    const w = mountTable(
+      {},
+      { 'column:name': () => h('button', { class: 'cell-action', type: 'button' }, 'edit') },
+    )
+
+    await w.find('.cell-action').trigger('click')
+    expect(w.emitted('click:row')).toBeUndefined()
+
+    await w.findAll('tbody .base-table__row td')[1]!.trigger('click')
+    expect(w.emitted('click:row')).toHaveLength(1)
+  })
+
+  it('鍵盤 Enter 落在儲存格內按鈕時同樣不誤觸 click:row（與滑鼠對稱）', async () => {
+    // onRowKeydown 有 isRowClickable 守衛（讀 vnode props 的 onClick:row），需綁 listener 才會走鍵盤路徑
+    const w = mountTable(
+      { 'onClick:row': () => {} },
+      { 'column:name': () => h('button', { class: 'cell-action', type: 'button' }, 'edit') },
+    )
+
+    await w.find('.cell-action').trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('click:row')).toBeUndefined()
+
+    await w.find('tbody .base-table__row').trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('click:row')).toHaveLength(1)
+  })
+})

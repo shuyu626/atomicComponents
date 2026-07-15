@@ -178,7 +178,7 @@ const items: BaseDropdownItem<string>[] = [
 | `ArrowDown` / `ArrowUp` | `moveFocus` 移到下 / 上一個可聚焦項，到頭尾繞回 |
 | `Home` / `End` | 跳到第一 / 最後一個可聚焦項 |
 | `Enter` / `Space` | 觸發該項 `onClick`（在 `<li>` 的 `onKeydown`） |
-| `Tab` | 關閉選單（焦點由 BasePopover 的 focus-trap 還給 reference） |
+| `Tab` | 關閉選單（BasePopover 偵測到關閉瞬間焦點仍在浮層內，還焦給 reference） |
 | `Esc` | 關閉選單（由 BasePopover 統一處理） |
 
 - `moveFocus` 自動跳過 `disabled`（`HTMLButtonElement.disabled`）與 `aria-disabled="true"` 的節點，並繞圈回到起點時回 `false` 避免無限迴圈。
@@ -188,7 +188,7 @@ const items: BaseDropdownItem<string>[] = [
 
 - `defineModel<boolean>({ default: false })`：未綁 v-model 用內部狀態，綁了即受控。
 - 開啟時 BasePopover 的 focus-trap 會把焦點移到第一個可聚焦項（即 `tabindex=0` 的項目）。
-- 關閉（選取 / Esc / Tab）時 focus-trap `deactivate` 把焦點還給 reference；**點擊外部關閉**則不搶焦（`clickOutsideDeactivates`），讓點擊落在目標上。
+- 關閉（選取 / Esc / Tab）時由 BasePopover 的**焦點快照**還焦：關閉瞬間焦點仍在浮層內 → 還給 reference（trap 本身設 `returnFocusOnDeactivate: false`，不負責還焦）；**點擊外部關閉**時焦點已在外部 → 不搶焦，讓點擊落在目標上。
 - 全項皆 disabled → 無 `tabindex=0` 項 → 無可聚焦內容 → BasePopover 不啟用 focus-trap。
 
 ---

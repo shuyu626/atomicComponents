@@ -426,3 +426,22 @@ describe('BaseTabs', () => {
     })
   })
 })
+
+describe('BaseTabPanel — 可聚焦性偵測', () => {
+  it('面板內只有 disabled 按鈕（不可被 Tab）時，面板自身取得 tabindex=0', async () => {
+    const Host = defineComponent({
+      components: { BaseTabs, BaseTabPanel },
+      data: () => ({ tab: 'a' }),
+      template: `
+        <BaseTabs v-model="tab" :items="[{ label: 'A', value: 'a' }]" aria-label="tabs">
+          <BaseTabPanel value="a">
+            <button disabled>disabled action</button>
+          </BaseTabPanel>
+        </BaseTabs>`,
+    })
+    const w = mount(Host, { attachTo: document.body })
+    await flushPromises()
+    expect(w.find('[role="tabpanel"]').attributes('tabindex')).toBe('0')
+    w.unmount()
+  })
+})

@@ -56,7 +56,10 @@ export type ToastShortcutOptions = Omit<ToastOptions, 'message' | 'type'>
 export interface ToastManager {
   /** 唯讀的 reactive 佇列；交給 `BaseToastContainer` 渲染，外部請勿直接 mutate。 */
   toasts: readonly ToastItem[]
-  /** 推一筆 toast；可傳完整設定物件或只傳訊息字串。回傳該筆 id。 */
+  /**
+   * 推一筆 toast；可傳完整設定物件或只傳訊息字串。回傳該筆 id。
+   * SSR 期呼叫為 no-op 並回傳空字串（toast 僅支援 client 端觸發；`dismiss('')` 亦為 no-op）。
+   */
   show: (options: ToastOptions | string) => string
   /** 捷徑：推一筆 `type: 'success'` 的 toast。 */
   success: (message: string, options?: ToastShortcutOptions) => string
@@ -115,6 +118,16 @@ export function createToastManager(options: CreateToastManagerOptions = {}): Toa
   }
 
   function show(options: ToastOptions | string): string {
+    // SSR 防禦：manager 常以 module 單例存在，server 端跨請求共享——入佇列的 toast
+    // 會洩漏到後續所有請求的首渲輸出且永不消失（server 沒有計時器消化佇列）。
+    // server 端一律 no-op；toast 本質是 client 互動回饋，SSR 首渲不該有。
+    if (import.meta.server) {
+      if (import.meta.env.DEV) {
+        console.warn('[useToast] show() 在 server 端被忽略：toast 僅支援 client 端觸發。')
+      }
+      return ''
+    }
+
     const normalized: ToastOptions
       = typeof options === 'string' ? { message: options } : options
 

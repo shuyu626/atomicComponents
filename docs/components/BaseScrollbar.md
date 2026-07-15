@@ -168,10 +168,10 @@ import BaseScrollbar from '~/components/atoms/BaseScrollbar.vue'
 |---|---|
 | viewport | 帶 `id`，作為捲軸的 `aria-controls` 目標 |
 | 軌道 | `role="scrollbar"` + `aria-orientation` + `aria-valuemin/max/now`（0–100 進度） |
-| 鍵盤捲動 | 依賴原生：若需要鍵盤捲動，請確保 slot 內有可聚焦元素，或在使用端自行替 viewport 加 `tabindex`（本元件不強制加，避免在不需要時多出焦點框） |
+| 鍵盤捲動 | viewport 內建 `tabindex="0"`：原生捲軸被隱藏後，Tab 聚焦 viewport 即可用方向鍵 / PageUp/PageDown 捲動（可捲動區本就該是 Tab 停靠點） |
 | `prefers-reduced-motion` | 自動關閉軌道放大過場與淡入淡出 |
 
-> **限制**：overlay 軌道目前不支援以方向鍵直接操作（WAI-ARIA scrollbar 的鍵盤互動）。捲動本身交給原生即可滿足多數情境；若有強鍵盤需求，建議直接用 `native` 模式。
+> **限制**：overlay **軌道 / thumb** 不支援以方向鍵直接操作（WAI-ARIA scrollbar 的鍵盤互動）；鍵盤捲動走「聚焦 viewport + 方向鍵」的原生路徑即可滿足多數情境。
 
 ---
 
@@ -182,7 +182,7 @@ import BaseScrollbar from '~/components/atoms/BaseScrollbar.vue'
 | 不給容器固定尺寸就期待出現捲軸 | 內容不溢出，thumb 長度為 0 | 在使用端給 `height` / `width` |
 | 在 slot 內容自己再寫 `overflow:auto` | 雙層捲動，overlay 抓不到正確捲動量 | 捲動交給 BaseScrollbar 的 viewport，內容只負責內容 |
 | 直接覆蓋 `.base-scrollbar__thumb` 等 BEM class 改色 | 與 token 系統 drift | 優先覆寫 `--scrollbar-*` token |
-| 需要鍵盤完整操作捲軸卻用 overlay 模式 | overlay 不接管鍵盤 | 用 `native` 模式 |
+| 需要以方向鍵直接操作 thumb（ARIA scrollbar 鍵盤互動）卻用 overlay 模式 | overlay 軌道不接管鍵盤（一般鍵盤捲動聚焦 viewport 即可） | 用 `native` 模式 |
 
 ---
 

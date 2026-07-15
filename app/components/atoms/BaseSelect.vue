@@ -58,7 +58,7 @@
               >
                 <BaseChip
                   v-for="opt in visibleChips"
-                  :key="String(opt.value)"
+                  :key="optionKeyOf(opt)"
                   size="sm"
                   :label="opt.label"
                   :deletable="!isDisabled && !isReadonly"
@@ -205,7 +205,7 @@
               <li
                 v-for="item in optionViews"
                 :id="item.id"
-                :key="String(item.option.value)"
+                :key="optionKeyOf(item.option)"
                 class="base-select__option"
                 :class="{
                   'base-select__option--selected': item.selected,
@@ -458,6 +458,23 @@ const vComboboxAria = {
 }
 
 const allOptions = computed<BaseSelectOption<T>[]>(() => props.options ?? [])
+
+/**
+ * option 物件 → 在 `options` 陣列中的原始索引，供 v-for `:key` 使用。
+ * `String(option.value)` 不可作 key：`1` 與 `'1'` 會撞 key、物件 value 全數收斂成
+ * `"[object Object]"`（違反 Vue key 唯一性契約，keyed patch 會錯配節點）。
+ * 原始索引在過濾 / 選取子集下仍穩定且唯一。
+ */
+const optionIndexKeys = computed(() => {
+  const map = new Map<BaseSelectOption<T>, number>()
+  allOptions.value.forEach((option, index) => map.set(option, index))
+  return map
+})
+
+/** v-for `:key`：優先用原始索引；不在 options 內的物件（防禦分支）退回字串化值。 */
+function optionKeyOf(option: BaseSelectOption<T>): number | string {
+  return optionIndexKeys.value.get(option) ?? `value:${String(option.value)}`
+}
 
 /** 過濾後的選項（僅 filterable 且有輸入時過濾）。 */
 const filteredOptions = computed<BaseSelectOption<T>[]>(() => {

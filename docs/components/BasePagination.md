@@ -122,7 +122,7 @@ BasePagination 是「分頁導覽」元件,以語意化 `<nav><ul>` 結構呈現
 每個頁碼 / 導航按鈕都透過 `<BaseButton>` 渲染,**不自己寫 `<button>`**。獲得:
 
 - BaseButton token system(color / variant / size / shape)
-- Disabled 三層保護(`disabled` 屬性 + `pointer-events: none` + JS handleClick guard)
+- 停用保護分兩軌:整組 `disabled` prop 用原生 `disabled` 屬性(靜態停用,不佔 Tab 順序);**邊界項**(首頁的 prev / 末頁的 next)改 `aria-disabled` + `is-disabled` class 保持可聚焦——站在倒數第二頁點 next 抵達末頁時,焦點不會被踢回 body(APG 建議),點擊由 `onItemClick` 攔截為 no-op
 - `:focus-visible` outline ring + `prefers-reduced-motion`
 - 觸控目標 ≥ 44 × 44px(`sm` size 在粗指標裝置自動擴大 hit-area)
 - a11y attribute 完整透傳
@@ -242,7 +242,7 @@ const navItems = computed(() =>
 | 情境 | 行為 |
 |---|---|
 | `total = 0` 或 `perPage <= 0` | `pageCount = 0`,不渲染任何 DOM,**不收斂 `page`**(不會把 `page` 改成 0) |
-| `total < perPage` | `pageCount = 1`,渲染「prev + page 1 + next」,prev/next 都 disabled |
+| `total < perPage` | `pageCount = 1`,渲染「prev + page 1 + next」,prev/next 皆為邊界停用(`aria-disabled`,可聚焦、點擊 no-op) |
 | `total` 縮小使 `pageCount < page`(且 `pageCount >= 1`) | 元件 `watch(pageCount)` 自動把 `page` 收斂到 `pageCount`(最後一頁),透過 `v-model` emit 通知父層,避免停在不存在的頁 |
 | `page <= 0` 或 `page > pageCount`(非因 total 變動) | composable 仍計算;`page <= 0` 不主動 clamp,caller 應確保初始值合法 |
 
@@ -259,7 +259,7 @@ const navItems = computed(() =>
 | 當前頁標記 | selected 按鈕補 `aria-current="page"`(不是 `'true'`) |
 | 按鈕 aria-label | 預設英文,可透過 `labels` 覆寫 |
 | Ellipsis | `aria-hidden="true"`,SR 略過 |
-| Disabled 狀態 | BaseButton 自動補 `disabled` 屬性 + `pointer-events: none` + JS handleClick guard 三層 |
+| Disabled 狀態 | 整組 `disabled` prop → 原生 `disabled` 屬性;邊界項(首/末頁的導覽鈕)→ `aria-disabled="true"` 保持可聚焦(避免抵達邊界頁瞬間焦點遺失,APG 建議),點擊由 JS 攔截 |
 | Focus indicator | BaseButton 內建 `:focus-visible` outline ring |
 | 鍵盤導覽 | 由 BaseButton 透過原生 `<button>` 提供 |
 | 觸控目標 | sm size 在粗指標裝置自動擴大 hit-area 到 44 × 44px |

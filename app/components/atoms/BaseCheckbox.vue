@@ -215,6 +215,15 @@ const validation = group
 function onChange(event: Event) {
   const checked = (event.target as HTMLInputElement).checked
   if (group) {
+    // 群組模式必須提供 value（群組 model 記的是各項 value）：漏給時若照常 toggle，
+    // undefined 會被靜默推進陣列成為髒資料。改為 no-op + dev 警告，並還原勾選外觀。
+    if (props.value === undefined) {
+      if (import.meta.env.DEV) {
+        console.warn('[BaseCheckbox] 群組模式缺少 value prop，此次變更已被忽略。')
+      }
+      ;(event.target as HTMLInputElement).checked = false
+      return
+    }
     // 群組模式：交給群組 toggle（維持容器型別、群組層驗證）。
     group.toggle(props.value)
   } else {

@@ -21,21 +21,31 @@
         </span>
 
         <!-- ── 一般按鈕（頁碼 / first / prev / next / last） ── -->
+        <!--
+          停用策略分兩軌：整組 disabled prop（靜態、無焦點議題）維持原生 disabled，
+          不佔 Tab 順序；「邊界項」（首頁的 prev / 末頁的 next）改 aria-disabled +
+          is-disabled class——站在倒數第二頁點 next 抵達末頁時，next 若轉原生 disabled
+          會把鍵盤焦點踢回 body（APG 建議 aria-disabled 保持可聚焦）；點擊由 onItemClick 攔下。
+        -->
         <BaseButton
           v-else
           :color="getButtonColor(item)"
           :variant="getButtonVariant(item)"
           :size="size"
           :shape="shape"
-          :disabled="item.disabled"
+          :disabled="disabled"
+          :aria-disabled="(!disabled && item.disabled) || undefined"
           :aria-label="getButtonAriaLabel(item)"
           :aria-current="item.ariaCurrent"
           class="base-pagination__button"
           :class="[
             `base-pagination__button--${item.type}`,
-            { 'base-pagination__button--selected': item.selected },
+            {
+              'base-pagination__button--selected': item.selected,
+              'is-disabled': !disabled && item.disabled,
+            },
           ]"
-          @click="item.onClick"
+          @click="onItemClick(item)"
         >
           <!-- 頁碼：允許 caller 自訂頁碼長什麼樣子 -->
           <template v-if="item.type === 'page'">
@@ -276,6 +286,12 @@ const mergedLabels = computed<Required<BasePaginationLabels>>(() => ({
   page: props.labels.page ?? DEFAULT_LABELS.page,
   current: props.labels.current ?? DEFAULT_LABELS.current,
 }))
+
+/** 停用項的點擊攔截（見 template 註解：不用原生 disabled 以保留鍵盤焦點）。 */
+function onItemClick(item: PaginationItem) {
+  if (item.disabled) return
+  item.onClick()
+}
 
 function getButtonAriaLabel(item: PaginationItem): string | undefined {
   const labels = mergedLabels.value

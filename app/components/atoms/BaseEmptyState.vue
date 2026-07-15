@@ -3,8 +3,9 @@
     class="base-empty-state"
     :class="`base-empty-state--${size}`"
   >
+    <!-- icon=false 時即使有 #icon slot 也不渲染（與 BaseAlert / BaseResult 行為一致）。 -->
     <div
-      v-if="icon || slots.icon"
+      v-if="icon"
       class="base-empty-state__icon"
       aria-hidden="true"
     >
@@ -71,7 +72,7 @@ export interface BaseEmptyStateProps {
   title?: string
   /** 補充說明；提供 `#description` slot 時以 slot 為準。 */
   description?: string
-  /** 顯示內建 inbox 圖示；`#icon` slot 存在時以 slot 為準。 @default true */
+  /** 是否顯示圖示區；`false` 時含 `#icon` slot 一律不渲染（同 BaseAlert / BaseResult）。 @default true */
   icon?: boolean
   /** 尺寸：控制圖示大小與容器留白。 @default 'md' */
   size?: 'sm' | 'md' | 'lg'

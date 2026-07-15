@@ -35,6 +35,8 @@
 | **不要 1 對 1 包裝原生 prop** | 別寫 `nativeType` + `type` 兩個 prop;一個就夠 |
 | **公開 props interface** | `export interface ButtonProps`,讓 caller 可以 `extends ButtonProps` 做包裝元件 |
 | **Vue 3.4+ v-model 用 `defineModel`** | 禁手寫 `defineProps(['modelValue']) + defineEmits(['update:modelValue'])` 舊樣板。MUST 用泛型:`defineModel<T>()`;2 個以上 v-model 全部具名:`defineModel<T>('xxx')`;子元件直接改 `model.value`,不要手動 emit。詳細寫法見 `~/.claude/rules/component-architecture.md` |
+| **⚠️ defineModel 禁止「寫後讀」** | 父層綁 v-model 時 model 是**受控 prop**:寫 `model.value` 只會 emit,**不會同步回讀**(要等父層 flush 才回流)。同一輪執行內需要「寫入後的目前值」,一律以函式回傳值 / 本地變數傳遞,MUST NOT 寫後回讀 `model.value`。僅傳 `modelValue` prop、無 update 監聽的測試走不到受控路徑,抓不到這類 bug |
+| **⚠️ 手動管理 DOM 值時,`:value` 不可綁常數快照** | Vue renderer 對 `value` prop **不做同值跳過**(每次 re-render 強制 re-patch)——`:value` 綁常數(如 SSR 初始快照)時,父層驅動的任何 re-render 都會把使用者輸入蓋回常數值。由 composable 手動管理 DOM 值的控制項,client 端的 `:value` 必須鏡射「render 當下的 DOM 值」(`inputRef?.value ?? initialSnapshot`),讓強制 re-patch 恆為 no-op |
 
 ### 3. Slot 設計原則
 
@@ -137,6 +139,7 @@
 - [ ] TypeScript strict,公開 `export interface XxxProps`
 - [ ] 預設值安全(`type='button'`、`disabled=false`)
 - [ ] **Vue 3.4+ 雙向綁定用 `defineModel<T>()`**,不手寫 `modelValue` + `update:modelValue` 樣板
+- [ ] **無「寫 model 後同 tick 讀 model」**——受控模式下回讀是舊值,需要新值時用回傳值傳遞(見 §2)
 - [ ] **用對語意標籤** — 互動元素用 `<button>` / `<a>`,內容區段用 `<section>` / `<article>` 等
 - [ ] **圖片必填 `alt`** — required prop;裝飾性圖明示 `alt=""`
 - [ ] disabled / loading 雙重保護(attribute + CSS pointer-events)
@@ -153,6 +156,7 @@
 ### 11. 驗收階段
 
 - [ ] Storybook / Histoire 列出所有 variant × color × size × state 組合
+- [ ] **有狀態互動含「父層綁 v-model」測試**——以真實父元件 `v-model` 掛載;僅傳 `modelValue` prop(無 update 監聽)的 mount 是本地模式,走不到 defineModel 受控路徑
 - [ ] 鍵盤實測:Tab / Shift+Tab / Enter / Space / Esc / 方向鍵(視元件適用)
 - [ ] 螢幕閱讀器實測:VoiceOver / NVDA 至少一個
 - [ ] 對比度檢查(Chrome DevTools / axe DevTools)

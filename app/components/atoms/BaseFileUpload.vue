@@ -103,7 +103,7 @@
         >
           <li
             v-for="(file, index) in files"
-            :key="`${file.name}-${file.size}-${file.lastModified}`"
+            :key="fileKeyOf(file)"
             class="base-file-upload__item"
           >
             <slot
@@ -331,13 +331,31 @@ function remove(index: number) {
 function onDragOver() {
   if (!props.disabled && props.drag) isDragging.value = true
 }
-function onDragLeave() {
+function onDragLeave(event: DragEvent) {
+  // 拖曳滑入 dropzone 的子元素（icon / 文字）也會對 dropzone 觸發 dragleave：
+  // relatedTarget 仍在 dropzone 內就不是真正離開，忽略以免拖曳提示抖動。
+  const next = event.relatedTarget as Node | null
+  if (next && (event.currentTarget as HTMLElement).contains(next)) return
   isDragging.value = false
 }
 function onDrop(event: DragEvent) {
   isDragging.value = false
   if (props.disabled || !props.drag) return
   addFiles(Array.from(event.dataTransfer?.files ?? []))
+}
+
+// ── v-for key ────────────────────────────────────────────────────────────────
+// File 物件 → 遞增 uid。`name-size-lastModified` 組合在「同一檔案選兩次」時會撞 key
+// （multiple 模式合法情境，duplicate key 使 keyed patch 錯配）；以物件身分派發唯一 key。
+let fileUidSeed = 0
+const fileUids = new WeakMap<File, number>()
+function fileKeyOf(file: File): number {
+  let uid = fileUids.get(file)
+  if (uid === undefined) {
+    uid = ++fileUidSeed
+    fileUids.set(file, uid)
+  }
+  return uid
 }
 
 // ── 圖片縮圖(object URL 生命週期,client-only)──────────────────────────────

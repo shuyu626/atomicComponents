@@ -78,6 +78,29 @@ describe('validators', () => {
     it('passes empty', () => {
       expect(pattern(/^\d+$/)('')).toBe(true)
     })
+
+    // /g /y 旗標的 regex 有 stateful lastIndex：不隔離的話，同一條規則
+    // 重複驗證同一值會交替翻轉結果（共用庫經典地雷）。
+    it('is stable across repeated validations with a /g regex (no lastIndex leak)', () => {
+      const rule = pattern(/^\d+$/g)
+      expect(rule('123')).toBe(true)
+      expect(rule('123')).toBe(true)
+      expect(rule('123')).toBe(true)
+    })
+
+    it('is stable across repeated validations with a /y (sticky) regex', () => {
+      const rule = pattern(/^\d+$/y)
+      expect(rule('123')).toBe(true)
+      expect(rule('123')).toBe(true)
+    })
+
+    it('does not mutate the caller-provided regex (lastIndex untouched)', () => {
+      const re = /^\d+$/g
+      re.lastIndex = 0
+      const rule = pattern(re)
+      rule('123')
+      expect(re.lastIndex).toBe(0)
+    })
   })
 
   // ── sameAs ────────────────────────────────────────────────────────────────────

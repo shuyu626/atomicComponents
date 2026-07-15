@@ -198,7 +198,7 @@ const itemsCompose = computed(() =>
  * 選單鍵盤導覽（WAI-ARIA menu 模式）：
  * - ↓ / ↑：移到下 / 上一個可聚焦項（`moveFocus` 自動跳過 disabled 並繞回）
  * - Home / End：跳到第一 / 最後一個
- * - Tab：關閉選單（焦點交還由 BasePopover 的 focus-trap 還給 reference）
+ * - Tab：關閉選單（BasePopover 偵測到關閉瞬間焦點仍在浮層內，會還焦給 reference）
  * Esc 與點擊外部由 BasePopover 處理。
  */
 function onMenuKeydown(event: KeyboardEvent) {

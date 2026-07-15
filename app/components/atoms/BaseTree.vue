@@ -125,7 +125,7 @@ export interface BaseTreeNode {
 </script>
 
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 
 import BaseCheckbox from '~/components/atoms/BaseCheckbox.vue'
 import BaseSpinner from '~/components/atoms/BaseSpinner.vue'
@@ -265,9 +265,17 @@ function allParentKeys(): BaseTreeKey[] {
 }
 
 // 非受控且 defaultExpandAll:初始展開所有父節點。
-if (props.defaultExpandAll && expanded.value.length === 0) {
-  expanded.value = allParentKeys()
-}
+// nodes 常為非同步載入（初始空陣列、資料到達才有內容），setup 只跑一次會漏掉，
+// 故監聽 nodes 並在「首批有效節點」時套用一次；已套用或使用者已有展開狀態則不再介入
+// （避免資料刷新時蓋掉使用者的收合操作）。
+let defaultExpandApplied = false
+watch(() => props.nodes, () => {
+  if (!props.defaultExpandAll || defaultExpandApplied) return
+  const keys = allParentKeys()
+  if (!keys.length) return
+  if (expanded.value.length === 0) expanded.value = keys
+  defaultExpandApplied = true
+}, { immediate: true })
 
 // ── 展開 / 收合 ─────────────────────────────────────────────────────────────
 async function toggleExpand(node: BaseTreeNode) {

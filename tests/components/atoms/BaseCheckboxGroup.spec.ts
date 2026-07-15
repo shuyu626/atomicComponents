@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { h, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 
@@ -127,5 +127,23 @@ describe('BaseCheckboxGroup', () => {
   it('per-child color overrides the group color', () => {
     const wrapper = mountGroup({ modelValue: [], color: 'success' }, { color: 'danger' })
     expect(wrapper.findAll('.base-checkbox').every((c) => c.classes().includes('base-checkbox--danger'))).toBe(true)
+  })
+})
+
+describe('BaseCheckboxGroup — 缺 value 的群組子項防護', () => {
+  it('群組內漏給 value 的 checkbox：點擊不把 undefined 寫進 model，並發出 dev 警告', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const w = mount(BaseCheckboxGroup, {
+      props: { modelValue: [] },
+      slots: { default: () => [h(BaseCheckbox, { label: '沒有 value' })] },
+      attachTo: document.body,
+    })
+
+    await w.find('input[type="checkbox"]').setValue(true)
+
+    expect(w.emitted('update:modelValue')).toBeUndefined()
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+    w.unmount()
   })
 })

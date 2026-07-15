@@ -29,7 +29,7 @@
       class="base-popover"
       :class="{ 'base-popover--positioned': isPositioned }"
       :role="role"
-      :style="floatingStyles"
+      :style="[floatingStyles, { '--popover-z-auto': zIndex }]"
       @mouseenter="onPopoverMouseenter"
       @mouseleave="onPopoverMouseleave"
     >
@@ -85,6 +85,7 @@ import { tabbable } from 'tabbable'
 import {
   computed,
   defineComponent,
+  nextTick,
   onMounted,
   onUnmounted,
   shallowRef,
@@ -97,7 +98,7 @@ import {
 import type { FocusTrap } from 'focus-trap'
 import type { VNode } from 'vue'
 
-import { overlayTrapStack } from '~/composables/useOverlay'
+import { OVERLAY_BASE_Z, overlayTrapStack } from '~/composables/useOverlay'
 import { usePopupsManager } from '~/composables/usePopupsManager'
 import findFirstLegitChild from '~/helpers/findFirstLegitChild'
 import toArray from '~/utils/toArray'
@@ -275,9 +276,12 @@ const ariaControls = computed<string | undefined>(() =>
   !isTooltip.value && open.value ? id : undefined,
 )
 
-/** reference 的 `aria-describedby`：僅 tooltip 用，聚焦時螢幕閱讀器念出提示內容。 */
+/**
+ * reference 的 `aria-describedby`：僅 tooltip 用，聚焦時螢幕閱讀器念出提示內容。
+ * 浮層僅在開啟時才渲染，故關閉時不輸出（避免指向不存在的 id，同 `ariaControls`）。
+ */
 const ariaDescribedby = computed<string | undefined>(() =>
-  isTooltip.value ? id : undefined,
+  isTooltip.value && open.value ? id : undefined,
 )
 
 /** reference 的 `aria-expanded`：disclosure 的開合狀態；tooltip 省略（回傳 undefined）。 */
@@ -323,7 +327,27 @@ function closeByHover() {
   closeTimer = setTimeout(() => setOpen(false), props.hoverCloseDelay)
 }
 
-const onClick = withTrigger(() => setOpen(!open.value), 'click')
+// touch 與 click 併用時，一次點按會依序發出 touchstart 與「合成 click」：
+// touchstart 已 toggle 過就抑制隨後的合成 click，避免雙重 toggle（浮層閃開即關）。
+// 旗標帶 500ms 時限：touchstart 後合成 click 未到（滑動取消等），不誤吞下一次真 click。
+let suppressSyntheticClick = false
+let suppressTimer: ReturnType<typeof setTimeout> | undefined
+
+function clearClickSuppression() {
+  suppressSyntheticClick = false
+  if (suppressTimer) {
+    clearTimeout(suppressTimer)
+    suppressTimer = undefined
+  }
+}
+
+const onClick = withTrigger(() => {
+  if (suppressSyntheticClick) {
+    clearClickSuppression()
+    return
+  }
+  setOpen(!open.value)
+}, 'click')
 
 // 判斷元素是否本來就會 Enter/Space 觸發 click
 function nativelyActivatesOnKey(el: HTMLElement): boolean {
@@ -361,7 +385,17 @@ const onBlur = withTrigger((event: FocusEvent) => {
   setOpen(false)
 }, 'focus')
 
-const onTouchstart = withTrigger(() => setOpen(!open.value), 'touch')
+const onTouchstart = withTrigger(() => {
+  // 只有 click 同時啟用才需要抑制合成 click（否則合成 click 本就不會被 withTrigger 處理）。
+  if (toArray(props.trigger).includes('click')) {
+    // 先清掉前一次點按的 timer 再設旗標：否則舊 timer 到期會把本次的抑制一併清掉，
+    // 連續兩次點按（間隔 <500ms）時第二次的合成 click 就會漏過、雙重 toggle。
+    clearClickSuppression()
+    suppressSyntheticClick = true
+    suppressTimer = setTimeout(clearClickSuppression, 500)
+  }
+  setOpen(!open.value)
+}, 'touch')
 
 /**
  * 是否啟用浮層內的 focus trap。只有 click / touch 這類「開啟後持續互動」的觸發
@@ -406,8 +440,24 @@ const popups = usePopupsManager()
 // 因此「Modal 內再開 Popover」時，Esc 的頂層判斷能跨兩套浮層體系正確協調。
 const popupToken = Symbol('popover')
 
+/**
+ * z-index 依開啟順序派發（與 useOverlay 同一基準、同一 popups 堆疊）：
+ * 視覺疊序＝開啟序。寫死高值（舊 1150）會讓「Popover 內開 Modal」時
+ * 後開的 Modal（1100 + index）被壓在 Popover 之下。
+ *
+ * inline 綁到 `--popover-z-auto` 而非 `--popover-z`：inline style 恆勝 stylesheet，
+ * 直接綁公開變數會讓使用端的 CSS 覆寫（`.base-popover { --popover-z: X }`）失效。
+ * CSS 端以 `var(--popover-z, var(--popover-z-auto))` 讀取——使用端有設就用使用端的，
+ * 沒設才用自動派發值。
+ */
+const zIndex = computed(() => {
+  const index = popups.getIndex(popupToken)
+  return OVERLAY_BASE_Z + (index < 0 ? 0 : index)
+})
+
 function onEscKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape') return
+  // IME 組字中的 Esc 是「取消選字」，不該連浮層一起關（CJK 輸入的日常路徑）。
+  if (event.key !== 'Escape' || event.isComposing) return
   // 只有最上層浮層回應 Esc：多個浮層並存時，一次只關最上面那個（避免一次全關）。
   if (!open.value || !popups.isTop(popupToken)) return
   // 與 useOverlay 一致用 preventDefault（而非 stopPropagation）：靠 isTop 做頂層協調，
@@ -473,8 +523,16 @@ watch(shouldRenderPopover, (active) => {
     addGlobalListeners()
   }
   else {
+    // 關閉瞬間（pre-flush，DOM 尚未移除）快照焦點位置：焦點仍在浮層內＝鍵盤／程式化
+    // 關閉（Esc、Dropdown 的 Tab、內容裡的關閉鈕…）→ 浮層移除後還焦給 reference，
+    // 鍵盤脈絡不中斷。點外部關閉時焦點已落在外部 → 不進此分支，維持不搶焦。
+    const hadFocusInside
+      = !!popoverRef.value && popoverRef.value.contains(document.activeElement)
     popups.remove(popupToken)
     removeGlobalListeners()
+    if (hadFocusInside) {
+      void nextTick(() => referenceRef.value?.focus())
+    }
   }
 })
 
@@ -491,6 +549,7 @@ onUnmounted(() => {
   removeGlobalListeners()
   popups.remove(popupToken)
   clearCloseTimer()
+  clearClickSuppression()
   trap?.deactivate()
   trap = undefined
 })
@@ -525,6 +584,7 @@ watch(popoverRef, (popover) => {
     clickOutsideDeactivates: true, // 點外面時自動解除 trap(配合上面 onClickOutside 的點外關閉)
     // 點外部解除 trap 時不把焦點搶回 reference：否則使用者點頁面上其他輸入框，
     // 焦點會被 focus-trap 預設的 returnFocusOnDeactivate 拉回 trigger。
+    // 鍵盤／程式化關閉的還焦不靠 trap，由 shouldRenderPopover watcher 的焦點快照統一處理。
     returnFocusOnDeactivate: false,
     escapeDeactivates: false, // Esc 交由 onEscKeydown 統一處理(含頂層判斷)，不讓 focus-trap 自行解除
   })
@@ -540,13 +600,13 @@ watch(popoverRef, (popover) => {
   --popover-border: #e5e7eb;
   --popover-radius: 0.5rem;
   --popover-shadow: 0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%);
-  // 浮層層級高於對話框（Modal/Dialog/Drawer 為 1100），低於 Toast（1200）：
-  // 確保「在 Modal 內開 Select / Dropdown / Popover」時浮層不會被對話框蓋住。
-  --popover-z: 1150;
+  // z 層級：--popover-z-auto 由 script 依開啟順序動態派發（inline 綁定，與 Modal 家族
+  // 同一堆疊基準 1100 + index）→ 後開的浮層永遠疊在先開的之上；使用端要強制層級時
+  // 覆寫公開的 --popover-z（優先於自動派發值）。
   --popover-padding: 0.5rem 0.75rem;
 
   // floatingStyles 已用 inline style 設定 position/top/left，這裡只補視覺。
-  z-index: var(--popover-z);
+  z-index: var(--popover-z, var(--popover-z-auto, 1100));
   padding: var(--popover-padding);
   color: var(--popover-color);
   background: var(--popover-bg);

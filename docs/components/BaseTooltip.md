@@ -124,7 +124,7 @@ import BaseTooltip from '~/components/atoms/BaseTooltip.vue'
 
 | 對象 | 必做 |
 |---|---|
-| reference | 由底座掛 `aria-describedby`（指向提示 id，聚焦時螢幕閱讀器念出提示內容）；`tooltip` role 下**不設** `aria-expanded` / `aria-controls` / `aria-haspopup` —— 那些是 disclosure widget（menu/dialog）語意，標在 tooltip 上會被誤念「已摺疊」。底座對 `role="tooltip"` 特判，符合 WAI-ARIA tooltip 規範 |
+| reference | 由底座掛 `aria-describedby`（指向提示 id，**僅在開啟時輸出**，聚焦時螢幕閱讀器念出提示內容）；`tooltip` role 下**不設** `aria-expanded` / `aria-controls` / `aria-haspopup` —— 那些是 disclosure widget（menu/dialog）語意，標在 tooltip 上會被誤念「已摺疊」。底座對 `role="tooltip"` 特判，符合 WAI-ARIA tooltip 規範 |
 | 提示 | `role="tooltip"`、`id`（`useId()`，與 reference 的 `aria-describedby` 配對） |
 | 鍵盤 | 預設含 `focus` 觸發 → Tab 聚焦錨點即顯示；Esc 關閉（底座提供） |
 | 箭頭 | `aria-hidden="true"`（純裝飾） |

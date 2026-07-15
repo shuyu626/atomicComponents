@@ -349,3 +349,34 @@ describe('BaseScrollbar', () => {
     })
   })
 })
+
+describe('BaseScrollbar — native 切換與鍵盤可及性', () => {
+  function mockViewportSize(viewport: HTMLElement) {
+    Object.defineProperty(viewport, 'offsetHeight', { value: 200, configurable: true })
+    Object.defineProperty(viewport, 'scrollHeight', { value: 800, configurable: true })
+    Object.defineProperty(viewport, 'offsetWidth', { value: 200, configurable: true })
+    Object.defineProperty(viewport, 'scrollWidth', { value: 200, configurable: true })
+  }
+
+  it('執行期 native true→false 會重算 thumb（垂直軌道出現，而非停在 0）', async () => {
+    const w = mount(BaseScrollbar, {
+      props: { native: true },
+      slots: { default: () => h('div', { style: 'height: 800px' }, 'content') },
+      attachTo: document.body,
+    })
+    mockViewportSize(w.find('.base-scrollbar__viewport').element as HTMLElement)
+
+    await w.setProps({ native: false })
+    await nextTick()
+    expect(w.find('.base-scrollbar__track--vertical').exists()).toBe(true)
+    w.unmount()
+  })
+
+  it('viewport 可被鍵盤聚焦（tabindex=0）——原生捲軸被隱藏後鍵盤仍能捲動', () => {
+    const w = mount(BaseScrollbar, {
+      slots: { default: () => h('div', 'content') },
+    })
+    expect(w.find('.base-scrollbar__viewport').attributes('tabindex')).toBe('0')
+    w.unmount()
+  })
+})

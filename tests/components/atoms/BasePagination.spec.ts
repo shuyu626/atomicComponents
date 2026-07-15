@@ -455,3 +455,20 @@ describe('BasePagination', () => {
     })
   })
 })
+
+describe('BasePagination — 邊界頁的導覽鈕焦點保留', () => {
+  it('末頁時 next 改用 aria-disabled（保持可聚焦）而非原生 disabled，點擊為 no-op', async () => {
+    const w = mount(BasePagination, {
+      props: { modelValue: 10, total: 100, perPage: 10 },
+      attachTo: document.body,
+    })
+    const next = w.find('.base-pagination__button--next')
+
+    expect((next.element as HTMLButtonElement).disabled).toBe(false)
+    expect(next.attributes('aria-disabled')).toBe('true')
+
+    await next.trigger('click')
+    expect(w.emitted('update:modelValue')).toBeUndefined()
+    w.unmount()
+  })
+})

@@ -99,9 +99,11 @@ export default function useComposingModel<T extends string | number>(
     const el = event.target as HTMLInputElement | HTMLTextAreaElement
     // change（blur / Enter）一律提交：涵蓋 `.lazy`，也讓 `.trim` / 數字轉型在失焦後把
     // 顯示值正規化（去尾隨空白 / 去無效字元）——此時 model 可能未變、watchEffect 不會觸發，
-    // 故在這裡直接把 el.value 同步成正規化後的字串。
-    model.value = readValue(el.value)
-    const canonical = model.value == null ? '' : String(model.value)
+    // 故在這裡直接把 el.value 同步成正規化後的字串。正規化字串以「本次寫入的值」推導，
+    // 不回讀 model——父層綁 v-model 時寫後回讀拿到舊值，會把畫面改回舊字串。
+    const value = readValue(el.value)
+    model.value = value
+    const canonical = String(value)
     if (el.value !== canonical) el.value = canonical
   }
 

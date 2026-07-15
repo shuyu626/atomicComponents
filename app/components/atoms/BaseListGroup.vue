@@ -47,11 +47,16 @@
       </svg>
     </button>
 
+    <!--
+      子清單用 role="list"（非 role="group"）：ARIA 規定 listitem 的 owner 必須是
+      list，group 內放 listitem 是 invalid ARIA（axe: aria-required-parent）。
+      顯式 role 同時沿用 BaseList 的 Safari 修復（list-style: none 會拔掉隱含 list 語意）。
+    -->
     <ul
       v-show="open"
       :id="panelId"
       class="base-list-group__items"
-      role="group"
+      role="list"
       :aria-label="title || undefined"
     >
       <slot />

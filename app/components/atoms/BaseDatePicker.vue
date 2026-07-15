@@ -905,6 +905,111 @@ function addDays(date: Date, n: number): Date {
 }
 
 /**
+ * 自 `start`（含自身）沿 `step` 方向找第一個非 disabled 的日期；掃滿 `limit` 天
+ * 仍全數停用時回傳 `null`（極端情境：整個方向上都被 min/max/disabledDate 擋住）。
+ */
+function firstEnabledFrom(start: Date, step: 1 | -1, limit = 366): Date | null {
+  let day = start
+  for (let i = 0; i < limit; i++) {
+    if (!isDisabled(day)) return day
+    day = addDays(day, step)
+  }
+  return null
+}
+
+/**
+ * 在指定月份內找最接近 `preferredDay` 的可用日：先由 preferredDay 往月底掃，
+ * 再往月初回掃；整月停用回傳 `null`。供視圖夾回邏輯用——焦點日必須是可聚焦的
+ * （非 disabled）按鈕，落在停用格上 tabindex=0 也無法 focus，roving 鏈照樣斷。
+ */
+function firstEnabledInMonth(year: number, month: number, preferredDay: number): Date | null {
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const from = Math.min(preferredDay, daysInMonth)
+  for (let d = from; d <= daysInMonth; d++) {
+    const day = new Date(year, month, d)
+    if (!isDisabled(day)) return day
+  }
+  for (let d = from - 1; d >= 1; d--) {
+    const day = new Date(year, month, d)
+    if (!isDisabled(day)) return day
+  }
+  return null
+}
+
+/** 日期是否落在目前渲染的任一面板月份內（區間為左 / 右兩個面板）。 */
+function isDateVisible(day: Date): boolean {
+  return monthsToRender.value.some(
+    (view) => view.year === day.getFullYear() && view.month === day.getMonth(),
+  )
+}
+
+/**
+ * 鍵盤導覽的視圖跟隨（區間雙面板）：
+ * - 目標日**已在任一面板內** → 完全不動視圖，讓焦點自然移進另一個面板
+ *   （否則左面板恆跟著焦點日，右面板永遠拿不到 `tabindex=0`、成為鍵盤死區）。
+ * - 目標日跨出畫面 → 以越界的那一側為錨最小幅度移動，並維持**雙面板連續**（右 = 左 + 1）。
+ *   只維持「左 < 右」不夠：往前跨月時右面板不動會留下月份斷層（7月|8月 → 6月|8月）。
+ *
+ * 兩側各自導覽（滑鼠）造成的非連續月份是刻意功能，僅在鍵盤跨出畫面時才收斂為連續。
+ */
+function syncViewToFocused(target: Date) {
+  const year = target.getFullYear()
+  const month = target.getMonth()
+
+  if (!props.range) {
+    viewYear.value = year
+    viewMonth.value = month
+    return
+  }
+
+  if (isDateVisible(target)) return
+
+  if (ordinal(year, month) < ordinal(viewYear.value, viewMonth.value)) {
+    // 往前越過左面板 → 左面板對齊目標月，右面板順推為左 + 1
+    const next = addMonths(year, month, 1)
+    viewYear.value = year
+    viewMonth.value = month
+    viewYear2.value = next.year
+    viewMonth2.value = next.month
+  }
+  else {
+    // 往後越過右面板（或落在兩個非連續面板之間）→ 右面板對齊目標月，左面板順拉為右 - 1
+    const prev = addMonths(year, month, -1)
+    viewYear2.value = year
+    viewMonth2.value = month
+    viewYear.value = prev.year
+    viewMonth.value = prev.month
+  }
+}
+
+/**
+ * Roving tabindex 不斷鏈的不變量：檢視月份變動（滑鼠翻月 / 年月快選 / 雙面板推擠）時，
+ * 若 roving 焦點日已不在任何渲染面板中，夾回**距離最近的面板**「最接近同號日的可用日」。
+ * 否則整個視圖沒有任何 tabindex=0（且可聚焦）的日格，鍵盤使用者永遠 Tab 不進日曆。
+ * 取最近面板而非固定左面板：焦點可能正落在右面板，固定夾回左側會把焦點無故拉走。
+ * 整月停用時退回同號日（該月本就無可聚焦格，屬滑鼠瀏覽情境）。
+ * （鍵盤導覽自身已由 syncViewToFocused 保證目標可見，進到這裡必為 no-op。）
+ */
+watch([viewYear, viewMonth, viewYear2, viewMonth2], () => {
+  const cur = focusedDate.value
+  if (!cur) return
+  if (isDateVisible(cur)) return
+
+  const curOrd = ordinal(cur.getFullYear(), cur.getMonth())
+  const distance = (view: { year: number; month: number }) =>
+    Math.abs(ordinal(view.year, view.month) - curOrd)
+  const target = monthsToRender.value.reduce(
+    (best, view) => (distance(view) < distance(best) ? view : best),
+  )
+  if (!target) return
+
+  const daysInMonth = new Date(target.year, target.month + 1, 0).getDate()
+  const preferred = Math.min(cur.getDate(), daysInMonth)
+  focusedDate.value = firstEnabledInMonth(target.year, target.month, preferred)
+    ?? new Date(target.year, target.month, preferred)
+})
+
+/**
  * 位移 n 個月，並把「日」夾到目標月的天數上界。
  * 直接 `new Date(y, m±1, d)` 會在來源日超過目標月天數時溢位（如 5/31 往前一月
  * 變成 5/1 而非 4/30）；此處以「目標月下個月的第 0 天」取得該月最後一日再 clamp。
@@ -929,15 +1034,18 @@ function onGridKeydown(event: KeyboardEvent) {
   if (!cur) return
 
   let next: Date | null = null
+  // 目標日停用時的續掃方向：方向鍵 / PageUp / PageDown 沿移動方向；
+  // Home / End 往「週內」（朝原焦點日）找，不跳出本週語意太遠。
+  let scanStep: 1 | -1 = 1
   switch (event.key) {
-    case 'ArrowRight': next = addDays(cur, 1); break
-    case 'ArrowLeft': next = addDays(cur, -1); break
-    case 'ArrowDown': next = addDays(cur, 7); break
-    case 'ArrowUp': next = addDays(cur, -7); break
-    case 'Home': next = addDays(cur, -((cur.getDay() - props.firstDayOfWeek + 7) % 7)); break
-    case 'End': next = addDays(cur, 6 - ((cur.getDay() - props.firstDayOfWeek + 7) % 7)); break
-    case 'PageUp': next = addMonthsClamped(cur, -1); break
-    case 'PageDown': next = addMonthsClamped(cur, 1); break
+    case 'ArrowRight': next = addDays(cur, 1); scanStep = 1; break
+    case 'ArrowLeft': next = addDays(cur, -1); scanStep = -1; break
+    case 'ArrowDown': next = addDays(cur, 7); scanStep = 1; break
+    case 'ArrowUp': next = addDays(cur, -7); scanStep = -1; break
+    case 'Home': next = addDays(cur, -((cur.getDay() - props.firstDayOfWeek + 7) % 7)); scanStep = 1; break
+    case 'End': next = addDays(cur, 6 - ((cur.getDay() - props.firstDayOfWeek + 7) % 7)); scanStep = -1; break
+    case 'PageUp': next = addMonthsClamped(cur, -1); scanStep = -1; break
+    case 'PageDown': next = addMonthsClamped(cur, 1); scanStep = 1; break
     case 'Enter':
     case ' ':
       event.preventDefault()
@@ -948,15 +1056,16 @@ function onGridKeydown(event: KeyboardEvent) {
   }
 
   event.preventDefault()
-  focusedDate.value = next
-  if (props.range) {
-    setLeftView(next.getFullYear(), next.getMonth())
-  }
-  else {
-    viewYear.value = next.getFullYear()
-    viewMonth.value = next.getMonth()
-  }
-  focusDay(next)
+
+  // 目標日被停用 → 沿 scanStep 找第一個可用日。直接把焦點日設在 disabled 按鈕上，
+  // `focusDay` 的 `.focus()` 會靜默失敗（disabled 不可聚焦），視覺焦點消失且與
+  // focusedDate 脫鉤；掃無可用日（極端全停用）則保持原焦點不動。
+  const target = firstEnabledFrom(next, scanStep)
+  if (!target) return
+
+  focusedDate.value = target
+  syncViewToFocused(target)
+  focusDay(target)
 }
 
 // ── 開合副作用 ──────────────────────────────────────────────────────────────
@@ -967,7 +1076,15 @@ watch(active, (open) => {
     syncView()
     pendingStart.value = null
     hoverDate.value = null
-    focusedDate.value = baseViewDate()
+    // 焦點日不落在 disabled 日（同 onGridKeydown 的防護）：否則該格不可聚焦，
+    // 鍵盤 Tab 不進日曆。先往後、再往前找可用日（「僅限過去日期」的 picker 只有
+    // 反向有可用日）；雙向皆無（極端全停用）才維持原值。
+    const base = baseViewDate()
+    const target = firstEnabledFrom(base, 1) ?? firstEnabledFrom(base, -1) ?? base
+    focusedDate.value = target
+    // 視圖跟隨焦點日（同鍵盤導覽）：base 所在月整月停用時，焦點日會落在他月，
+    // 不同步的話該日不在畫面上，日曆一樣沒有 tabindex=0 的格子。
+    syncViewToFocused(target)
     return
   }
   // 關閉 = 失焦：標記 touched 後開始顯示驗證錯誤,並把焦點還給控制項。

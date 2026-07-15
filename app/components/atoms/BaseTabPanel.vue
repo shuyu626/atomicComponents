@@ -59,9 +59,11 @@ const renderContent = computed(() => !props.lazy || hasBeenShown.value)
 // 預設 false（SSR 與首次渲染一致避免 hydration mismatch），掛載後再實際偵測。
 const panel = ref<HTMLElement | null>(null)
 const selfFocusable = ref(false)
-// 原生可被 Tab 鍵聚焦的元素類型，注意：排除 tabindex="-1"（程式化聚焦用，不能被 Tab 鍵聚焦，不該算「面板已有可聚焦元素」）
+// 原生可被 Tab 鍵聚焦的元素類型，注意：排除 tabindex="-1"（程式化聚焦用，不能被 Tab 鍵
+// 聚焦）與 disabled / hidden 的控制項——它們同樣不可被 Tab，不該算「面板已有可聚焦元素」，
+// 否則面板內只剩 disabled 按鈕時，面板不補 tabindex、鍵盤永遠進不了面板內容。
 const FOCUSABLE_SELECTOR =
-  'a[href],area[href],button,input,select,textarea,[tabindex]:not([tabindex="-1"]),[contenteditable="true"],audio[controls],video[controls],iframe'
+  'a[href]:not([hidden]),area[href],button:not([disabled]):not([hidden]),input:not([disabled]):not([hidden]),select:not([disabled]):not([hidden]),textarea:not([disabled]):not([hidden]),[tabindex]:not([tabindex="-1"]):not([hidden]),[contenteditable="true"],audio[controls],video[controls],iframe:not([hidden])'
 
 // 面板裡沒有任何能被 Tab 的元素 → 面板自己需要當停靠點
 function syncSelfFocusable() {

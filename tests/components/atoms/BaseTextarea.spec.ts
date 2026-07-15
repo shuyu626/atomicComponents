@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 
 import BaseTextarea from '~/components/atoms/BaseTextarea.vue'
 
@@ -282,6 +282,32 @@ describe('BaseTextarea', () => {
       vm.reset()
       await nextTick()
       expect(w.find('.base-form-field').classes()).not.toContain('base-form-field--error')
+    })
+  })
+
+  // ── 父層綁定 v-model（受控模式）──────────────────────────────────────────────
+  // 與 BaseTextField 同型的守護：SSR 快照 :value 不得在父層驅動的 re-render 蓋掉輸入
+  //（Vue renderer 對 value prop 不做同值跳過）。
+  describe('controlled v-model (parent-bound)', () => {
+    it('keeps typed text on parent-driven re-render (no stomp back to the SSR snapshot)', async () => {
+      const Host = defineComponent({
+        components: { BaseTextarea },
+        setup() {
+          const text = ref('old')
+          return { text }
+        },
+        template: '<BaseTextarea v-model="text" />',
+      })
+      const w = mount(Host, { attachTo: document.body })
+      const textarea = w.find<HTMLTextAreaElement>('textarea')
+
+      textarea.element.focus()
+      await textarea.setValue('ab')
+      await nextTick()
+
+      expect(w.vm.text).toBe('ab')
+      expect(textarea.element.value).toBe('ab')
+      w.unmount()
     })
   })
 })

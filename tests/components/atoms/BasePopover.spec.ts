@@ -1,10 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import type { VNode } from 'vue'
 
 import BasePopover from '~/components/atoms/BasePopover.vue'
 import type { BasePopoverTrigger } from '~/components/atoms/BasePopover.vue'
+import { usePopupsManager } from '~/composables/usePopupsManager'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -128,16 +129,17 @@ describe('BasePopover', () => {
       expect(wrapper.find('.trigger').attributes('aria-haspopup')).toBeUndefined()
     })
 
-    // tooltip role 走 describedby 語意（而非 disclosure 的 controls/expanded）。
+    // tooltip role 走 describedby 語意（而非 disclosure 的 controls/expanded）；
+    // describedby 僅在開啟（浮層實際渲染）時輸出，關閉時不得指向不存在的 id。
     it('wires aria-describedby and omits controls/expanded for a tooltip role', async () => {
       const wrapper = track(mountPopover({ role: 'tooltip', trigger: 'hover' }))
       const trigger = wrapper.find('.trigger')
       expect(trigger.attributes('aria-controls')).toBeUndefined()
       expect(trigger.attributes('aria-expanded')).toBeUndefined()
 
+      await trigger.trigger('mouseenter')
       const describedby = trigger.attributes('aria-describedby')
       expect(describedby).toBeTruthy()
-      await trigger.trigger('mouseenter')
       expect(popoverEl()?.id).toBe(describedby)
     })
   })
@@ -418,5 +420,143 @@ describe('BasePopover', () => {
       await wrapper.find('.trigger').trigger('click')
       expect(isOpen()).toBe(true)
     })
+  })
+
+  // ── z-index：依開啟順序派發（與 Modal 家族同一堆疊體系）────────────────────
+  describe('z-index stacking', () => {
+    it('z 依 popups 堆疊索引派發（1100 + index），後開的浮層疊在先開的浮層之上', async () => {
+      const wrapper = track(mountPopover())
+      await wrapper.find('.trigger').trigger('click')
+      expect(popoverEl()!.style.getPropertyValue('--popover-z-auto')).toBe('1100')
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(isOpen()).toBe(false)
+
+      // 底下墊一層（模擬先開啟的 Modal / Dialog），Popover 後開 → 應疊在其上
+      const under = Symbol('modal')
+      usePopupsManager().add(under)
+      await wrapper.find('.trigger').trigger('click')
+      expect(popoverEl()!.style.getPropertyValue('--popover-z-auto')).toBe('1101')
+      usePopupsManager().remove(under)
+    })
+  })
+
+  // ── 關閉時的焦點歸還 ─────────────────────────────────────────────────────────
+  describe('focus return on close', () => {
+    it('Esc 關閉且焦點仍在浮層內 → 還焦給 reference', async () => {
+      const wrapper = track(mountPopover())
+      await wrapper.find('.trigger').trigger('click')
+      expect(isOpen()).toBe(true)
+
+      const inner = popoverEl()!.querySelector<HTMLElement>('.close-btn')!
+      inner.focus()
+      expect(document.activeElement).toBe(inner)
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+
+      expect(isOpen()).toBe(false)
+      expect(document.activeElement?.className).toContain('trigger')
+    })
+
+    it('點擊外部關閉且焦點已在外部 → 不搶焦（維持外部焦點）', async () => {
+      const outside = document.createElement('input')
+      document.body.appendChild(outside)
+      const wrapper = track(mountPopover())
+      await wrapper.find('.trigger').trigger('click')
+      expect(isOpen()).toBe(true)
+
+      outside.focus() // 模擬使用者點擊頁面上其他輸入框
+      outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      outside.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      expect(isOpen()).toBe(false)
+      expect(document.activeElement).toBe(outside)
+      outside.remove()
+    })
+  })
+
+  // ── touch 觸發 ───────────────────────────────────────────────────────────────
+  describe('touch trigger', () => {
+    it("trigger 含 ['click','touch'] 時，一次點按不因合成 click 而雙重 toggle", async () => {
+      const wrapper = track(mountPopover({ trigger: ['click', 'touch'] }))
+      const trigger = wrapper.find('.trigger')
+
+      // 行動裝置一次點按的事件序：touchstart →（touchend）→ 合成 click
+      await trigger.trigger('touchstart')
+      await trigger.trigger('click')
+      expect(isOpen()).toBe(true)
+    })
+
+    it('touch 點按之後的獨立滑鼠 click 仍可正常 toggle（抑制旗標不殘留）', async () => {
+      const wrapper = track(mountPopover({ trigger: ['click', 'touch'] }))
+      const trigger = wrapper.find('.trigger')
+
+      await trigger.trigger('touchstart')
+      await trigger.trigger('click') // 合成 click：被抑制
+      expect(isOpen()).toBe(true)
+
+      await trigger.trigger('click') // 之後真正的滑鼠 click
+      expect(isOpen()).toBe(false)
+    })
+
+    // timer 覆蓋防護：前一次 touchstart 的 500ms timer 若未先 clear，會在到期時
+    // 把「第二次點按」的抑制旗標一併清掉，讓合成 click 漏過造成雙重 toggle。
+    it('連續兩次 touch 點按（間隔 <500ms）時，第二次的合成 click 仍被抑制', async () => {
+      vi.useFakeTimers()
+      try {
+        const wrapper = track(mountPopover({ trigger: ['click', 'touch'] }))
+        const trigger = wrapper.find('.trigger')
+
+        await trigger.trigger('touchstart') // t=0 開啟（此次沒有合成 click：滑走取消）
+        expect(isOpen()).toBe(true)
+
+        vi.advanceTimersByTime(400)
+        await trigger.trigger('touchstart') // t=400 關閉
+        expect(isOpen()).toBe(false)
+
+        vi.advanceTimersByTime(150) // t=550：第一次的 timer 到期點已過
+        await trigger.trigger('click') // 第二次點按的合成 click → 仍須被抑制
+        expect(isOpen()).toBe(false)
+
+        vi.advanceTimersByTime(1000) // 旗標過期後，獨立滑鼠 click 恢復正常
+        await trigger.trigger('click')
+        expect(isOpen()).toBe(true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  // ── tooltip 的 aria-describedby 生命週期 ────────────────────────────────────
+  describe('tooltip aria-describedby lifecycle', () => {
+    it('關閉時不輸出 aria-describedby（避免指向不存在的 id），開啟時才指向浮層', async () => {
+      const wrapper = track(mountPopover({ role: 'tooltip', trigger: 'hover' }))
+      const trigger = wrapper.find('.trigger')
+
+      expect(trigger.attributes('aria-describedby')).toBeUndefined()
+
+      await trigger.trigger('mouseenter')
+      expect(isOpen()).toBe(true)
+      expect(trigger.attributes('aria-describedby')).toBe(popoverEl()!.id)
+    })
+  })
+})
+
+describe('BasePopover — IME 組字與 Esc', () => {
+  it('組字中的 Esc（isComposing）不關閉浮層', async () => {
+    const wrapper = track(mountPopover())
+    await wrapper.find('.trigger').trigger('click')
+    expect(isOpen()).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', isComposing: true }))
+    await flushPromises()
+    expect(isOpen()).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(isOpen()).toBe(false)
   })
 })

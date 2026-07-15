@@ -39,9 +39,12 @@ export default function findFirstLegitChild(
       return wrapTextContent(child)
     }
 
-    // Fragment（多根 / <template>）往內遞迴，取第一個合法節點。
+    // Fragment（多根 / <template>）往內遞迴，取第一個合法節點；
+    // 內部全是雜訊（如 v-for 空陣列的空 Fragment）時繼續掃後續兄弟節點，不提前終止。
     if (child.type === Fragment) {
-      return findFirstLegitChild(child.children as VNode[])
+      const inner = findFirstLegitChild(child.children as VNode[])
+      if (inner) return inner
+      continue
     }
 
     // 一般元素 / 元件直接當錨點。

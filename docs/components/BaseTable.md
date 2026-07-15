@@ -79,7 +79,7 @@ BaseTable 是 **資料表格** 元件：以 `columns` 設定欄位、`items` 提
 
 | 事件 | 參數 | 說明 |
 |---|---|---|
-| `click:row` | `(item: Item, index: number)` | 點擊整列時觸發（點選取欄 checkbox 不會冒泡觸發） |
+| `click:row` | `(item: Item, index: number)` | 點擊整列時觸發。儲存格內的**互動元素**（連結 / 按鈕 / 表單控制項 / `role="button|link"` / contenteditable，含自訂欄 slot 放入者）點擊或鍵盤觸發時**不會**連帶觸發 |
 
 ## 4. Slots
 
@@ -197,7 +197,7 @@ const sortedUsers = computed(() => {
 - **排序循環**：點同一欄 `asc → desc → 無`（方向歸零時 `column` 一併清空）；點別欄則重新從 `asc` 開始。元件只 emit `update:sort`，**不排序資料**——資料排序由父層依 `sort` 自理。
 - **選取相容 Array / Set**：依傳入集合型別決定寫回型別；全選 / 取消全選由表頭 checkbox 控制，部分選取時表頭呈 indeterminate。
 - **不就地 mutate**：選取寫回一律建立新集合（`[...arr]` / `new Set()`）整體取代，符合單向資料流。
-- **列點擊**：整列可觸發 `click:row`；選取欄的 checkbox 以 `@click.stop` 阻止冒泡，避免誤觸列點擊。
+- **列點擊**：整列可觸發 `click:row`；儲存格內的互動元素以 `closest(ROW_INTERACTIVE_SELECTOR)` 防護——自訂欄 slot 放入的按鈕 / 連結點擊（滑鼠與鍵盤 Enter/Space 皆同）不會誤發 `click:row`，選取欄 checkbox 另以 `@click.stop` 阻擋。
 - **列點擊鍵盤可達性**：只有「父層綁定 `@click:row`」時，每列才會補上 `tabindex="0"`，並支援 `Enter` / `Space` 觸發（會 `preventDefault` 以避免 Space 捲動頁面）。可點擊列**不使用 `role="button"`**——覆寫 `<tr>` 的 role 會破壞 `<table>` 的表格語意（螢幕閱讀器將不再以列 / 欄脈絡朗讀）。是否可點擊由 vnode props 是否含 `onClick:row` 推導（`click:row` 屬 `defineEmits` 宣告事件，listener 不會落在 `$attrs`）。未綁定時維持原樣，不加任何鍵盤屬性。
 - **跨頁選取邊界**：表頭全選 / 半選狀態只依「當前 `items` 中被選取的筆數」計算（以 `selectedLookup` 命中統計），而非 `selected` 集合總大小。如此一來 `selected` 含跨頁 / 非當頁殘留項目（甚至 `selected.size > items.length`）時，也不會出現「全選與半選同時為 false」或誤判半選的情況。
 - **空狀態**：`items` 為空時隱藏 `<tbody>` 列並顯示 `#empty`。
@@ -233,7 +233,7 @@ const sortedUsers = computed(() => {
 | 樣式相依 | 全域 `$color-map`、`@include sr-only`、寫死色（`#f5f5f5` / `#8c8c8c`） | scoped `--table-*` token + `:where()` 低特異性 + 內聯 sr-only |
 | 排序歸零 | `direction` 為 `undefined` 但 `column` 仍保留 | `direction` 歸零時連同 `column` 清空（無作用中排序語意更乾淨） |
 | 函式參數 | `render(value, index, item)` | `render(value, item, index)`（item 先於 index，較直覺） |
-| 列點擊誤觸 | 選取欄無阻擋，點 checkbox 也會觸發 `click:row` | 選取欄 `@click.stop`，避免誤觸列點擊 |
+| 列點擊誤觸 | 儲存格內互動元素無阻擋，點 checkbox / 自訂欄按鈕也會觸發 `click:row` | 內建互動元素排除（`closest` 比對連結 / 按鈕 / 表單控制項），滑鼠與鍵盤路徑皆防護；使用端**不需**自行 `@click.stop` |
 | reduced-motion | 無 | 補 `prefers-reduced-motion` 關閉列 hover 過渡 |
 
 ---

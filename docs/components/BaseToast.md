@@ -97,7 +97,7 @@ toast.clear()     // 清空全部
 
 | 方法 | 簽名 | 說明 |
 |---|---|---|
-| `show` | `(options: ToastOptions \| string) => string` | 推一筆；傳字串等同 `{ message }`。回傳 id |
+| `show` | `(options: ToastOptions \| string) => string` | 推一筆；傳字串等同 `{ message }`。回傳 id。**SSR 期呼叫為 no-op 並回傳空字串**（server 端佇列會跨請求洩漏，故強制擋下；dev 模式印警告） |
 | `success` / `error` / `warning` / `info` | `(message: string, options?) => string` | 捷徑，自動帶對應 `type` |
 | `dismiss` | `(id: string) => void` | 依 id 移除 |
 | `clear` | `() => void` | 清空全部 |

@@ -214,7 +214,10 @@ if (import.meta.env.DEV) {
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 
-.base-button {
+// token 預設值宣告在 :where()：scoped 編譯後為 :where(...)[data-v-x]＝(0,1,0)，
+// 與使用端單一 class 選擇器平手、靠 cascade 後序覆寫得動（對齊全庫 :where() 慣例；
+// 原本裸 class 為 (0,2,0)，上方文件示範的覆寫法會直接輸給 specificity）。
+:where(.base-button) {
   // ── CSS tokens ────────────────────────────────────────────
   --btn-height: 36px;
   --btn-padding-x: 16px;
@@ -235,7 +238,46 @@ if (import.meta.env.DEV) {
   --btn-bg-active:        var(--btn-accent-active);
   --btn-border-color:     transparent;
   --btn-focus-ring-color: var(--btn-accent);
+}
 
+// 語意色 modifier 只改 accent token；同樣進 :where() 讓使用端覆寫得動。
+// （primary 為預設值，已在上方宣告，無需 modifier 規則。）
+:where(.base-button--danger) {
+  --btn-accent:        #dc2626;   // red-600，白字對比 ≈ 4.7:1 ✅
+  --btn-accent-hover:  #b91c1c;
+  --btn-accent-active: #991b1b;
+  --btn-accent-text:   #ffffff;
+}
+
+:where(.base-button--success) {
+  --btn-accent:        #16a34a;   // green-600，白字對比 ≈ 4.7:1 ✅
+  --btn-accent-hover:  #15803d;
+  --btn-accent-active: #166534;
+  --btn-accent-text:   #ffffff;
+}
+
+:where(.base-button--warning) {
+  --btn-accent:        #f59e0b;   // amber-500
+  --btn-accent-hover:  #d97706;
+  --btn-accent-active: #b45309;
+  --btn-accent-text:   #1c1917;   // stone-950，深色文字對比 ≈ 6.9:1 ✅
+}
+
+:where(.base-button--neutral) {
+  --btn-accent:        #4b5563;   // gray-600，白字對比 ≈ 7.2:1 ✅
+  --btn-accent-hover:  #374151;
+  --btn-accent-active: #1f2937;
+  --btn-accent-text:   #ffffff;
+}
+
+:where(.base-button--info) {
+  --btn-accent:        #0284c7;   // sky-600，白字對比 ≈ 4.6:1 ✅
+  --btn-accent-hover:  #0369a1;
+  --btn-accent-active: #075985;
+  --btn-accent-text:   #ffffff;
+}
+
+.base-button {
   // ── Base styles ───────────────────────────────────────────
   position: relative;
   display: inline-flex;
@@ -397,48 +439,9 @@ if (import.meta.env.DEV) {
     border: none;
   }
 
-  // ── Color: primary（預設，無需額外規則）──────────────────
-  // &--primary {}
-
-  // ── Color: danger ─────────────────────────────────────────
-  &--danger {
-    --btn-accent:        #dc2626;   // red-600，白字對比 ≈ 4.7:1 ✅
-    --btn-accent-hover:  #b91c1c;
-    --btn-accent-active: #991b1b;
-    --btn-accent-text:   #ffffff;
-  }
-
-  // ── Color: success ────────────────────────────────────────
-  &--success {
-    --btn-accent:        #16a34a;   // green-600，白字對比 ≈ 4.7:1 ✅
-    --btn-accent-hover:  #15803d;
-    --btn-accent-active: #166534;
-    --btn-accent-text:   #ffffff;
-  }
-
-  // ── Color: warning（深色文字，琥珀底）────────────────────
-  &--warning {
-    --btn-accent:        #f59e0b;   // amber-400
-    --btn-accent-hover:  #d97706;
-    --btn-accent-active: #b45309;
-    --btn-accent-text:   #1c1917;   // stone-950，深色文字對比 ≈ 6.9:1 ✅
-  }
-
-  // ── Color: neutral ────────────────────────────────────────
-  &--neutral {
-    --btn-accent:        #4b5563;   // gray-600，白字對比 ≈ 7.2:1 ✅
-    --btn-accent-hover:  #374151;
-    --btn-accent-active: #1f2937;
-    --btn-accent-text:   #ffffff;
-  }
-
-  // ── Color: info ──────────────────────────────────────────
-  &--info {
-    --btn-accent:        #0284c7;   // sky-600，白字對比 ≈ 4.6:1 ✅
-    --btn-accent-hover:  #0369a1;
-    --btn-accent-active: #075985;
-    --btn-accent-text:   #ffffff;
-  }
+  // ── Color modifiers ───────────────────────────────────────
+  // 語意色 token 已移至頂層 :where(.base-button--*)（見檔頭），與預設 token 同一
+  // specificity 層，使用端才覆寫得動。
 
   // ── Block ───────────────────────────────────────────────
   &--block {

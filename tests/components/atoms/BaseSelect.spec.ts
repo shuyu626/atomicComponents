@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { h, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 
@@ -719,6 +719,38 @@ describe('BaseSelect', () => {
       )
       await open(wrapper)
       expect(menuEl()?.querySelector('.custom-empty')?.textContent).toBe('空空如也')
+    })
+  })
+
+  // ── v-for key 穩定性 ──────────────────────────────────────────────────────────
+  // `String(option.value)` 不可作 key：`1` 與 `'1'` 撞 key、物件 value 全數收斂成
+  // "[object Object]"。key 改用選項在 options 陣列中的原始索引。
+  describe('option keys', () => {
+    it('value 1 與 "1" 並存時，選取更新不產生 duplicate key 警告', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const wrapper = track(mountSelect({
+        multiple: true,
+        chips: true,
+        modelValue: [],
+        options: [
+          { label: 'num', value: 1 },
+          { label: 'str', value: '1' },
+        ],
+      }))
+
+      await open(wrapper)
+      expect(optionEls()).toHaveLength(2)
+
+      // 依序選取兩個選項：chips 與 option 兩條 v-for 都走 keyed patch 更新路徑
+      fireClick(optionEls()[0]!)
+      await nextTick()
+      fireClick(optionEls()[1]!)
+      await nextTick()
+
+      expect(wrapper.findAll('.base-chip')).toHaveLength(2)
+      const dupWarned = warn.mock.calls.some((args) => String(args[0]).includes('Duplicate keys'))
+      expect(dupWarned).toBe(false)
+      warn.mockRestore()
     })
   })
 })

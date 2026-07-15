@@ -24,7 +24,7 @@ export interface BaseTreeNode {
 | `selectable` | `boolean` | `true` | 單選高亮 current(`v-model:selected`);**僅葉節點可被選取**,父節點點擊只切換展開 / 收合 |
 | `checkable` | `boolean` | `false` | 顯示 checkbox(`v-model:checked`) |
 | `checkStrictly` | `boolean` | `false` | true 時父子勾選不連動 |
-| `defaultExpandAll` | `boolean` | `false` | 初始展開所有父節點(非受控預設) |
+| `defaultExpandAll` | `boolean` | `false` | 初始展開所有父節點(非受控預設)。支援非同步載入:`nodes` 初始為空、資料到達時套用一次;已套用或使用者已有展開狀態則不再介入 |
 | `lazy` | `boolean` | `false` | 動態載入子節點 |
 | `load` | `(node) => Promise<BaseTreeNode[]>` | — | lazy 載入器 |
 | `disabled` | `boolean` | `false` | 全域停用 |
@@ -78,7 +78,7 @@ const checked = ref<BaseTreeKey[]>([])
 
 ## 行為
 
-- **展開 / 收合**:點箭頭切換;`defaultExpandAll` 初始展開所有父節點。
+- **展開 / 收合**:點箭頭切換;`defaultExpandAll` 於「首批有效節點」到達時展開所有父節點(watch `nodes`,非同步載入也生效),之後不再介入使用者的收合操作。
 - **單選**:`selectable` 時**只有葉節點可被選取**——點葉節點高亮並更新 `v-model:selected`;點父節點僅切換展開 / 收合,**不會**更新 `v-model:selected`;停用節點不可選。
 - **Checkbox 連動**:勾父 → 級聯所有啟用子孫;部分子勾 → 父 `indeterminate`;子變動回算祖先。`checkStrictly` 關閉級聯。
 - **Lazy**:`lazy` + `load` 時,展開未載入的非葉節點會呼叫 `load(node)`,期間顯示 inline spinner,結果快取。

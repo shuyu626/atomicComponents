@@ -255,10 +255,10 @@ const displayValue = computed<string>(() => {
   return props.precision !== undefined ? model.value.toFixed(props.precision) : String(model.value)
 })
 
-/** 步進運算的有效精度：precision 優先，否則取 step 與目前值小數位的較大者（修 0.1+0.2）。 */
-const stepPrecision = computed(() =>
-  props.precision ?? Math.max(countDecimals(props.step), countDecimals(model.value ?? 0)),
-)
+/** 步進運算的有效精度：precision 優先，否則取 step 與基準值小數位的較大者（修 0.1+0.2）。 */
+function stepPrecisionOf(base: number): number {
+  return props.precision ?? Math.max(countDecimals(props.step), countDecimals(base))
+}
 
 // aria-valuemin / aria-valuemax 只在有限值時輸出（APG spinbutton：無界時省略）。
 const ariaValueMin = computed(() =>
@@ -278,18 +278,29 @@ const atMax = computed(() =>
 
 /**
  * Commit：parse → clamp → 捨入 → 寫 model → 清 draft → change。
- * 鍵入 commit 只在 precision 有設時捨入（尊重使用者輸入）；步進 commit 恆以 stepPrecision 捨入（修浮點）。
+ * 鍵入 commit 只在 precision 有設時捨入（尊重使用者輸入）；步進 commit 恆以步進精度捨入（修浮點）。
+ *
+ * 回傳 commit 後的值——父層綁 v-model 時 `model.value` 是受控 prop，寫入後同步讀
+ * 會拿到舊值（Vue useModel 語意），同一輪執行內需要「目前值」的呼叫端一律用回傳值。
  */
-function commit(next: number | null, { round }: { round: boolean }) {
+function commit(
+  next: number | null,
+  { round, precision, previous }: { round: boolean; precision?: number; previous?: number | null },
+): number | null {
   let value = next
   if (value !== null) {
     value = clamp(value, props.min ?? Number.NEGATIVE_INFINITY, props.max ?? Number.POSITIVE_INFINITY)
-    if (round || props.precision !== undefined) value = roundToPrecision(value, stepPrecision.value)
+    if (round || props.precision !== undefined) {
+      value = roundToPrecision(value, precision ?? stepPrecisionOf(model.value ?? 0))
+    }
   }
-  const changed = value !== (model.value ?? null)
+  // change 判斷的比較基準：同 tick 內已 commit 過的呼叫端（stepBy）必須把上一次的
+  // 回傳值以 `previous` 傳入——受控模式下回讀 model 是打字前的舊值，會誤判「沒變」漏發 change。
+  const changed = value !== (previous !== undefined ? previous : (model.value ?? null))
   model.value = value
   draft.value = null
   if (changed) emit('change', value)
+  return value
 }
 
 /** 解析 draft：`''` → null（清空）；非數字 → undefined（還原顯示、不動 model）。 */
@@ -300,19 +311,31 @@ function parseDraft(text: string): number | null | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-function commitDraft() {
-  if (draft.value === null) return
+/** commit 進行中的 draft。回傳 commit 後的值；無 draft 或無法解析（僅還原顯示）時回傳 `undefined`。 */
+function commitDraft(): number | null | undefined {
+  if (draft.value === null) return undefined
   const parsed = parseDraft(draft.value)
-  if (parsed === undefined) draft.value = null // 還原顯示
-  else commit(parsed, { round: false })
+  if (parsed === undefined) {
+    draft.value = null // 還原顯示
+    return undefined
+  }
+  return commit(parsed, { round: false })
 }
 
-function stepBy(direction: 1 | -1) {
-  if (props.disabled || props.readonly) return
+/** 步進一次。回傳 commit 後的值（見 {@link commit}），供長按連發判斷是否到界。 */
+function stepBy(direction: 1 | -1): number | null {
+  if (props.disabled || props.readonly) return model.value ?? null
   // 步進也是 commit 時機（spec §3.2）：先 commit 未定案的 draft（鍵入 "7" 後直接按
-  // 方向鍵 → 以 7 為基準步進得 8，不默默丟棄輸入），再從 commit 後的 model 起算 ±step。
-  commitDraft()
-  commit((model.value ?? 0) + direction * props.step, { round: true })
+  // 方向鍵 → 以 7 為基準步進得 8，不默默丟棄輸入），再以 commit 後的值為基準 ±step。
+  // 基準與捨入精度都取 commitDraft 的回傳值推導，不回讀 model——受控模式下回讀是舊值。
+  const committed = commitDraft()
+  const base = committed !== undefined ? (committed ?? 0) : (model.value ?? 0)
+  return commit(base + direction * props.step, {
+    round: true,
+    precision: stepPrecisionOf(base),
+    // commitDraft 已寫過 model 時，change 比較基準是它的回傳值（見 commit 的 previous 說明）。
+    previous: committed !== undefined ? committed : (model.value ?? null),
+  })
 }
 
 // 輸入中只更新 draft（允許 "-"、"1." 等中間態），commit 時機見 onKeydown / onBlur。
@@ -363,15 +386,17 @@ function onKeydown(event: KeyboardEvent) {
 let repeatTimer: ReturnType<typeof setTimeout> | null = null
 
 function startRepeat(direction: 1 | -1) {
-  stepBy(direction)
+  // 到界判斷比較 stepBy 的回傳值，不回讀 model——受控模式下寫後回讀恆為舊值，
+  // 會把「值有變」誤判成到界而提前停止連發。
+  let previous = stepBy(direction)
   const tick = (delay: number) => {
     repeatTimer = setTimeout(() => {
-      const before = model.value ?? null
-      stepBy(direction)
-      if ((model.value ?? null) === before) {
+      const next = stepBy(direction)
+      if (next === previous) {
         stopRepeat() // 到界（值不再變動）→ 停止連發
         return
       }
+      previous = next
       tick(80)
     }, delay)
   }

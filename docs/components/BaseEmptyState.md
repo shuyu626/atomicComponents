@@ -15,7 +15,7 @@ BaseEmptyState 是 **區塊內無資料狀態**：置中呈現「inbox 圖示 �
 |---|---|---|---|
 | `title` | `string` | `'目前沒有資料'` | 標題文字（也可用 `#title` slot 覆寫） |
 | `description` | `string` | — | 補充說明（也可用 `#description` slot 覆寫） |
-| `icon` | `boolean` | `true` | 是否顯示內建 inbox 圖示（`#icon` slot 可覆寫成自訂插圖） |
+| `icon` | `boolean` | `true` | 是否顯示圖示區（`#icon` slot 可覆寫成自訂插圖）；`false` 時**含 `#icon` slot 一律不渲染**（同 BaseAlert / BaseResult） |
 | `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | 尺寸：控制圖示大小與容器留白 |
 
 **Slots**
@@ -120,7 +120,7 @@ BaseEmptyState 是 **區塊內無資料狀態**：置中呈現「inbox 圖示 �
 
 ## 4. 行為與狀態
 
-- **條件渲染**：`title` 永遠渲染（有預設文字 `'目前沒有資料'`）；`icon`（含 `#icon`）、`description`/`#description`、`#default`、`#actions` 各自只在提供時渲染。
+- **條件渲染**：`title` 永遠渲染（有預設文字 `'目前沒有資料'`）；圖示區**僅由 `icon` prop 閘控**（`icon=false` 時即使提供 `#icon` slot 也不渲染，行為對齊 BaseAlert / BaseResult）；`description`/`#description`、`#default`、`#actions` 各自只在提供時渲染。
 - **內建圖示**：inbox 造型的內聯 SVG（不依賴 icon library），`stroke="currentColor"` 隨 `--empty-icon-color` 著色，尺寸走 `--empty-icon-size`。
 - **置中排版**：`flex column` + `align-items:center` + `text-align:center`，各區塊間距走 `--empty-gap-y`。
 - **尺寸**：`size` 只切換 `--empty-icon-size` / `--empty-padding`（modifier class `base-empty-state--sm/md/lg`），與顏色無關。

@@ -10,10 +10,15 @@
       viewport：真正可捲動的區域。掛 :id 讓下方 role="scrollbar" 的 aria-controls
       有實際指向（原參考實作 aria-controls 指向不存在的 id，此處修正）。
     -->
+    <!--
+      tabindex=0：原生捲軸被隱藏後，捲動區必須可被鍵盤聚焦，方向鍵 / PageUp/Down
+      才能捲動（可捲動區域本就該是 Tab 停靠點，Chrome 對原生 scroller 同此行為）。
+    -->
     <div
       :id="id"
       ref="viewportRef"
       class="base-scrollbar__viewport"
+      tabindex="0"
       @scroll="onScroll"
     >
       <!-- content 包一層：讓 ResizeObserver 能觀察「內容本身」的尺寸變化 -->
@@ -118,7 +123,7 @@ type OrientationKey = keyof Orientation
 </script>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref, useId, useTemplateRef } from 'vue'
+import { computed, onUnmounted, ref, useId, useTemplateRef, watch } from 'vue'
 
 import useResizeObserver from '~/composables/useResizeObserver'
 
@@ -324,6 +329,13 @@ const update = () => {
   ratioY = computeRatio(originalHeight, height, offsetHeight)
   ratioX = computeRatio(originalWidth, width, offsetWidth)
 }
+
+// 執行期切換 native：false → 需要 overlay thumb，於重渲後（flush: 'post'）重算
+// （update 在 native 模式提前 return，切換當下 thumb 尺寸仍是 0，
+//  不重算的話捲軸直到下次 resize 才出現）。
+watch(() => props.native, (native) => {
+  if (!native) update()
+}, { flush: 'post' })
 
 /**
  * 計算位移補償比例。內容剛好溢出時（original ≈ offset，分母趨近 0）會算出

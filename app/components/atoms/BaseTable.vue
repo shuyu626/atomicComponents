@@ -158,9 +158,24 @@ const isRowClickable = computed(() =>
   Boolean(instance?.vnode.props?.['onClick:row']),
 )
 
-/** 可點擊列的鍵盤路徑：Enter / Space 觸發同樣的 click:row。 */
+/**
+ * 列點擊：儲存格 slot 內的互動元素（按鈕 / 連結 / 表單控制項）點擊時不發 click:row——
+ * 否則「列內操作鈕」與「點列」會同時觸發（選取欄已有 @click.stop，自訂欄靠這裡防護）。
+ */
+const ROW_INTERACTIVE_SELECTOR
+  = 'a[href], button, input, select, textarea, label, [role="button"], [role="link"], [contenteditable="true"]'
+
+const onRowClick = (event: MouseEvent, item: Item, index: number) => {
+  const target = event.target as HTMLElement | null
+  if (target?.closest(ROW_INTERACTIVE_SELECTOR)) return
+  emit('click:row', item, index)
+}
+
+/** 可點擊列的鍵盤路徑：Enter / Space 觸發同樣的 click:row（互動元素防護同 onRowClick）。 */
 const onRowKeydown = (event: KeyboardEvent, item: Item, index: number) => {
   if (!isRowClickable.value) return
+  const target = event.target as HTMLElement | null
+  if (target?.closest(ROW_INTERACTIVE_SELECTOR)) return
   if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
     event.preventDefault()
     emit('click:row', item, index)
@@ -504,7 +519,7 @@ const vIndeterminate = {
           class="base-table__row"
           :class="rowClass(item, index)"
           :tabindex="isRowClickable ? 0 : undefined"
-          @click="emit('click:row', item, index)"
+          @click="onRowClick($event, item, index)"
           @keydown="onRowKeydown($event, item, index)"
         >
           <td

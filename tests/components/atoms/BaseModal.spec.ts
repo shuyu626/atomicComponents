@@ -389,3 +389,16 @@ describe('BaseModal', () => {
     })
   })
 })
+
+describe('BaseModal — IME 組字與 Esc', () => {
+  it('組字中的 Esc（isComposing，取消注音選字）不關閉 Modal', async () => {
+    const wrapper = track(mountModal())
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', isComposing: true }))
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')).toBeFalsy()
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false])
+  })
+})

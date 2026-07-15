@@ -10,10 +10,10 @@
 
 | # | Pattern | 代表位置 |
 |---|---|---|
-| 1 | **`canUseDOM` 常數守衛**（`typeof window/document !== 'undefined'`），用於 composable | `useDrag.ts:31`、`usePopupsManager.ts:34`、BaseFileUpload 的 `canUseObjectUrl`（`BaseFileUpload.vue:342`） |
+| 1 | **`canUseDOM` 常數守衛**（`typeof window/document !== 'undefined'`），用於 composable | `useDrag.ts:31`、`usePopupsManager.ts:34`、BaseFileUpload 的 `canUseObjectUrl`（§圖片縮圖區段） |
 | 2 | **Singleton Observer 工廠 + 支援判斷**：Observer 建構延遲到首次 `observe`，無 API 時回 no-op | `createResizeObserver.ts:19`、`createIntersectionObserver.ts:27`、`createSingletonObserver.ts` |
-| 3 | **生命週期延遲**：DOM 副作用集中在 `onMounted` / `watch(ref)` / client-only 的 `onBeforeMount` / 事件 handler | `useOverlay.ts:153-161`、`BaseLink.vue:193`、`BaseToast.vue:218`、`BaseDatePicker.vue`（`today` 於 `onMounted` 設值） |
-| 4 | **函式內 `typeof` 內聯守衛**（元件內零星 DOM 存取） | `BaseLink.vue:58,65`、`BaseTextField.vue:240`、`BaseTextarea.vue:242`、`BaseAccordionPanel.vue:140` |
+| 3 | **生命週期延遲**：DOM 副作用集中在 `onMounted` / `watch(ref)` / client-only 的 `onBeforeMount` / 事件 handler | `useOverlay.ts`（§focus trap 與 `onBeforeMount` 區段）、`BaseLink.vue:193`、`BaseToast.vue:218`、`BaseDatePicker.vue`（`today` 於 `onMounted` 設值） |
+| 4 | **函式內 `typeof` 內聯守衛**（元件內零星 DOM 存取） | `BaseLink.vue:58,65`、`useComposingModel.ts`（watchEffect 的 `typeof document` 守衛）、`BaseAccordionPanel.vue:140` |
 | 5 | **id 一律 `useId()`**（SSR / client 決定性一致，禁止自製 counter / random） | BaseSelect、BaseTabs、BaseDialog、BaseModal、BaseDrawer、BasePopover、BaseCheckbox、BaseRadio… |
 | 6 | **prefers-reduced-motion 雙軌**：視覺過場用 CSS `@media`（SSR 安全）；需 JS 分支才用守衛過的 `matchMedia` | `BaseToastContainer.vue`（CSS）、`BaseAccordionPanel.vue:140-141`（JS） |
 | 7 | **宣告式初始態**：以 `[hidden]` 等屬性讓 SSR 首渲即為正確狀態，避免 mount 後閃爍 | `BaseAccordionPanel.vue`（收合態） |
@@ -78,11 +78,11 @@ BaseAccordion、BaseAlert、BaseAvatar、BaseAvatarGroup、BaseBadge、BaseBread
 
 ### 2. BaseToastContainer — 常駐 Teleport live region
 
-a11y live region 需要常駐渲染，是專案中唯一不搭 `v-if="open"` 的 Teleport。初始為確定性空內容，hydration 一致；但**若有程式在 client mount 前（如 Nuxt plugin）就呼叫 `useToast().show()`，會產生 hydration mismatch**。約定：toast 只能由 client 互動觸發。若需更保險可改用 `<ClientOnly>` 或 Teleport `defer`。
+a11y live region 需要常駐渲染，是專案中唯一不搭 `v-if="open"` 的 Teleport。初始為確定性空內容，hydration 一致。**server 端已強制防護**：`show()` 在 `import.meta.server` 下為 no-op（回傳空字串 + dev 警告），SSR 期呼叫不會入佇列——不會跨請求洩漏、也不會造成首渲差異。殘餘風險僅剩「client mount 前（如 client plugin）呼叫」造成的 hydration mismatch，約定 toast 只由 client 互動觸發。
 
 ### 3. useToast — 模組層計數器 id
 
-`toast-${++seed}` 是專案唯一非 `useId()` 的 id 生成。在「toast 僅 client 建立」的約定下安全；若未來需要 SSR 期建立 toast，必須改為 `useId()` 或 per-instance 計數器（模組層 seed 在 server 長駐程序會跨請求累加）。
+`toast-${++seed}` 是專案唯一非 `useId()` 的 id 生成。`show()` 的 server no-op 防護（見上）保證 seed 只在 client 累加，跨請求累加疑慮已消除；若未來開放 SSR 期建立 toast，仍須改為 `useId()` 或 per-instance 計數器。
 
 ## 新元件 SSR Checklist
 

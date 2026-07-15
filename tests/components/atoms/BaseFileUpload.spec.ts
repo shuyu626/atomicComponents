@@ -128,3 +128,21 @@ describe('BaseFileUpload — thumbnails', () => {
     w.unmount()
   })
 })
+
+describe('BaseFileUpload — 拖曳狀態', () => {
+  it('dragleave 到 dropzone 內部子元素不關閉 dragging 狀態；離開 dropzone 才關閉', async () => {
+    const w = mount(BaseFileUpload, { attachTo: document.body })
+    const dropzone = w.find('.base-file-upload__dropzone')
+
+    await dropzone.trigger('dragover')
+    expect(dropzone.classes()).toContain('base-file-upload__dropzone--dragging')
+
+    const child = dropzone.element.querySelector('*') as HTMLElement
+    await dropzone.trigger('dragleave', { relatedTarget: child })
+    expect(dropzone.classes()).toContain('base-file-upload__dropzone--dragging')
+
+    await dropzone.trigger('dragleave', { relatedTarget: document.body })
+    expect(dropzone.classes()).not.toContain('base-file-upload__dropzone--dragging')
+    w.unmount()
+  })
+})

@@ -100,3 +100,10 @@ describe('BaseEmptyState', () => {
     })
   })
 })
+
+describe('BaseEmptyState — icon=false 與 #icon slot', () => {
+  it('icon=false 時即使提供 #icon slot 也不渲染圖示區（與 Alert / Result 行為一致）', () => {
+    const w = mountEmptyState({ icon: false }, { icon: () => h('svg', { class: 'custom-icon' }) })
+    expect(w.find('.base-empty-state__icon').exists()).toBe(false)
+  })
+})

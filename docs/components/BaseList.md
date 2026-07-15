@@ -293,7 +293,7 @@ const divided = computed(() => (context?.divided.value ?? false) && itemShape.va
 - [x] **Vitest**
   - `tests/components/atoms/BaseList.spec.ts`（`as` ul/ol、`role="list"`、`size` / `divided` / `itemShape` modifier、context 傳遞、`shaped` 時 `divided` 失效）— 14 cases
   - `tests/components/atoms/BaseListItem.spec.ts`（`<li>` 根 + `role="listitem"`、standalone 降級、context size、prepend/append/default/subtitle slot（含兩行）、`to` → BaseLink、`href` → 外部 `<a>`、`active` + `aria-current`、`disabled` + `aria-disabled` + `tabindex`）— 15 cases
-  - `tests/components/atoms/BaseListGroup.spec.ts`（`<li role="listitem">` + button header、`role="group"` panel、`aria-controls`/`aria-expanded`、open v-model 切換與收合、disabled 不切換、prepend/title slot、子項渲染、context size）— 9 cases
+  - `tests/components/atoms/BaseListGroup.spec.ts`（`<li role="listitem">` + button header、`role="list"` panel（ARIA：`listitem` 的 owner 必須是 `list`，`role="group"` 內放 listitem 是 invalid ARIA）、`aria-controls`/`aria-expanded`、open v-model 切換與收合、disabled 不切換、prepend/title slot、子項渲染、context size）— 9 cases
 - [x] **Storybook**
   - `stories/components/atoms/BaseList.stories.ts`（Playground / Basic / Divided / Sizes / WithIconsAndActions / Links / Ordered / Nav / Shaped / TwoLine / NavWithGroups / Themed）
   - `stories/components/atoms/BaseListItem.stories.ts`（Playground / Slots / States / Standalone）

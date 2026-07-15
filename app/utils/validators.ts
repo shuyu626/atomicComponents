@@ -71,7 +71,12 @@ export function maxLength(max: number, message?: string): ValidationRule<string 
  * @example pattern(/^\d+$/, '只能輸入數字')
  */
 export function pattern(regex: RegExp, message = '格式不正確'): ValidationRule<string | number> {
-  return value => isEmpty(value) || regex.test(String(value)) || message
+  // /g /y 旗標的 regex 帶 stateful lastIndex：直接重複 test() 會交替翻轉結果。
+  // 驗證是無狀態比對，建立規則時拷貝並剝除這兩個旗標（也避免動到呼叫端的 regex）。
+  const stateless = regex.global || regex.sticky
+    ? new RegExp(regex.source, regex.flags.replace(/[gy]/g, ''))
+    : regex
+  return value => isEmpty(value) || stateless.test(String(value)) || message
 }
 
 /**

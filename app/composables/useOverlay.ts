@@ -29,8 +29,12 @@ export const overlayTrapStack: FocusTrap[] = []
  * `--modal-z` / `--dialog-z` / `--drawer-z` CSS 預設一致（1100）；實際 z-index
  * 依開啟順序在此基準上遞增，確保後開的浮層永遠疊在先開的之上（而非依 Teleport
  * 錨點的掛載順序）。
+ *
+ * 對外 export：BasePopover（Popover / Dropdown / Select）與對話框家族共用同一個
+ * popups 堆疊，z 也必須同一基準派發——否則跨體系疊開（如 Popover 內開 Modal）
+ * 視覺疊序會與開啟序脫鉤。
  */
-const OVERLAY_BASE_Z = 1100
+export const OVERLAY_BASE_Z = 1100
 
 export interface UseOverlayOptions {
   /** 按 Esc 是否關閉（僅最上層浮層回應）。 @default true */
@@ -121,7 +125,8 @@ export function useOverlay(
 
   // ---- Esc 關閉（只有最上層回應，支援多層堆疊）----
   function onEscKeydown(event: KeyboardEvent) {
-    if (event.key !== 'Escape') return
+    // IME 組字中的 Esc 是「取消選字」，不該連浮層一起關（CJK 輸入的日常路徑）。
+    if (event.key !== 'Escape' || event.isComposing) return
     if (!closeOnEscape() || !open.value || !popups.isTop(token)) return
     event.preventDefault()
     close()
