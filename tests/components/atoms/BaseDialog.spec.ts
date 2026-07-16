@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { h, nextTick } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import type { VNode } from 'vue'
@@ -12,6 +12,7 @@ interface MountOptions {
   title?: string
   ariaLabel?: string
   closeLabel?: string
+  beforeClose?: (done: () => void) => void
   width?: number | string
   fullscreen?: boolean
   draggable?: boolean
@@ -398,6 +399,221 @@ describe('BaseDialog', () => {
       await flushPromises()
       await nextTick()
       expect(wrapperEl()!.contains(document.activeElement)).toBe(true)
+    })
+  })
+
+  // ── beforeClose hook（對齊 BaseModal / BaseDrawer：done-callback 契約）────────────
+  describe('beforeClose', () => {
+    it('intercepts the close button: calls beforeClose, does not close yet', async () => {
+      const beforeClose = vi.fn()
+      const wrapper = track(mountDialog({ title: '編輯', beforeClose }))
+      const closeBtn = wrapperEl()!.querySelector('.base-dialog__close') as HTMLElement
+      closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(beforeClose).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy()
+    })
+
+    it('closes only after beforeClose invokes done()', async () => {
+      const beforeClose = vi.fn((done: () => void) => done())
+      const wrapper = track(mountDialog({ title: '編輯', beforeClose }))
+      const closeBtn = wrapperEl()!.querySelector('.base-dialog__close') as HTMLElement
+      closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false])
+    })
+
+    it('gates the Esc close path through beforeClose', async () => {
+      const beforeClose = vi.fn()
+      const wrapper = track(mountDialog({ beforeClose }))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(beforeClose).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy()
+    })
+
+    it('gates the backdrop close path through beforeClose', async () => {
+      const beforeClose = vi.fn()
+      const wrapper = track(mountDialog({ beforeClose }))
+      const overlay = overlayEl()!
+      overlay.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(beforeClose).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy()
+    })
+
+    it('gates the built-in cancel button: cancel is emitted but the dialog stays open', async () => {
+      const beforeClose = vi.fn()
+      const wrapper = track(mountDialog({ cancelText: '取消', beforeClose }))
+      const cancelBtn = document.body.querySelector('.base-dialog__footer button') as HTMLElement
+      cancelBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(wrapper.emitted('cancel')).toHaveLength(1)
+      expect(beforeClose).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy()
+    })
+
+    it('gates the slot close() through beforeClose', async () => {
+      const beforeClose = vi.fn()
+      const wrapper = track(
+        mountDialog({
+          beforeClose,
+          default: ({ close }) =>
+            h('button', { class: 'slot-close', type: 'button', onClick: close }, 'x'),
+        }),
+      )
+      const btn = wrapperEl()!.querySelector('.slot-close') as HTMLElement
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(beforeClose).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy()
+    })
+
+    it('does not run beforeClose on programmatic (v-model) close', async () => {
+      const beforeClose = vi.fn()
+      const wrapper = track(mountDialog({ beforeClose }))
+      await wrapper.setProps({ modelValue: false })
+      await flushPromises()
+      expect(beforeClose).not.toHaveBeenCalled()
+    })
+
+    // 非同步流程：resolve 後呼叫 done() → 關閉；reject（不呼叫 done）→ 取消關閉、維持開啟。
+    it('closes when an async beforeClose resolves and calls done()', async () => {
+      const beforeClose = vi.fn((done: () => void) => {
+        void Promise.resolve(true).then(() => done())
+      })
+      const wrapper = track(mountDialog({ beforeClose }))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false])
+    })
+
+    it('stays open when an async beforeClose rejects (done never called)', async () => {
+      const beforeClose = vi.fn((done: () => void) => {
+        Promise.reject(new Error('unsaved changes')).then(
+          () => done(),
+          () => { /* 使用者取消離開 → 不呼叫 done()，對話框維持開啟 */ },
+        )
+      })
+      const wrapper = track(mountDialog({ beforeClose }))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(beforeClose).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy()
+      expect(isOpen()).toBe(true)
+    })
+  })
+
+  // ── 生命週期事件（對齊 BaseModal / BaseDrawer）─────────────────────────────────
+  // open / close（動畫「前」）由 watch(open) 發出，不依賴 transition；掛載即開啟者另由
+  // onMounted 補發 open。opened / closed（動畫「後」）由 <Transition> after-hook 發出，需真實 transition。
+  describe('lifecycle events', () => {
+    const mountReal = (props: Record<string, unknown>) =>
+      mount(BaseDialog, {
+        props: { ...props },
+        slots: { default: defaultContent } as never,
+        attachTo: document.body,
+        global: { stubs: { transition: false } },
+      })
+
+    it('emits open when it starts opening', async () => {
+      const wrapper = track(mountDialog({ modelValue: false }))
+      await wrapper.setProps({ modelValue: true })
+      expect(wrapper.emitted('open')).toHaveLength(1)
+    })
+
+    it('emits close when it starts closing', async () => {
+      const wrapper = track(mountDialog({ modelValue: true }))
+      await wrapper.setProps({ modelValue: false })
+      expect(wrapper.emitted('close')).toHaveLength(1)
+    })
+
+    it('emits open on mount when already open (no opened-without-open asymmetry)', () => {
+      const wrapper = track(mountDialog({ modelValue: true }))
+      expect(wrapper.emitted('open')).toHaveLength(1)
+    })
+
+    it('emits opened after the open transition finishes', async () => {
+      vi.useFakeTimers()
+      try {
+        const wrapper = mountReal({ modelValue: false })
+        active = wrapper
+        await wrapper.setProps({ modelValue: true })
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(wrapper.emitted('opened')).toBeTruthy()
+      }
+      finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('emits open → opened → close → closed in order across a full cycle', async () => {
+      vi.useFakeTimers()
+      try {
+        const order: string[] = []
+        const wrapper = mountReal({
+          modelValue: false,
+          onOpen: () => order.push('open'),
+          onOpened: () => order.push('opened'),
+          onClose: () => order.push('close'),
+          onClosed: () => order.push('closed'),
+        })
+        active = wrapper
+        await wrapper.setProps({ modelValue: true })
+        await vi.advanceTimersByTimeAsync(1000)
+        await wrapper.setProps({ modelValue: false })
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(order).toEqual(['open', 'opened', 'close', 'closed'])
+      }
+      finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  // ── 拖曳位移 reset 時機：關閉指令當下不 reset，離場動畫結束（after-leave）才歸零 ──
+  describe('drag reset timing', () => {
+    it('keeps the drag translate during the leave transition and resets it after leave', async () => {
+      vi.useFakeTimers()
+      try {
+        const wrapper = mount(BaseDialog, {
+          props: { modelValue: true, draggable: true },
+          slots: { default: defaultContent } as never,
+          attachTo: document.body,
+          global: { stubs: { transition: false } },
+        })
+        active = wrapper
+        await vi.advanceTimersByTimeAsync(1000)
+
+        // 拖曳位移
+        const sensor = sensors()[0]
+        sensor.dispatchEvent(
+          new MouseEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }),
+        )
+        window.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 140 }))
+        window.dispatchEvent(new MouseEvent('pointerup', {}))
+        await nextTick()
+        expect(wrapperEl()!.style.transform).toContain('50px')
+
+        // 關閉指令當下：離場動畫進行中，translate 樣式必須仍在（避免起點跳回置中的一幀跳位）。
+        await wrapper.setProps({ modelValue: false })
+        expect(wrapperEl()).not.toBeNull()
+        expect(wrapperEl()!.style.transform).toContain('50px')
+
+        // 離場動畫結束（after-leave）：發出 closed、位移歸零並卸載。
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(wrapper.emitted('closed')).toBeTruthy()
+        expect(wrapperEl()).toBeNull()
+
+        // 重新開啟：回到置中（無 inline transform）。
+        await wrapper.setProps({ modelValue: true })
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(wrapperEl()!.style.transform).toBe('')
+      }
+      finally {
+        vi.useRealTimers()
+      }
     })
   })
 })

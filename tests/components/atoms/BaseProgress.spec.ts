@@ -104,6 +104,24 @@ describe('BaseProgress', () => {
       expect(root.attributes('aria-valuenow')).toBe('0')
     })
 
+    it('falls back aria-valuemax to 100 when max is 0', () => {
+      const root = rootOf(mountProgress({ value: 50, max: 0 }))
+      expect(root.attributes('aria-valuemax')).toBe('100')
+      expect(root.attributes('aria-valuenow')).toBe('0')
+    })
+
+    it('falls back aria-valuemax to 100 when max is negative', () => {
+      const root = rootOf(mountProgress({ value: 50, max: -5 }))
+      expect(root.attributes('aria-valuemax')).toBe('100')
+      expect(root.attributes('aria-valuenow')).toBe('0')
+    })
+
+    it('falls back aria-valuemax to 100 when max is NaN', () => {
+      const root = rootOf(mountProgress({ value: 50, max: Number.NaN }))
+      expect(root.attributes('aria-valuemax')).toBe('100')
+      expect(root.attributes('aria-valuenow')).toBe('0')
+    })
+
     it('omits aria-valuenow / aria-valuetext when indeterminate', () => {
       const root = rootOf(mountProgress({ value: 30, indeterminate: true }))
       expect(root.attributes('aria-valuenow')).toBeUndefined()

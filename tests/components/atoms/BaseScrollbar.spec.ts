@@ -73,6 +73,19 @@ function pointerEvent(
   return ev
 }
 
+/** 建立帶 deltaX / deltaY / deltaMode 的 WheelEvent，預設 cancelable 讓 preventDefault() 生效可被觀察。 */
+function wheelEvent(
+  init: { deltaX?: number; deltaY?: number; deltaMode?: number } = {},
+) {
+  return new WheelEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    deltaX: init.deltaX ?? 0,
+    deltaY: init.deltaY ?? 0,
+    deltaMode: init.deltaMode ?? WheelEvent.DOM_DELTA_PIXEL,
+  })
+}
+
 function mountScrollbar(props: { native?: boolean } = {}) {
   return mount(BaseScrollbar, {
     props,
@@ -309,6 +322,95 @@ describe('BaseScrollbar', () => {
 
       expect(w.find('.base-scrollbar__track').exists()).toBe(false)
       expect(() => w.find('.base-scrollbar__viewport').trigger('scroll')).not.toThrow()
+    })
+  })
+
+  // ── track 覆蓋區滾輪死角（track 浮在 viewport 之上，滾輪需手動轉發）───────────
+  describe('wheel over track forwards scroll to viewport', () => {
+    it('vertical track 滾輪把 deltaY 轉發給 viewport.scrollTop 並吃掉事件', async () => {
+      const w = track(mountScrollbar())
+      await applyGeometry(w, VERTICAL_OVERFLOW)
+
+      const trackEl = w.find('.base-scrollbar__track--vertical').element as HTMLElement
+      const viewport = viewportOf(w)
+
+      const ev = wheelEvent({ deltaY: 50 })
+      trackEl.dispatchEvent(ev)
+
+      expect(viewport.scrollTop).toBe(50)
+      expect(ev.defaultPrevented).toBe(true)
+    })
+
+    it('vertical track 已捲到底時再往下滾，不 preventDefault（讓事件冒泡給頁面）', async () => {
+      const w = track(mountScrollbar())
+      await applyGeometry(w, VERTICAL_OVERFLOW)
+
+      const trackEl = w.find('.base-scrollbar__track--vertical').element as HTMLElement
+      const viewport = viewportOf(w)
+      // max scrollTop = scrollHeight 400 - offsetHeight 100 = 300
+      viewport.scrollTop = 300
+
+      const ev = wheelEvent({ deltaY: 50 })
+      trackEl.dispatchEvent(ev)
+
+      expect(viewport.scrollTop).toBe(300)
+      expect(ev.defaultPrevented).toBe(false)
+    })
+
+    it('vertical track 已捲到頂時再往上滾，不 preventDefault', async () => {
+      const w = track(mountScrollbar())
+      await applyGeometry(w, VERTICAL_OVERFLOW)
+
+      const trackEl = w.find('.base-scrollbar__track--vertical').element as HTMLElement
+      const viewport = viewportOf(w)
+
+      const ev = wheelEvent({ deltaY: -50 })
+      trackEl.dispatchEvent(ev)
+
+      expect(viewport.scrollTop).toBe(0)
+      expect(ev.defaultPrevented).toBe(false)
+    })
+
+    it('horizontal track 滾輪優先吃 deltaX', async () => {
+      const w = track(mountScrollbar())
+      await applyGeometry(w, { offsetHeight: 100, scrollHeight: 100, offsetWidth: 100, scrollWidth: 400 })
+
+      const trackEl = w.find('.base-scrollbar__track--horizontal').element as HTMLElement
+      const viewport = viewportOf(w)
+
+      const ev = wheelEvent({ deltaX: 30, deltaY: 999 })
+      trackEl.dispatchEvent(ev)
+
+      expect(viewport.scrollLeft).toBe(30)
+      expect(ev.defaultPrevented).toBe(true)
+    })
+
+    it('horizontal track 滾輪 deltaX 為 0 時，把 deltaY 轉為橫向捲動（常見滑鼠只有縱向滾輪）', async () => {
+      const w = track(mountScrollbar())
+      await applyGeometry(w, { offsetHeight: 100, scrollHeight: 100, offsetWidth: 100, scrollWidth: 400 })
+
+      const trackEl = w.find('.base-scrollbar__track--horizontal').element as HTMLElement
+      const viewport = viewportOf(w)
+
+      const ev = wheelEvent({ deltaX: 0, deltaY: 40 })
+      trackEl.dispatchEvent(ev)
+
+      expect(viewport.scrollLeft).toBe(40)
+      expect(ev.defaultPrevented).toBe(true)
+    })
+
+    it('deltaMode 為 line 時換算成 px（約 16px / 行）', async () => {
+      const w = track(mountScrollbar())
+      await applyGeometry(w, VERTICAL_OVERFLOW)
+
+      const trackEl = w.find('.base-scrollbar__track--vertical').element as HTMLElement
+      const viewport = viewportOf(w)
+
+      const ev = wheelEvent({ deltaY: 2, deltaMode: WheelEvent.DOM_DELTA_LINE })
+      trackEl.dispatchEvent(ev)
+
+      expect(viewport.scrollTop).toBe(32)
+      expect(ev.defaultPrevented).toBe(true)
     })
   })
 

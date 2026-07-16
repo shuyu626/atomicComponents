@@ -238,6 +238,7 @@ function beforeClose(done: () => void) {
 |---|---|
 | 面板 | `role="dialog"`、`aria-modal="true"`、`tabindex="-1"`、`id`（`useId()`） |
 | 無障礙名稱 | 有 `title` 或 `#title` → `aria-labelledby` 指向標題；皆無 → 用 `ariaLabel` 當 `aria-label`。三者皆無會念「未命名對話框」 |
+| 內容描述 | 內容區（`__body`）帶 `id`，面板以 `aria-describedby` 指向（與 BaseModal 同模式） |
 | 關閉鈕 | `aria-label`（預設「關閉」，可用 `closeLabel` 覆寫供多語系），`&times;` 圖示 `aria-hidden` |
 | 遮罩 / 背景圖層 | `aria-hidden="true"`（純視覺，不進無障礙樹）；背景圖 `alt=""` |
 | 鍵盤 | Esc 關閉（最上層）；focus-trap 鎖 Tab，關閉還焦給觸發元素 |

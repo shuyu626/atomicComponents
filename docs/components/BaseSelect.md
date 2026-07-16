@@ -144,6 +144,7 @@ const city = ref<string>()
 - **單選**：點選項（或鍵盤 Enter）即更新 v-model 並**關閉**浮層。
 - **多選**：點選項 toggle 累加 / 移除，浮層**保持開啟**；顯示區預設以 `, ` 串接已選 label。
   - **容器型別沿用**：v-model 傳入 `Set` → 維持 Set（Set 進 Set 出）；否則用 `Array`。切換時一律**整體取代**（`new Set(...)` / 新陣列），不深層 mutate，確保響應式更新（對齊 component-architecture 規範）。
+  - **Array 順序**：Array model 的選中值**依 `options` 順序排列**——新增時不直接 push，而是逐一比對 options 順序重建整個陣列；不在 options 內的殘值（防禦情境）保留在尾端、維持原相對順序。Set 本身無序語意，維持插入順序、不重建。
   - **chip 顯示**：`chips` 開啟時，已選項改在控制項內以可刪除的 [`BaseChip`](./BaseChip.md) 呈現（chip 多時自動換行、控制項高度自動成長）。每個 chip 的 × 透過 BaseChip 的 `delete` 事件單獨移除該值（`stopPropagation` 後移除，不連帶開合浮層）；維持原容器型別。`chips` 僅多選有效，且自訂 `#display` slot 時以 slot 為準。
 - **選中打勾**：選取的選項會在**最後方**顯示打勾圖示（`.base-select__check`）；自訂 `#option` slot 時打勾仍會附加在 label 之後。
 - **清除（clearable）**：`clearable`（預設 `true`）時，有選取就會在控制項右側出現叉叉鈕（hover / focus 控制項才顯形，且**可鍵盤 Tab 聚焦操作**）。點擊清除：單選回 `undefined`、多選回空 `Array` / 空 `Set`（依原容器型別）。清除鈕 `@click.stop` 不會連帶開合浮層、`@mousedown.prevent` 不搶焦點（滑鼠清除後焦點仍在控制項）。
@@ -244,6 +245,6 @@ function onSubmit() {
 
 ## 8. 測試與 Storybook
 
-- [x] **Vitest**：`tests/components/atoms/BaseSelect.spec.ts`（渲染 combobox / 浮層 teleport / `aria-expanded`、單選選取 / 顯示 / `aria-selected` / 關閉、多選 Array toggle 累加移除 / 顯示串接 / 保持開啟、多選 Set 容器維持、整體 disabled 不開 / 停用選項不可選、**filterable 搜尋欄在浮層上方 / 過濾 / emptyText / `aria-activedescendant` + Enter 選取 / 選項以 value 為 key 過濾不錯位重用節點**、鍵盤 roving 導覽 / Enter / Esc / Tab、**clearable 單選 / 多選 Array / 多選 Set 清除 / 不開合浮層 / disabled 隱藏 / `clearable=false` / 可鍵盤聚焦**、**chips 多選顯示 / 單獨移除 / 維持 Set / 不開合浮層 / 空顯 placeholder / 單選不啟用 / chip size `sm`**、**選中打勾**、**a11y（`aria-labelledby` 取名 / `aria-required` / `aria-invalid` / `aria-haspopup="listbox"` + 展開時 `aria-controls` 指向 listbox `<ul>`）與表單（hidden input 送序列化值、不渲染代理 input）**、驗證 touched-gated / 關閉 touch / `validate()` / `reset()`、`#option` / `#display` / `#empty` slot）
+- [x] **Vitest**：`tests/components/atoms/BaseSelect.spec.ts`（渲染 combobox / 浮層 teleport / `aria-expanded`、單選選取 / 顯示 / `aria-selected` / 關閉、多選 Array toggle 累加移除 / **依 options 順序重建（亂序點選 / 移除再選回 / 殘值留尾）** / 顯示串接 / 保持開啟、多選 Set 容器維持（插入順序不重建）、整體 disabled 不開 / 停用選項不可選、**filterable 搜尋欄在浮層上方 / 過濾 / emptyText / `aria-activedescendant` + Enter 選取 / 選項以 value 為 key 過濾不錯位重用節點**、鍵盤 roving 導覽 / Enter / Esc / Tab、**clearable 單選 / 多選 Array / 多選 Set 清除 / 不開合浮層 / disabled 隱藏 / `clearable=false` / 可鍵盤聚焦**、**chips 多選顯示 / 單獨移除 / 維持 Set / 不開合浮層 / 空顯 placeholder / 單選不啟用 / chip size `sm`**、**選中打勾**、**a11y（`aria-labelledby` 取名 / `aria-required` / `aria-invalid` / `aria-haspopup="listbox"` + 展開時 `aria-controls` 指向 listbox `<ul>`）與表單（hidden input 送序列化值、不渲染代理 input）**、驗證 touched-gated / 關閉 touch / `validate()` / `reset()`、`#option` / `#display` / `#empty` slot）
 - [x] **Vitest**：`tests/utils/isSet.spec.ts`（Set / WeakSet / Array / Map / 物件 / null / undefined / 原始值）
 - [x] **Storybook**：`stories/components/atoms/BaseSelect.stories.ts`（Playground / Single / Multiple / Chips / MultipleSet / Filterable / Clearable / States / CustomSlots / Validation / Themed）

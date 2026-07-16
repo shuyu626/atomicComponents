@@ -300,6 +300,48 @@ describe('BaseButton', () => {
     })
   })
 
+  // ── Keyboard interaction (link branch: Space activation) ────────────────────
+  //
+  // 設計準則規定：以非 button 元素（<a> / BaseLink）呈現按鈕時，原生只支援 Enter，
+  // 需手動補齊 Space 觸發，符合按鈕外觀的鍵盤預期。
+  describe('keyboard interaction on link', () => {
+    it('triggers click and prevents default on Space for a link element', () => {
+      const wrapper = createWrapper({ href: '/' })
+      const clickSpy = vi.spyOn(wrapper.element as HTMLElement, 'click')
+      const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+      wrapper.element.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not trigger click on Space when disabled', () => {
+      const wrapper = createWrapper({ href: '/', disabled: true })
+      const clickSpy = vi.spyOn(wrapper.element as HTMLElement, 'click')
+      const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+      wrapper.element.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(clickSpy).not.toHaveBeenCalled()
+    })
+
+    it('does not trigger click on Space when loading', () => {
+      const wrapper = createWrapper({ href: '/', loading: true })
+      const clickSpy = vi.spyOn(wrapper.element as HTMLElement, 'click')
+      const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+      wrapper.element.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(clickSpy).not.toHaveBeenCalled()
+    })
+
+    it('does not intercept Space on the native <button> branch (native behavior applies)', () => {
+      const wrapper = createWrapper()
+      const clickSpy = vi.spyOn(wrapper.element as HTMLElement, 'click')
+      const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+      wrapper.element.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(false)
+      expect(clickSpy).not.toHaveBeenCalled()
+    })
+  })
+
   // ── href 外部連結語意 (C1-9 regression) ───────────────────────────────────────
   // href 過去只是 to 的 alias，無 protocol 的路徑（如 /file.pdf）會被判為內部路由走
   // SPA 導航，令 download 等原生行為失效。修正後 href 會強制 BaseLink 以原生 <a> 渲染。

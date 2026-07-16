@@ -165,9 +165,9 @@ describe('BaseDropdown', () => {
     })
   })
 
-  // ── 點擊行為（onClick 參數契約）───────────────────────────────────────────────
+  // ── 點擊行為（closeOnClick 宣告式契約）───────────────────────────────────────
   describe('item click behaviour', () => {
-    it('calls onClick with the value and auto-closes for a 0–1 arg handler', async () => {
+    it('calls onClick with (value, close) and auto-closes by default', async () => {
       let received: string | undefined
       const items: BaseDropdownItem<string>[] = [
         { label: '存檔', value: 'save', onClick: (value) => { received = value } },
@@ -182,18 +182,67 @@ describe('BaseDropdown', () => {
       expect(isOpen()).toBe(false)
     })
 
-    it('hands close() to a 2-arg handler and does NOT auto-close', async () => {
-      let close: (() => void) | undefined
+    it('auto-closes even for a 2-arg handler when closeOnClick is unset (arity is ignored)', async () => {
+      // 舊契約用 Function.length >= 2 判斷「接管關閉」；新契約只看 closeOnClick，
+      // 兩參數 handler 未設 closeOnClick: false 時照樣自動關閉。
+      let received: string | undefined
       const items: BaseDropdownItem<string>[] = [
-        { label: '非同步', value: 'async', onClick: (_value, c) => { close = c } },
+        { label: '兩參數', value: 'two', onClick: (value, _close) => { received = value } },
       ]
       const wrapper = track(mountDropdown({ items }))
       await open(wrapper)
 
       fireClick(itemEls()[0])
       await nextTick()
-      // 兩參數 handler → 元件不自動關閉，等使用者呼叫 close
+      expect(received).toBe('two')
+      expect(isOpen()).toBe(false)
+    })
+
+    it('stays open with closeOnClick: false until the handler calls close()', async () => {
+      let close: (() => void) | undefined
+      const items: BaseDropdownItem<string>[] = [
+        {
+          label: '非同步',
+          value: 'async',
+          closeOnClick: false,
+          onClick: (_value, c) => { close = c },
+        },
+      ]
+      const wrapper = track(mountDropdown({ items }))
+      await open(wrapper)
+
+      fireClick(itemEls()[0])
+      await nextTick()
+      // closeOnClick: false → 元件不自動關閉，等 handler 呼叫收到的 close
       expect(isOpen()).toBe(true)
+      expect(typeof close).toBe('function')
+
+      close?.()
+      await nextTick()
+      expect(isOpen()).toBe(false)
+    })
+
+    it('is unaffected by default-parameter declarations like (v, c = noop) (regression)', async () => {
+      // 防退化：預設參數會讓 Function.length 變 1，舊的 arity 檢查會誤判成自動關閉。
+      // 新契約 close 恆傳入、關閉只看 closeOnClick，宣告方式不影響行為。
+      const fallback = () => {}
+      let close: (() => void) | undefined
+      const items: BaseDropdownItem<string>[] = [
+        {
+          label: '預設參數',
+          value: 'default-param',
+          closeOnClick: false,
+          onClick: (_value, c = fallback) => { close = c },
+        },
+      ]
+      const wrapper = track(mountDropdown({ items }))
+      await open(wrapper)
+
+      fireClick(itemEls()[0])
+      await nextTick()
+      expect(isOpen()).toBe(true)
+      // close 恆傳入 → 不會落到預設值 fallback
+      expect(close).not.toBe(fallback)
       expect(typeof close).toBe('function')
 
       close?.()

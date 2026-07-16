@@ -22,6 +22,7 @@ BaseTextarea 額外的控制項 props，加上**全部** [`BaseFormField` 的欄
 | `rows` | `number` | `2` | 初始 / 最小可見行數（HTML `rows`）；`autosize` 時作為高度下界 |
 | `maxRows` | `number` | — | `autosize` 時的最大行數上界；未設則不限制（內容多長就多高） |
 | `autosize` | `boolean \| 'cacheMeasurements'` | `false` | 隨內容自動調整高度；`'cacheMeasurements'` 快取量測值（樣式不變時較省） |
+| `resize` | `'none' \| 'vertical' \| 'horizontal' \| 'both'` | `'vertical'` | 使用者可手動拖曳調整的方向（原生 CSS `resize`）；`autosize` 啟用時一律強制視為 `'none'`（見 §4） |
 | `prepend` | `string \| Component` | — | 前綴：字串顯示為文字、元件以 `<component :is>` 渲染；也可用 `#prepend` slot |
 | `append` | `string \| Component` | — | 後綴：同 `prepend`；也可用 `#append` slot |
 | `name` | `string` | — | textarea `name`（送出表單 / 自動填入用） |
@@ -129,10 +130,12 @@ const feedback = ref('')
 
 - **內容優先序**：`#label` slot > `label` prop；`#message` slot > `message` prop；`#prepend` / `#append` slot > 對應 prop。
 - **受控 / 非受控**：由 `defineModel` 原生處理——父層綁 `v-model` 即受控、值以父層為準；未綁時元件自留內部狀態，仍可正常輸入。
-- **autosize（自動高度）**：以 `scrollHeight` 扣除上下 padding 換算所需行數，夾在 `rows`（下界）與 `maxRows`（上界，未設為不限制）之間設定 `textarea.rows`。觸發時機：使用者輸入（`input`）、`v-model` 程式化變動、容器尺寸改變（`useResizeObserver`，如父層 flex 重排、字體載入後撐高）。達 `maxRows` 上界後改為內部捲動；`autosize` 開啟時停用使用者手動拖拉（`resize: none`），未開啟則保留 `resize: vertical`。`'cacheMeasurements'` 會快取 padding / line-height 量測值，樣式固定時較省效能，但字體 / 行高變動後不會重新量測。
+- **autosize（自動高度）**：以 `scrollHeight` 扣除上下 padding 換算所需行數，夾在 `rows`（下界）與 `maxRows`（上界，未設為不限制）之間設定 `textarea.rows`。觸發時機：使用者輸入（`input`）、`v-model` 程式化變動、容器尺寸改變（`useResizeObserver`，如父層 flex 重排、字體載入後撐高）。達 `maxRows` 上界後改為內部捲動。`'cacheMeasurements'` 會快取 padding / line-height 量測值，樣式固定時較省效能，但字體 / 行高變動後不會重新量測。
+- **`resize`（手動拖曳方向）**：對應原生 CSS `resize`，預設 `'vertical'`。透過 inline CSS 變數 `--textarea-resize` 注入 `__input`。**`autosize` 啟用時優先權高於 `resize` prop，一律強制收斂為 `'none'`**——因為 autosize 每次量測都會先把 `rows` 還原到下界（見 `calcTextareaHeight`）再重新計算，若同時允許使用者手動拖曳撐高，兩者會互相覆寫造成高度抖動。
 - **modifier 與輸入體驗**：model → textarea 的同步複刻原生 `vModelText` 的 focus 守衛——聚焦輸入中且「修整後值與 model 相等」時不覆寫 `el.value`，避免 `.trim` 的尾隨空白在輸入途中被吃掉；失焦（`change`）時再把顯示值正規化（`.trim` 去尾隨空白）。
 - **IME 組字**：注音 / 拼音 / 日文等組字途中不提交中途值，待 `compositionend`（選字完成）才更新 model，對齊原生 v-model（改用 `defineModel` 後在元件內手動補回 `vModelText` 內建的組字守衛）；組字中仍即時調整 autosize 高度。
 - **`maxlength` 與計數單位差異**：HTML 原生 `maxlength` 以 **UTF-16 code unit** 計，`showCount` 以 **grapheme cluster** 計。多數情況一致，但 emoji / astral 字元會不同（如 `"😀"` 計數顯示 `1`，卻佔原生 `maxlength` 的 2）。需要嚴格以「人類可見字數」限制長度時，請改用 JS 在 `update:modelValue` 時自行裁切，而非僅依賴原生 `maxlength`。
+- **換行字元的計數落差**：多行文字的換行在編輯與計數階段是 `\n`（計 1 字），但 HTML 規範在**表單送出**時會把換行正規化為 CRLF（`\r\n`，計 2）——後端以送出長度驗證時，可能出現「前端計數 / `maxlength` 未超限、後端卻超限」的情況。後端驗證請與前端對齊計數規則（先把 CRLF 正規化回 `\n` 再計），或前端預留換行數的餘裕。
 - **字數計數**：`showCount` 以 grapheme cluster 計（原生 `Intl.Segmenter`），emoji（含膚色 / ZWJ 組合）、中日韓字元都算 1 字。計數標 `aria-hidden`（裝飾性資訊）。
 - **狀態傳遞**：`error` / `disabled` 由 BaseFormField 改寫 `--field-*` token，`__container` / `__input` 自動跟著變色；`invalid` / `required` / `disabled` / `readonly` 經 BaseFormField 的 scoped slot props 綁到 textarea 的 `aria-invalid` / `aria-required` / `disabled` / `readonly`。
 
@@ -212,6 +215,6 @@ const rules: ValidationRule<string>[] = [
 
 ## 8. 測試與 Storybook
 
-- [x] **Vitest**：`tests/components/atoms/BaseTextarea.spec.ts`（結構與欄位轉發、`<label for>` 關聯、原生屬性透傳、v-model 雙向與 `.trim` / `.lazy` modifier、IME 組字不提交中途值 / 失焦正規化、`focus` / `blur` 事件轉發、`prepend` / `append` 字串與元件與 slot、`showCount` 計數 / `count/maxlength` / grapheme 計數、`autosize` modifier class、a11y `aria-describedby` / `aria-invalid` / `aria-required` / `disabled` / `readonly`、**驗證 rules**：touched-gated 不提早報錯 / blur 後顯示 / 逐字即時重驗 / `message` prop 優先 / `validate()` / `reset()` expose）
+- [x] **Vitest**：`tests/components/atoms/BaseTextarea.spec.ts`（結構與欄位轉發、`<label for>` 關聯、原生屬性透傳、v-model 雙向與 `.trim` / `.lazy` modifier、IME 組字不提交中途值 / 失焦正規化、`focus` / `blur` 事件轉發、`prepend` / `append` 字串與元件與 slot、`showCount` 計數 / `count/maxlength` / grapheme 計數、`autosize` modifier class、`resize` 預設值 / 各值反映 / autosize 時強制 `none`、a11y `aria-describedby` / `aria-invalid` / `aria-required` / `disabled` / `readonly`、**驗證 rules**：touched-gated 不提早報錯 / blur 後顯示 / 逐字即時重驗 / `message` prop 優先 / `validate()` / `reset()` expose）
 - [x] **Vitest**：`tests/utils/clamp.spec.ts`（區間內 / 夾下界 / 夾上界 / 邊界值 / Infinity 上界）。共用驗證測試 `tests/composables/useValidation.spec.ts`、`tests/utils/validators.spec.ts`，與 `tests/composables/useStringLength.spec.ts`、`tests/utils/isComponent.spec.ts`（與 BaseTextField 共用基礎建設）。
 - [x] **Storybook**：`stories/components/atoms/BaseTextarea.stories.ts`（Playground / Rows / Autosize / ShowCount / States / LabelPlacement / Validation / Themed）

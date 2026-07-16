@@ -53,7 +53,8 @@ describe('BaseSwitch', () => {
       expect((inputEl(wrapper).element as HTMLInputElement).checked).toBe(true)
       // 不加冗餘 aria-checked；checked 由瀏覽器映射。
       expect(inputEl(wrapper).attributes('aria-checked')).toBeUndefined()
-      expect(wrapper.classes()).toContain('base-switch--checked')
+      // 選中態視覺改由原生 :checked 偽類驅動（狀態來源單一＝DOM），不再輸出 JS 的 --checked class。
+      expect(wrapper.classes()).not.toContain('base-switch--checked')
     })
 
     it('emits true / false on toggle', async () => {
@@ -82,15 +83,15 @@ describe('BaseSwitch', () => {
 
     it('is checked when modelValue equals activeValue', () => {
       const wrapper = mountSwitch({ modelValue: 'on', activeValue: 'on', inactiveValue: 'off' })
+      // 選中態以原生 input.checked 為準（視覺由 :checked 偽類驅動，無 JS class）。
       expect((inputEl(wrapper).element as HTMLInputElement).checked).toBe(true)
-      expect(wrapper.classes()).toContain('base-switch--checked')
     })
 
     // 只給 inactiveValue（不給 activeValue）：truthy 的初始值不可被誤判為開啟。
     it('treats a truthy inactiveValue as unchecked when only inactiveValue is set', () => {
       const wrapper = mountSwitch({ modelValue: 'off', inactiveValue: 'off' })
+      // 選中態以原生 input.checked 為準（視覺由 :checked 偽類驅動，無 JS class）。
       expect((inputEl(wrapper).element as HTMLInputElement).checked).toBe(false)
-      expect(wrapper.classes()).not.toContain('base-switch--checked')
     })
   })
 

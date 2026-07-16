@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 
 import BaseAvatar from '~/components/atoms/BaseAvatar.vue'
 
@@ -175,6 +176,171 @@ describe('BaseAvatar', () => {
       const img = mountAvatar({ src: '/a.jpg', alt: 'a', priority: true }).find('img')
       expect(img.attributes('loading')).toBe('eager')
       expect(img.attributes('fetchpriority')).toBe('high')
+    })
+  })
+
+  // ── 水合前圖片錯誤偵測 ────────────────────────────────────────────────────────
+  describe('pre-hydration image error detection', () => {
+    /**
+     * 模擬「掛載前圖片已載入完成／失敗」：happy-dom 下以 Object.defineProperty
+     * 覆寫 HTMLImageElement 原型的 complete / naturalWidth，並回傳還原函式。
+     */
+    function stubImageState(state: { complete: boolean, naturalWidth: number }): () => void {
+      const proto = window.HTMLImageElement.prototype
+      const original = {
+        complete: Object.getOwnPropertyDescriptor(proto, 'complete'),
+        naturalWidth: Object.getOwnPropertyDescriptor(proto, 'naturalWidth'),
+      }
+      Object.defineProperty(proto, 'complete', {
+        configurable: true,
+        get: () => state.complete,
+      })
+      Object.defineProperty(proto, 'naturalWidth', {
+        configurable: true,
+        get: () => state.naturalWidth,
+      })
+      return () => {
+        for (const key of ['complete', 'naturalWidth'] as const) {
+          const descriptor = original[key]
+          if (descriptor) Object.defineProperty(proto, key, descriptor)
+          else Reflect.deleteProperty(proto, key)
+        }
+      }
+    }
+
+    it('switches to fallback on mount when the image already failed before hydration', async () => {
+      const restore = stubImageState({ complete: true, naturalWidth: 0 })
+      try {
+        // 圖片在水合前就 error：事件已 fire 完，只能靠掛載時檢查 naturalWidth 補救
+        const w = mountAvatar({ src: '/broken.jpg', alt: 'Alex' }, { default: () => 'AC' })
+        await nextTick()
+        expect(w.find('img').exists()).toBe(false)
+        expect(w.text()).toContain('AC')
+      } finally {
+        restore()
+      }
+    })
+
+    it('keeps the image when it already finished loading successfully', async () => {
+      const restore = stubImageState({ complete: true, naturalWidth: 128 })
+      try {
+        const w = mountAvatar({ src: '/a.jpg', alt: 'Alex' })
+        await nextTick()
+        expect(w.find('img').exists()).toBe(true)
+      } finally {
+        restore()
+      }
+    })
+
+    it('does not treat a still-loading image as failed', async () => {
+      const restore = stubImageState({ complete: false, naturalWidth: 0 })
+      try {
+        const w = mountAvatar({ src: '/a.jpg', alt: 'Alex' })
+        await nextTick()
+        expect(w.find('img').exists()).toBe(true)
+      } finally {
+        restore()
+      }
+    })
+  })
+
+  // ── 三層 fallback（slot → 文字 → 剪影）──────────────────────────────────────
+  describe('three-tier fallback (slot → text → silhouette)', () => {
+    it('renders the built-in silhouette when the image fails with no slot and no alt text', async () => {
+      const w = mountAvatar({ src: '/broken.jpg', alt: '' })
+      await w.find('img').trigger('error')
+      const svg = w.find('svg.base-avatar__silhouette')
+      expect(svg.exists()).toBe(true)
+      // 剪影純裝飾，SR 必須跳過
+      expect(svg.attributes('aria-hidden')).toBe('true')
+    })
+
+    it('renders the silhouette for a src-less avatar without slot and alt', () => {
+      const w = mountAvatar()
+      expect(w.find('svg.base-avatar__silhouette').exists()).toBe(true)
+    })
+
+    it('renders alt text for a src-less avatar without slot (text tier before silhouette)', () => {
+      const w = mountAvatar({ alt: 'Alex' })
+      expect(w.text()).toContain('Alex')
+      expect(w.find('svg.base-avatar__silhouette').exists()).toBe(false)
+    })
+
+    it('never renders the silhouette when a slot provides content', async () => {
+      const withDefault = mountAvatar({}, { default: () => 'AC' })
+      expect(withDefault.find('svg.base-avatar__silhouette').exists()).toBe(false)
+
+      const withFallback = mountAvatar({ src: '/broken.jpg', alt: '' }, { fallback: () => 'FB' })
+      await withFallback.find('img').trigger('error')
+      expect(withFallback.find('svg.base-avatar__silhouette').exists()).toBe(false)
+      expect(withFallback.text()).toContain('FB')
+    })
+  })
+
+  // ── 文字頭像自動配色 ──────────────────────────────────────────────────────────
+  describe('auto background color for text avatars', () => {
+    function autoBg(w: ReturnType<typeof mountAvatar>): string {
+      return (w.find('.base-avatar').element as HTMLElement).style.getPropertyValue(
+        '--avatar-auto-bg',
+      )
+    }
+
+    it('injects deterministic auto colors: same text always yields the same palette entry', () => {
+      const a = mountAvatar({ alt: 'Alex' })
+      const b = mountAvatar({ alt: 'Alex' })
+      expect(autoBg(a)).not.toBe('')
+      expect(autoBg(a)).toBe(autoBg(b))
+      const fg = (a.find('.base-avatar').element as HTMLElement).style.getPropertyValue(
+        '--avatar-auto-color',
+      )
+      expect(fg).not.toBe('')
+    })
+
+    it('spreads different strings across the palette', () => {
+      const names = ['Alex', 'Ben', 'Cara', 'Dan', 'Eve', 'Fay', 'Gus', 'Hana']
+      const colors = new Set(names.map(name => autoBg(mountAvatar({ alt: name }))))
+      expect(colors.size).toBeGreaterThan(1)
+    })
+
+    it('derives the hash key from default slot text when alt is absent', () => {
+      const a = mountAvatar({}, { default: () => 'AC' })
+      const b = mountAvatar({}, { default: () => 'AC' })
+      expect(autoBg(a)).not.toBe('')
+      expect(autoBg(a)).toBe(autoBg(b))
+    })
+
+    it('injects no auto colors when there is no displayable text', () => {
+      expect(autoBg(mountAvatar())).toBe('')
+    })
+
+    it('never writes --avatar-bg inline so consumer class overrides can still win', () => {
+      const w = mountAvatar({ alt: 'Alex' })
+      const el = w.find('.base-avatar').element as HTMLElement
+      // 自動配色只准注入 --avatar-auto-bg（inline）；--avatar-bg 只存在 :where() 預設層，
+      // 使用端以任何 class 設 --avatar-bg 都能以 specificity 蓋過自動配色
+      expect(el.style.getPropertyValue('--avatar-bg')).toBe('')
+      expect(el.style.getPropertyValue('--avatar-auto-bg')).not.toBe('')
+    })
+  })
+
+  // ── 數字尺寸字級縮放 ──────────────────────────────────────────────────────────
+  describe('numeric size font scaling', () => {
+    it('scales the fallback font with numeric sizes (size × 0.5, aligned with md 20/40)', () => {
+      const root = mountAvatar({ alt: 'a', size: 48 }).find('.base-avatar')
+        .element as HTMLElement
+      expect(root.style.getPropertyValue('--avatar-auto-font-size')).toBe('24px')
+    })
+
+    it('accepts numeric strings for font scaling', () => {
+      const root = mountAvatar({ alt: 'a', size: '64' }).find('.base-avatar')
+        .element as HTMLElement
+      expect(root.style.getPropertyValue('--avatar-auto-font-size')).toBe('32px')
+    })
+
+    it('does not inject the auto font var for named sizes (tokens stay in charge)', () => {
+      const root = mountAvatar({ alt: 'a', size: 'lg' }, { default: () => 'A' }).find('.base-avatar')
+        .element as HTMLElement
+      expect(root.style.getPropertyValue('--avatar-auto-font-size')).toBe('')
     })
   })
 

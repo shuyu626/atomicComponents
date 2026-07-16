@@ -183,12 +183,13 @@ const displayMessage = computed(() =>
   group ? undefined : (validation?.message.value ?? props.message),
 )
 
+// 不輸出 --checked modifier class：選中態視覺一律由原生 `:checked` 偽類驅動（見 <style> 區塊說明）。
+// isChecked 仍保留給 input 的 :checked 綁定（DOM 為唯一狀態來源）。
 const rootClass = computed(() => [
   `base-radio--${effectiveColor.value}`,
   `base-radio--label-${props.labelPlacement}`,
   {
     'base-radio--disabled': isDisabled.value,
-    'base-radio--checked': isChecked.value,
     'base-radio--error': displayError.value,
   },
 ])
@@ -277,8 +278,12 @@ const rootClass = computed(() => [
     transition: transform 0.15s ease;
   }
 
-  &--checked &__circle { border-color: var(--radio-color); }
-  &--checked &__dot { transform: scale(1); }
+  // ── 選中態 ────────────────────────────────────────────
+  // 選中態視覺由原生 `:checked` 偽類（sr-only input 的相鄰選擇器）驅動，而非 JS 的
+  // --checked class：狀態來源單一（DOM 的 input.checked），原生 `form.reset()`
+  // 還原 checked 時視覺才會跟動（JS class 不會收到 reset 通知）。
+  &__input:checked + &__circle { border-color: var(--radio-color); }
+  &__input:checked + &__circle &__dot { transform: scale(1); }
 
   // 鍵盤聚焦：在自繪圈外畫 focus ring（input 為 sr-only，靠相鄰選擇器套用）。
   &__input:focus-visible + &__circle {

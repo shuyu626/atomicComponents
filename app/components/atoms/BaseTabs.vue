@@ -351,7 +351,10 @@ defineSlots<{
     transition: transform 0.18s ease;
   }
 
-  &:hover:not(:disabled) {
+  // 選中的 tab 不套用 hover —— 它已經是目前狀態，不需要「可切換過去」的提示。
+  // 必須顯式排除：本規則 specificity (0,3,0) 高於 &--selected (0,1,0)，不排除的話
+  // 滑過選中 tab 會把主色文字蓋成 hover 灰，看起來像被取消選取。
+  &:hover:not(:disabled):not(.base-tabs__tab--selected) {
     color: var(--tabs-tab-color-hover);
   }
 

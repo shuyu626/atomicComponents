@@ -22,6 +22,30 @@
 | `href` | `string` | — | 透過 BaseLink 委派渲染(由 fallback chain 決定 NuxtLink / RouterLink / `<a>`) |
 | `target` | `'_self' \| '_blank' \| '_parent' \| '_top'` | — | 配合 `href`。**`_blank` 時自動補 `rel="noopener noreferrer"`** |
 
+### variant 的強弱軸
+
+由強到弱:`solid` → `outline` → `ghost` → `text` → `link`。五者共用同一組 `--btn-*` token,差別只在**互動回饋機制**與**幾何**:
+
+| variant | 靜止底色 | hover 回饋 | 幾何 |
+|---|---|---|---|
+| `solid` | accent 實心 | 底色換 `--btn-accent-hover` | 標準 |
+| `outline` | 透明 + accent 邊框 | 浮現 accent 底色(8% / 14%) | 標準 |
+| `ghost` | 透明 | 浮現 accent 底色(8% / 14%) | 標準(保留 1px 透明 border) |
+| `text` | 透明 | **不長底色**,改用 `filter: brightness(80%)` 加深文字 | 標準,但 `border: none` |
+| `link` | 透明 | 同 `text`(`filter: brightness(80%)`) | `height: auto`、無 padding、加底線 |
+
+**`ghost` 與 `text` 靜止時外觀相同**(透明底、accent 文字),分野在互動:`ghost` 會浮現一塊底色、明示「這是可點區域」;`text` 只有文字加深,融進文字排版。另 `text` 因 `border: none`,同樣文字下比 `ghost` 窄 2px。
+
+`text` 與 `link` 的回饋機制相同,差在 `link` 設 `height: auto`、移除左右 padding 並加底線。選用原則:要標準按鈕外距用 `text`,要貼齊文字基線的連結外觀用 `link`。
+
+> 注意:`link` 只覆蓋了 `height`,基底的 `min-height: var(--btn-height)`(md = 36px)仍在,故 link 按鈕的實際佔位高度仍是 36px、非真正的行內文字高度。若需要嵌進段落文字流,目前需自行覆蓋 `min-height`。
+
+> hover 用 `filter: brightness()` 而非 `opacity`:`opacity` 會把前景往頁底混、**降低**對比(primary 6.70 → 3.98,六色全數跌破 AA),`brightness` 是往深處走,對比隨互動遞增。
+
+### 渲染為 `<a>` 時的盒模型
+
+`.base-button` **必須顯式宣告 `box-sizing: border-box`**。原生 `<button>` 由 UA stylesheet 給 `border-box`,但有 `to` / `href` 時根元素會換成 BaseLink(`<a>`),而 `<a>` 預設 `content-box` —— 少了這行,帶 border 的 variant(solid / outline / ghost)當連結用會從 36px 變成 38px,與同排按鈕對不齊。專案沒有全域 reset,不能依賴外部修正。
+
 ---
 
 ## 2. P1 / P2 進階 Props
@@ -66,7 +90,9 @@
 | `target="_blank"` 安全預設 | 自動補 `rel="noopener noreferrer"`(caller 可顯式覆寫) |
 | `<a>` 模式的 disabled | 設 `aria-disabled="true"` + `tabindex="-1"` + `pointer-events:none` |
 | Focus 樣式 | `:focus-visible` ring,非 `:focus` |
-| 鍵盤行為 | `<button>` 原生 Enter / Space;`<a role="button">` 要補 Space |
+| 盒模型 | 根元素顯式 `box-sizing: border-box`。`<button>` 靠 UA stylesheet 有,但委派成 `<a>` 時預設是 `content-box`,border 會讓高度多 2px(詳見 §1) |
+| 低調 variant 的 hover | `text` / `link` 用 `filter: brightness(80%)`,**不要用 `opacity`** —— opacity 往頁底混會降低對比 |
+| 鍵盤行為 | `<button>` 原生 Enter / Space;連結分支(`to` / `href` → BaseLink / `<a>`)以 `@keydown` 補 Space(preventDefault 防捲動 + 觸發 click),保留連結語意、**不加** `role="button"`;inactive(disabled / loading)時 Space 與 click 一致被攔截 |
 | 觸控目標 | 粗指標裝置(`@media (pointer: coarse)`)下 ≥ 44 × 44px;`sm` 桌機保持 28px 視覺(避開密集排版),手機改用透明 hit-area pseudo 擴大觸控區到 44 × 44(WCAG 2.5.5) |
 | Icon 間距 | 用 `gap` 而非 margin(RTL 友善) |
 | Reduced motion | spinner / transition 包 `@media (prefers-reduced-motion: reduce)` |

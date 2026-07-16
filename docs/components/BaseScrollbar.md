@@ -6,7 +6,7 @@
 
 BaseScrollbar 是 **overlay 自訂捲軸**：把 viewport 的原生捲軸隱藏，改用絕對定位的 `track + thumb` 覆蓋層呈現，閒置後自動淡出。用於需要「跨瀏覽器一致捲軸外觀」的場景（卡片、面板、側邊欄、聊天視窗…），同時保留原生捲動的物理慣性與滾輪行為。
 
-它**不接管捲動本身** —— viewport 仍是原生 `overflow:auto`，滾輪 / 觸控 / 鍵盤捲動全照舊；overlay 只負責「視覺化捲動位置 + 提供拖曳 / 點軌道跳轉」。`native` prop 可一鍵退回完全原生捲軸（不隱藏、不渲染 overlay）。
+它**不接管 viewport 本身的捲動** —— viewport 仍是原生 `overflow:auto`，滾輪 / 觸控 / 鍵盤捲動全照舊；overlay 只負責「視覺化捲動位置 + 提供拖曳 / 點軌道跳轉」。但 track 是浮在 viewport **之上**、卻不屬於 viewport **內部**的絕對定位覆蓋層——滑鼠停在 track 顯示區滾滾輪時，若不處理，瀏覽器會捲動最近的可捲動祖先（通常是整頁）而非 viewport，形成死角。因此 track 額外掛了 `@wheel`，把落在 track 上的滾輪事件轉發成 viewport 的捲動（到頂 / 到底時不吃事件，讓其自然冒泡給頁面）。`native` prop 可一鍵退回完全原生捲軸（不隱藏、不渲染 overlay，track 死角問題也隨之消失）。
 
 > 本元件改寫自 [Mini-ghost/16th-ithelp-vue-components 的 `AtomicScrollbar`](https://github.com/Mini-ghost/16th-ithelp-vue-components/blob/main/src/components/AtomicScrollbar.vue)，並針對本專案規範做了修正與優化（見 §7）。
 
@@ -127,7 +127,8 @@ import BaseScrollbar from '~/components/atoms/BaseScrollbar.vue'
 | 點擊軌道空白 | thumb 中心對齊點擊位置並捲過去 |
 | hover 軌道 | 顯示捲軸、加粗、暫停自動隱藏 |
 | 滑出 / 捲動後閒置 | `HIDE_DELAY`(1000ms) 後淡出 |
-| 滾輪 / 觸控 / 鍵盤 | 原生 `overflow:auto` 處理，元件不介入 |
+| 滾輪 / 觸控 / 鍵盤（在 viewport 上） | 原生 `overflow:auto` 處理，元件不介入 |
+| 滾輪（在 track 覆蓋區上） | track 不在 viewport 內，瀏覽器預設會捲動最近可捲動祖先（死角）；track 掛 `@wheel` 把 delta 轉發給 viewport。horizontal track 優先吃 `deltaX`，為 0 時把 `deltaY` 當橫向捲動量；`deltaMode` line/page 依 16px / 可視長度換算。只有 viewport 還能往該方向捲時才 `preventDefault()`，到頂 / 到底時不吃事件，讓其自然冒泡給頁面 |
 
 - 只處理主鍵（`button === 0`）拖曳；右鍵 / 中鍵 / `Ctrl+左鍵` 忽略。
 
@@ -198,6 +199,6 @@ import BaseScrollbar from '~/components/atoms/BaseScrollbar.vue'
 
 **觀察**：
 
-- **不重造捲動**：viewport 仍是原生 `overflow:auto`，只在視覺層疊一層可拖曳 thumb，避免攔截滾輪 / 觸控造成的慣性與相容性問題。
+- **不重造捲動**：viewport 仍是原生 `overflow:auto`，只在視覺層疊一層可拖曳 thumb，避免攔截滾輪 / 觸控造成的慣性與相容性問題。唯一的例外是 track 覆蓋區：track 浮在 viewport 之上但不在其內，滾輪落在 track 上時瀏覽器不會捲 viewport，故以 `@wheel` 把事件轉發回 viewport（到頂 / 到底時放行冒泡），viewport 上的原生滾輪行為則完全不接管。
 - **查表驅動雙向**：`ORIENTATION_MAP` 讓垂直 / 水平共用同一份計算，減少重複。
 - **修正 a11y 與洩漏**：補 `aria-controls` 指向、補卸載清理 —— 這兩點是參考實作常見的疏漏（見 §7）。

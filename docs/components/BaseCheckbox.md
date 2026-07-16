@@ -77,7 +77,7 @@ const consent = ref('no')
 - **內容優先序**：`#label` slot > `#default` slot > `label` prop；`#message` slot > `message` prop。
 - **獨立模式**：v-model 綁 `boolean`，或以 `trueValue`/`falseValue` 綁自訂值；`isChecked = model === trueValue`。
 - **群組模式**：偵測到注入的群組 context（在 `BaseCheckboxGroup` 內）即啟用——`isChecked = value ∈ 群組值`（用 `isSet` 判斷 Array / Set），點擊呼叫群組 `toggle(value)`；`name` / `color` / `disabled` 繼承群組（個別 prop 可覆寫）；個別訊息 / 驗證交給群組（子元件**不建立** child-level 驗證、**不暴露** `validate()` / `reset()`，避免回傳無意義且誤導的驗證結果）。
-- **indeterminate**：HTML 無對應 attribute，故以 DOM property 設定（`onMounted` 同步 + `watch`），並標 `aria-checked="mixed"`。
+- **indeterminate（半受控）**：HTML 無對應 attribute，故以 DOM property 設定（`onMounted` 同步 + `watch`），並標 `aria-checked="mixed"`。內部以 `ref` 保存半選狀態、`watch` 同步 `indeterminate` prop 進來；使用者**實際點擊**後會強制清為 `false`（對齊原生 DOM checkbox「一點擊即離開半選」的行為，避免瀏覽器已清掉 DOM 的 `.indeterminate` 但元件仍照 prop 顯示 dash 圖示 / `aria-checked="mixed"`，造成視覺與 DOM 脫鉤）。父層之後若重新把 `indeterminate` 設回 `true`，仍可再次進入半選。
 - **停用**：`--checkbox-color` 轉灰、input `disabled`、cursor `not-allowed`。
 
 ---
@@ -128,5 +128,5 @@ const rules: ValidationRule<boolean | undefined>[] = [(v) => v === true || '必�
 
 ## 8. 測試與 Storybook
 
-- [x] **Vitest**：`tests/components/atoms/BaseCheckbox.spec.ts`（渲染 / slot 標籤 / color / labelPlacement class、label 點擊切換、v-model boolean、trueValue/falseValue、indeterminate（DOM property + `aria-checked="mixed"`）、disabled、change 事件、rules touched-gated / `validate()` / `reset()`）
+- [x] **Vitest**：`tests/components/atoms/BaseCheckbox.spec.ts`（渲染 / slot 標籤 / color / labelPlacement class、label 點擊切換、v-model boolean、trueValue/falseValue、indeterminate（DOM property + `aria-checked="mixed"`、半受控——使用者點擊後離開半選 / 父層 prop 重設後可再次進入半選）、disabled、change 事件、rules touched-gated / `validate()` / `reset()`）
 - [x] **Storybook**：`stories/components/atoms/BaseCheckbox.stories.ts`（Playground / States / LabelPlacement / Colors / TrueFalseValue / Validation / Themed）

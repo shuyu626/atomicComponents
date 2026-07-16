@@ -1,22 +1,22 @@
 /**
- * 泛型 Singleton Observer 工廠 —— `createResizeObserver` 與 `createIntersectionObserver`
- * 的共用骨架（兩者原本約 90% 邏輯重複，差別僅在原生 observer 的建構與「何時觸發 callback」）。
- *
- * 為什麼需要這層包裝：直接 `new ResizeObserver` / `new IntersectionObserver` 有 3 個常見痛點 ——
- *   1. 每個呼叫端各建一個 observer，多元件場景下記憶體與排程開銷高
- *   2. 沒人管釋放，元件 unmount 後 observer 殘留
- *   3. SSR / 舊瀏覽器需要呼叫端自己寫 typeof guard
- * 本檔解掉這三件事，呼叫端只負責「element + callback」與「unobserve」。
- *
- * ## 設計重點（兩種 observer 共用）
- *
- * 1. **Singleton（單例）** —— N 個呼叫端共享 1 個原生 observer 實例，瀏覽器批次量測。
- * 2. **Lazy 建立** —— 原生 observer 延遲到首次 `observe()` 才 `new`，引入但未使用時零成本。
- * 3. **Auto-disconnect** —— 最後一個 unobserve 解除（`callbacks.size === 0`）時自動 disconnect
- *    並設 null（釋放原生資源），cache 物件本身保留，下次 observe 進來時自動重建。
- * 4. **SSR / 舊瀏覽器 safe** —— 不支援時回 no-op handle（**不寫入 cache**，避免 server bundle
- *    把 no-op 鎖進 cache 後，在 SSR + client share-module-state 的測試環境誤拿到 no-op）。
- */
+  * Generic Singleton Observer factory.
+  *
+  * 提供 ResizeObserver / IntersectionObserver 共用的管理邏輯：
+  *
+  * - Singleton：多個呼叫端共享同一個原生 observer instance
+  * - Lazy create：第一次 observe 時才建立原生 observer
+  * - Auto cleanup：最後一個 element unobserve 後自動 disconnect
+  * - SSR safe：不支援 observer API 時回傳 no-op handle
+  *
+  * 呼叫端只需要提供：
+  *   1. 要觀察的 element
+  *   2. 事件發生時執行的 callback
+  *   3. 元件卸載時呼叫 unobserve
+  *
+  * 原生 observer 的差異由 create() 負責：
+  *   - ResizeObserver：元素尺寸變化時通知 callback
+  *   - IntersectionObserver：元素進入 viewport 時通知 callback
+  */
 
 type CallbackFn = () => void
 type ObserveFn = (element: Element, callback: CallbackFn) => () => void
@@ -55,8 +55,8 @@ interface NativeObserver {
  * )
  */
 export default function createSingletonObserver(
-  isSupported: () => boolean,
-  create: (notify: (target: Element) => void) => NativeObserver,
+  isSupported: () => boolean,  // 判斷目前環境是否支援原生 Observer API
+  create: (notify: (target: Element) => void) => NativeObserver,  // 建立真正的原生 Observer 實例
 ): () => SingletonObserverHandle {
   // 每呼叫一次 createSingletonObserver 得到獨立的 module-level cache
   // （resize 與 intersection 各自一份，互不干擾）。
@@ -83,6 +83,8 @@ export default function createSingletonObserver(
       callbacks.get(target)?.()
     }
 
+    // Lazy create：
+    // 第一次 observe 時建立 NativeObserver。
     const observe: ObserveFn = (element, callback) => {
       // Lazy 建立；auto-disconnect 後若有人再 observe，這裡也會重建。
       observer ||= create(notify)
@@ -90,15 +92,16 @@ export default function createSingletonObserver(
       callbacks.set(element, callback)
       observer.observe(element)
 
-      // 回傳 unobserve closure。Idempotent：重複呼叫安全（`callbacks.has` guard，
-      // 避免 observer 已被 auto-disconnect 設 null 後再呼叫 `.unobserve` 而 NPE）。
+      // 回傳解除監控函式。
+      // 使用 closure 記住目前 element。
       return () => {
-        if (!callbacks.has(element)) return
+        if (!callbacks.has(element)) return // 防止重複 unobserve
 
         callbacks.delete(element)
         observer?.unobserve(element)
 
-        // 最後一個解除 → 釋放原生 observer（不留閒置），cache 本身保留供下次重建。
+        // 如果已經沒有任何 element 被觀察：
+        // 釋放原生 observer（不留閒置），cache 本身保留供下次重建。
         if (callbacks.size === 0) {
           observer?.disconnect()
           observer = null
@@ -106,6 +109,7 @@ export default function createSingletonObserver(
       }
     }
 
+    // 建立 singleton handle 並快取
     cache = { observe }
     return cache
   }

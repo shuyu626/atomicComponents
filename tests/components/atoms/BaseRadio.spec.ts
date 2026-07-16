@@ -46,7 +46,8 @@ describe('BaseRadio (standalone)', () => {
     it('is checked when modelValue equals value', () => {
       const wrapper = mountRadio({ value: 'a', modelValue: 'a' })
       expect((inputEl(wrapper).element as HTMLInputElement).checked).toBe(true)
-      expect(wrapper.classes()).toContain('base-radio--checked')
+      // 選中態視覺改由原生 :checked 偽類驅動（狀態來源單一＝DOM），不再輸出 JS 的 --checked class。
+      expect(wrapper.classes()).not.toContain('base-radio--checked')
     })
 
     it('is not checked when modelValue differs', () => {
@@ -56,8 +57,8 @@ describe('BaseRadio (standalone)', () => {
 
     it('is not checked when value is omitted (no undefined === undefined match)', () => {
       const wrapper = mountRadio({ modelValue: undefined })
+      // 選中態以原生 input.checked 為準（視覺由 :checked 偽類驅動，無 JS class）。
       expect((inputEl(wrapper).element as HTMLInputElement).checked).toBe(false)
-      expect(wrapper.classes()).not.toContain('base-radio--checked')
     })
 
     it('emits its value on select', async () => {

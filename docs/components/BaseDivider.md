@@ -23,6 +23,7 @@ BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的�
 | `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | 方向：水平分隔上下內容 / 垂直分隔左右內容 |
 | `lineStyle` | `'solid' \| 'dashed' \| 'dotted'` | `'solid'` | 線型（對應 CSS `border-style`） |
 | `textAlign` | `'start' \| 'center' \| 'end'` | `'center'` | 文字位置；僅在提供 `#default` slot 時生效 |
+| `decorative` | `boolean` | `false` | 是否為純裝飾性分隔線。`true` 時對輔助技術隱形（`role="none"`），適合純視覺裝飾、內容本身已能表達分隔關係的情境；`false` 保留語義化 `separator` 角色，用於確實分隔有意義內容區塊（例如區隔段落、選單分組）的情境 |
 
 **Slots**
 
@@ -87,6 +88,9 @@ BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的�
     <BaseDivider orientation="vertical" />
     <span>聯絡</span>
   </div>
+
+  <!-- 純裝飾分隔線：不承載語義，對輔助技術隱形（role="none"） -->
+  <BaseDivider decorative />
 </template>
 ```
 
@@ -108,6 +112,10 @@ BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的�
 - 純線使用原生 `<hr>`，本身即帶 `separator` 角色；垂直方向補 `aria-orientation="vertical"`（`<hr>` 預設為 `horizontal`）。
 - 帶文字版本使用 `<div role="separator" :aria-orientation>`，文字會被螢幕閱讀器朗讀，作為區段標籤。
 - 預設 `--divider-color` 為淡灰中性線；若調深 / 調淺請自行確認與背景的對比足夠（分隔線非文字，無嚴格 WCAG 對比門檻，但過淡會難以辨識）。
+- **`decorative`**：純視覺裝飾、不承載語義的分隔線（例如卡片內部的裝飾線），設 `decorative` 可對輔助技術隱形，避免大量裝飾用分隔線在螢幕閱讀器中產生 separator 噪音：
+  - 純線 `<hr>` 顯式補 `role="none"`，覆蓋原生隱含的 separator 語意（`aria-orientation` 維持不變，因無 accessible node 而不會被朗讀）。
+  - 帶文字 `<div>` 改為 `role="none"` 並省略 `aria-orientation`。
+  - 預設 `false`，維持既有語義化行為；僅在分隔線本身不帶有意義的區段資訊時才設為 `true`。
 
 ---
 
@@ -127,5 +135,5 @@ BaseDivider 是 **分隔線** 元件：在內容之間畫出一條語意化的�
 
 ## 7. 測試與 Storybook
 
-- [x] **Vitest**：`tests/components/atoms/BaseDivider.spec.ts`（純線渲染 `<hr>`、帶文字渲染 `<div role="separator">`、slot 內容、`orientation` / `lineStyle` / `textAlign` modifier class、`aria-orientation`）— 10 cases
+- [x] **Vitest**：`tests/components/atoms/BaseDivider.spec.ts`（純線渲染 `<hr>`、帶文字渲染 `<div role="separator">`、slot 內容、`orientation` / `lineStyle` / `textAlign` modifier class、`aria-orientation`、`decorative` 對兩分支 role / aria-orientation 的影響）— 14 cases
 - [x] **Storybook**：`stories/components/atoms/BaseDivider.stories.ts`（Playground / Basic / Variants / WithText / Vertical / Themed）

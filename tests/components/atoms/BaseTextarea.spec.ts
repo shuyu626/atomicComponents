@@ -204,6 +204,27 @@ describe('BaseTextarea', () => {
     })
   })
 
+  // ── resize ────────────────────────────────────────────────────────────────────
+  describe('resize', () => {
+    it('defaults to vertical', () => {
+      const w = mountField()
+      expect(w.find('textarea').attributes('style')).toContain('--textarea-resize: vertical')
+    })
+
+    it.each(['none', 'vertical', 'horizontal', 'both'] as const)(
+      'reflects resize=%s onto --textarea-resize',
+      (value) => {
+        const w = mountField({ resize: value })
+        expect(w.find('textarea').attributes('style')).toContain(`--textarea-resize: ${value}`)
+      },
+    )
+
+    it('forces none when autosize is enabled, overriding the resize prop', () => {
+      const w = mountField({ autosize: true, resize: 'both' })
+      expect(w.find('textarea').attributes('style')).toContain('--textarea-resize: none')
+    })
+  })
+
   // ── a11y 接線 ─────────────────────────────────────────────────────────────────
   describe('a11y wiring', () => {
     it('wires aria-describedby to the message when a message exists', () => {

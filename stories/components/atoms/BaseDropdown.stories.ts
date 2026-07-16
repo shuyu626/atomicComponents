@@ -19,7 +19,7 @@ const meta = {
   component: BaseDropdown,
   tags: ['autodocs'],
   argTypes: {
-    items: { control: false, description: '選單項清單（label / value / onClick / disabled / context）' },
+    items: { control: false, description: '選單項清單（label / value / onClick / closeOnClick / disabled / context）' },
     trigger: {
       control: { type: 'select' },
       options: ['click', 'hover', 'focus', 'touch'],
@@ -191,7 +191,7 @@ export const DisabledItems: Story = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AsyncAction —— 兩參數 onClick(value, close)：await 完成後才手動關閉
+// AsyncAction —— closeOnClick: false：await 完成後才呼叫收到的 close() 手動關閉
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const AsyncAction: Story = {
@@ -203,7 +203,8 @@ export const AsyncAction: Story = {
         {
           label: '存檔並關閉',
           value: 'save',
-          // 宣告第二參數 close → 元件不自動關閉，等模擬請求完成再手動關
+          // closeOnClick: false → 元件不自動關閉，等模擬請求完成再呼叫收到的 close()
+          closeOnClick: false,
           onClick: async (_value, close) => {
             status.value = '儲存中…'
             await new Promise((r) => setTimeout(r, 800))

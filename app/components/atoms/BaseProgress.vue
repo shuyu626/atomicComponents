@@ -9,7 +9,7 @@
     :class="rootClass"
     role="progressbar"
     aria-valuemin="0"
-    :aria-valuemax="maxNumber"
+    :aria-valuemax="ariaValueMax"
     :aria-valuenow="indeterminate ? undefined : ariaValueNow"
     :aria-valuetext="indeterminate ? undefined : `${displayPercentage}%`"
     :style="rootStyle"
@@ -164,6 +164,17 @@ const percentage = computed(() => {
 
 /** 指示文字用的整數百分比（幾何計算仍用未取整的 `percentage`）。 */
 const displayPercentage = computed(() => Math.round(percentage.value))
+
+/**
+ * 對外播報的 `aria-valuemax`：`max` 非有限正數（`<= 0` 或 NaN）時退回
+ * ARIA progressbar 規範預設值 100，與 `percentage` 的防呆條件一致
+ * （見上方 `percentage`），避免使用端誤傳 `max <= 0` 時播報出
+ * `aria-valuemax="0"` 這類無效組合。
+ */
+const ariaValueMax = computed(() => {
+  const max = maxNumber.value
+  return Number.isFinite(max) && max > 0 ? max : 100
+})
 
 /**
  * 對外播報的 `aria-valuenow`：夾在 `[0, max]`。

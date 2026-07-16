@@ -136,7 +136,7 @@ const href = computed<string | undefined>(() => {
 const isExternal = computed<boolean>(() => {
   if (props.external) return true
   if (props.target && props.target !== '_self') return true
-  if (typeof props.to === 'object') return false
+  if (typeof props.to === 'object')  return false
   return props.to === '' || hasProtocol(props.to, { acceptRelative: true })
 })
 
@@ -154,8 +154,9 @@ const rel = computed<string | undefined>(() =>
 //     │
 //     ↓
 //   scheduleIdle（瀏覽器 idle 才執行，避免阻塞 LCP / TTI）
-//     │  ├─ 舊 Safari 沒 requestIdleCallback → fallback setTimeout(_, 200)
-//     │  └─ SSR → typeof window guard，schedule 回傳 0 不執行
+//     │  ├─ 有 requestIdleCallback  → 用它（Chrome / Firefox / Safari 15.4+）
+//     │  ├─ 沒有                    → setTimeout(cb, 200)  fallback
+//     │  └─ SSR                    → return 0（typeof window guard）
 //     ↓
 //   雙重檢查：linkRef 已 unmount？isExternal 中途變更？→ 跳過
 //     ↓
@@ -175,27 +176,35 @@ const rel = computed<string | undefined>(() =>
 //     ├─ cancelIdleCallback（若 idle 尚未 fire）
 //     └─ unobserve（若 observer 已建立但 link 尚未進 viewport）
 
+
+// 接收 Vue component 的 instance，用來取得實際 DOM 元素
 function resolveRef(instance: unknown): void {
   linkRef.value = (instance as ComponentPublicInstance | null)?.$el
 }
 
+// 儲存 requestIdleCallback / idle scheduler 的 ID
+// 用來之後取消尚未執行的 idle 任務
 let idleId: number | undefined
+// 儲存 IntersectionObserver 的取消監聽函式
 let unobserve: (() => void) | null = null
 
 onMounted(() => {
-  // Nuxt 環境：NuxtLink 已內建 prefetch，自家 preload 跳過
+  // Nuxt 環境：NuxtLink 已內建 prefetch
   if (hasNuxtLink) return
 
   idleId = scheduleIdle(() => {
     // idle 後再次檢查：元件可能已 unmount、props.to 可能已變成外部 URL
     if (!linkRef.value || isExternal.value) return
 
+    // 建立 IntersectionObserver
+    // 用來監控 link 是否進入使用者視窗(viewport)
     const io = createIntersectionObserver()
     unobserve = io.observe(linkRef.value, () => {
       // 進入 viewport：立即 unobserve，preload 只觸發一次
       unobserve?.()
+      // 清除 reference，表示目前沒有 active observer
       unobserve = null
-      // async preload：錯誤吞掉與 dev warn 已內聚在 helper 內，呼叫端不需再處理
+      // 預先載入 router 對應的 component
       preloadRouterLinkComponents(props.to, router)
     })
   })

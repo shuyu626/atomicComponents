@@ -11,11 +11,8 @@ type RouterWithPreloadCache = Router & { _routePreloaded?: Set<string> }
 /**
  * 預載指定路由的 matched components chunks，行為對齊 NuxtLink 內建 prefetch。
  *
- * 命名說明：刻意叫 `preloadRouterLinkComponents` 而非更直觀的
- * `preloadRouteComponents`，是為了避開 Nuxt 4 內建同名 utility
- * （`nuxt/dist/app/composables/preload.js`）。Nuxt auto-import 機制會 shadow
- * 同名 utils，且未來 Nuxt 升級若調整內建行為會與本元件庫期望不一致。
- * 本 util 設計為跨 Vite-SPA / Nuxt 都可用的通用版本。
+ * 命名刻意使用 `preloadRouterLinkComponents`：
+ * 避免與 Nuxt 內建同名 utility 衝突，確保在 Nuxt auto-import 環境下使用自己的實作。
  *
  *   1. `router.resolve(to)` 拿出 matched route records
  *   2. 對每個 record 的 default lazy component 觸發載入（function 形式才是 lazy import）

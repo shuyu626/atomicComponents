@@ -6,46 +6,57 @@
     :role="fallbackRole"
     :aria-label="fallbackRole ? alt : undefined"
   >
-    <!-- 有 src：載入成功顯示圖片，失敗（@error）切換到 fallback -->
-    <template v-if="src">
-      <img
-        v-if="!error"
-        class="base-avatar__image"
-        :src="src"
-        :alt="alt"
-        :width="pixelSize"
-        :height="pixelSize"
-        :loading="imgLoading"
-        :fetchpriority="fetchPriority"
-        decoding="async"
-        draggable="false"
-        @error="error = true"
-      >
-      <span
-        v-else
-        class="base-avatar__fallback"
-      >
-        <!-- 圖片載入失敗的替代內容；預設退回 default slot（縮寫），再退回 alt 文字 -->
-        <slot name="fallback">
-          <slot>{{ alt }}</slot>
-        </slot>
-      </span>
-    </template>
+    <!-- 有 src 且未失敗：顯示圖片；載入失敗（@error 或掛載時偵測）切換到 fallback -->
+    <img
+      v-if="src && !error"
+      ref="imgRef"
+      class="base-avatar__image"
+      :src="src"
+      :alt="alt"
+      :width="pixelSize"
+      :height="pixelSize"
+      :loading="imgLoading"
+      :fetchpriority="fetchPriority"
+      decoding="async"
+      draggable="false"
+      @error="error = true"
+    >
 
-    <!-- 無 src：純文字 / 縮寫 / 自訂內容 -->
+    <!--
+      三層 fallback：
+      1. slot — 圖片失敗優先 #fallback，其次 #default（無 src 只認 #default）
+      2. 文字 — alt（非空字串）作縮寫 / 名稱
+      3. 剪影 — 皆無可顯示內容時渲染內建匿名剪影，確保不出現空白圓
+    -->
     <span
       v-else
       class="base-avatar__fallback"
     >
-      <slot />
+      <slot
+        v-if="src && slots.fallback"
+        name="fallback"
+      />
+      <slot v-else-if="slots.default" />
+      <template v-else-if="alt">{{ alt }}</template>
+      <!-- 內建匿名使用者剪影：純裝飾（aria-hidden），currentColor 沿用 --avatar-color 可主題化 -->
+      <svg
+        v-else
+        class="base-avatar__silhouette"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5Zm0 2c-4.42 0-8 2.24-8 5v3h16v-3c0-2.76-3.58-5-8-5Z" />
+      </svg>
     </span>
   </span>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, watchEffect } from 'vue'
+import { computed, onMounted, ref, useTemplateRef, watch, watchEffect } from 'vue'
 
-import type { ImgHTMLAttributes, VNode } from 'vue'
+import type { ImgHTMLAttributes, VNode, VNodeArrayChildren } from 'vue'
 
 import isNumberish from '~/utils/isNumberish'
 
@@ -96,10 +107,28 @@ const props = withDefaults(defineProps<BaseAvatarProps>(), {
   priority: false,
 })
 
-defineSlots<BaseAvatarSlots>()
+const slots = defineSlots<BaseAvatarSlots>()
 
-/** 圖片是否載入失敗（由 `<img>` 原生 `@error` 設定）。 */
+/** 圖片是否載入失敗（由 `<img>` 原生 `@error` 或掛載時的水合前偵測設定）。 */
 const error = ref(false)
+
+const imgRef = useTemplateRef<HTMLImageElement>('imgRef')
+
+/**
+ * 水合前圖片錯誤偵測：SSR 輸出的 `<img>` 可能在 Vue 水合完成前就載入失敗，
+ * 此時 error 事件早已 fire 完、掛載後才綁上的 `@error` 永遠收不到，元件會卡在破圖。
+ *
+ * 設計準則建議的「SSR 期 onerror 屬性標記」需要 inline handler 字串，與嚴格 CSP
+ * （`script-src` 未含 `'unsafe-inline'`）不相容；此處改為掛載時檢查
+ * `img.complete && img.naturalWidth === 0`（已結束載入卻無自然尺寸＝載入失敗），
+ * 為同一情境的等效方案。之後的失敗仍由既有 `@error` 接手。
+ */
+onMounted(() => {
+  const img = imgRef.value
+  if (props.src && img && img.complete && img.naturalWidth === 0) {
+    error.value = true
+  }
+})
 
 // src 改變時重置失敗狀態，讓新圖片有機會重新載入。
 watch(
@@ -155,11 +184,86 @@ const sizeClass = computed(() =>
   isNumberish(props.size) ? null : `base-avatar--${props.size}`,
 )
 
+/**
+ * 文字頭像自動配色色盤：每組 bg / fg 皆通過 WCAG AA（一般文字 4.5:1）對比驗證。
+ * 各底色對白色前景（#FFFFFF）的對比值（依 WCAG relative luminance 計算，四捨五入）：
+ *
+ *   #B91C1C 6.5:1   #C2410C 5.2:1   #B45309 5.0:1   #047857 5.5:1
+ *   #0F766E 5.5:1   #1D4ED8 6.7:1   #6D28D9 7.1:1   #BE185D 6.0:1
+ */
+const AUTO_COLOR_PALETTE = [
+  { bg: '#B91C1C', fg: '#FFFFFF' },
+  { bg: '#C2410C', fg: '#FFFFFF' },
+  { bg: '#B45309', fg: '#FFFFFF' },
+  { bg: '#047857', fg: '#FFFFFF' },
+  { bg: '#0F766E', fg: '#FFFFFF' },
+  { bg: '#1D4ED8', fg: '#FFFFFF' },
+  { bg: '#6D28D9', fg: '#FFFFFF' },
+  { bg: '#BE185D', fg: '#FFFFFF' },
+] as const
+
+/**
+ * djb2 字串 hash：純算術、無亂數 / 時間來源，同輸入永遠同輸出（SSR 安全，
+ * server / client 渲染結果一致，不會 hydration mismatch）。
+ */
+function hashString(value: string): number {
+  let hash = 5381
+  for (let index = 0; index < value.length; index++) {
+    hash = ((hash << 5) + hash + value.charCodeAt(index)) >>> 0
+  }
+  return hash
+}
+
+/** 從 slot vnode 樹擷取純文字（hash 配色依據）；只認字串 / 數字子節點，輸出具確定性。 */
+function extractVNodeText(children: VNodeArrayChildren | undefined): string {
+  if (!children) return ''
+  let text = ''
+  for (const child of children) {
+    if (typeof child === 'string' || typeof child === 'number') {
+      text += String(child)
+    } else if (Array.isArray(child)) {
+      text += extractVNodeText(child)
+    } else if (child && typeof child === 'object') {
+      const nested = (child as VNode).children
+      if (typeof nested === 'string') text += nested
+      else if (Array.isArray(nested)) text += extractVNodeText(nested)
+    }
+  }
+  return text
+}
+
+/** 自動配色的 hash 依據：優先 `alt`，否則退回 default slot 的純文字內容（縮寫）。 */
+const autoColorKey = computed(() => props.alt || extractVNodeText(slots.default?.()))
+
+/** 依顯示文字挑出的自動配色；無可顯示文字時為 `null`（維持 token 靜態預設）。 */
+const autoColor = computed(() => {
+  const key = autoColorKey.value
+  if (!key) return null
+  return AUTO_COLOR_PALETTE[hashString(key) % AUTO_COLOR_PALETTE.length] ?? null
+})
+
 const style = computed(() => ({
-  // 自訂尺寸寫進 CSS var；具名尺寸由 class 內的 token 提供。
-  ...(isNumberish(props.size) ? { '--avatar-size': `${Number(props.size)}px` } : null),
+  ...(isNumberish(props.size)
+    ? {
+        // 自訂尺寸寫進 CSS var；具名尺寸由 class 內的 token 提供。
+        '--avatar-size': `${Number(props.size)}px`,
+        // 數字尺寸的字級等比縮放：比例對齊預設 md token（字級 1.25rem = 20px ÷ 容器 40px = 0.5），
+        // 即 font-size = size × 0.5（px）。具名尺寸仍由各自 class token 提供，不受影響。
+        '--avatar-auto-font-size': `${Number(props.size) * 0.5}px`,
+      }
+    : null),
   // full → 9999px（圓形）；其餘一律為像素圓角（數字字串也強制補 px，避免無單位值）。
   '--avatar-rounded': props.rounded === 'full' ? '9999px' : `${Number(props.rounded)}px`,
+  // 自動配色只注入 `--avatar-auto-*`（而非直接寫 `--avatar-bg`）：inline style 會壓過任何
+  // class，若直接寫 `--avatar-bg` 使用端就再也蓋不掉。優先序（高 → 低）：
+  //   使用端 class 覆寫 --avatar-bg（specificity > 0）
+  //   > :where() 預設層 --avatar-bg: var(--avatar-auto-bg, 靜態預設)（specificity 0，讀 inline auto 值）
+  ...(autoColor.value
+    ? {
+        '--avatar-auto-bg': autoColor.value.bg,
+        '--avatar-auto-color': autoColor.value.fg,
+      }
+    : null),
 }))
 </script>
 
@@ -182,9 +286,18 @@ const style = computed(() => ({
 :where(.base-avatar) {
   --avatar-size: 40px;
   --avatar-rounded: 9999px;
-  --avatar-bg: #f3f4f6;
-  --avatar-color: #374151;
-  --avatar-font-size: 1.25rem;
+
+  /*
+   * bg / color / font-size 的預設值先讀 `--avatar-auto-*`（元件 inline 注入的
+   * hash 自動配色 / 數字尺寸自動字級），再退回靜態預設。
+   *
+   * 優先序設計：auto 值雖走 inline style，但 `--avatar-bg` 本身只宣告在這層
+   * （:where()，specificity 0），因此使用端以任何 class 覆寫 `--avatar-bg` /
+   * `--avatar-color` / `--avatar-font-size` 都必贏過自動配色。
+   */
+  --avatar-bg: var(--avatar-auto-bg, #f3f4f6);
+  --avatar-color: var(--avatar-auto-color, #374151);
+  --avatar-font-size: var(--avatar-auto-font-size, 1.25rem);
   --avatar-font-weight: 500;
 }
 
@@ -234,6 +347,12 @@ const style = computed(() => ({
     width: 100%;
     height: 100%;
     overflow: hidden;
+  }
+
+  &__silhouette {
+    /* 剪影約佔容器 2/3，四周留白；fill 用 currentColor（= --avatar-color）可主題化 */
+    width: 66.67%;
+    height: 66.67%;
   }
 }
 </style>

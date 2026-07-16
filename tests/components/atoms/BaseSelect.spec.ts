@@ -1,9 +1,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { h, nextTick } from 'vue'
+import { createSSRApp, h, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
+import { renderToString } from '@vue/server-renderer'
 
 import BaseSelect from '~/components/atoms/BaseSelect.vue'
 import type { BaseSelectOption } from '~/components/atoms/BaseSelect.vue'
+import { computeComboboxAriaAttrs } from '~/components/atoms/BaseSelect.vue'
 import { required } from '~/utils/validators'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -208,6 +210,41 @@ describe('BaseSelect', () => {
       const wrapper = track(mountSelect({ multiple: true, modelValue: ['apple', 'cherry'] }))
       expect(wrapper.find('.base-select__value').text()).toBe('蘋果, 櫻桃')
     })
+
+    // 設計準則：Array model 的選中值依 options 順序排列（新增時不能直接 push）。
+    it('rebuilds the array in options order when selecting out of order', async () => {
+      const wrapper = track(mountSelect({ multiple: true, modelValue: [] }))
+      await open(wrapper)
+      // 先選第 3 個（cherry）
+      fireClick(optionEls()[2])
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['cherry']])
+      // 模擬父層回寫 v-model 後，再選第 1 個（apple）→ 依 options 順序重建
+      await wrapper.setProps({ modelValue: ['cherry'] })
+      fireClick(optionEls()[0])
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['apple', 'cherry']])
+    })
+
+    it('keeps options order when re-selecting a value after removal', async () => {
+      // 已有頭尾兩項（apple、cherry），補選中間的 banana → 應插回中間而非尾端
+      const wrapper = track(mountSelect({ multiple: true, modelValue: ['apple', 'cherry'] }))
+      await open(wrapper)
+      fireClick(optionEls()[1])
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['apple', 'banana', 'cherry']])
+    })
+
+    it('keeps values missing from options at the tail in their original relative order', async () => {
+      // 防禦情境：model 內有不存在於 options 的殘值 → 保留在尾端、維持原相對順序
+      const wrapper = track(mountSelect({ multiple: true, modelValue: ['stale-b', 'cherry', 'stale-a'] }))
+      await open(wrapper)
+      fireClick(optionEls()[0])
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([
+        ['apple', 'cherry', 'stale-b', 'stale-a'],
+      ])
+    })
   })
 
   // ── 多選（Set）────────────────────────────────────────────────────────────────
@@ -220,6 +257,17 @@ describe('BaseSelect', () => {
       const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0]
       expect(emitted).toBeInstanceOf(Set)
       expect([...(emitted as Set<string>)]).toEqual(['apple', 'banana'])
+    })
+
+    it('keeps Set insertion order (no options-order rebuild) when selecting out of order', async () => {
+      // Set 本身無序語意 → 不做 options 順序重建，維持插入順序即可
+      const wrapper = track(mountSelect({ multiple: true, modelValue: new Set(['cherry']) }))
+      await open(wrapper)
+      fireClick(optionEls()[0])
+      await nextTick()
+      const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0]
+      expect(emitted).toBeInstanceOf(Set)
+      expect([...(emitted as Set<string>)]).toEqual(['cherry', 'apple'])
     })
   })
 
@@ -653,6 +701,33 @@ describe('BaseSelect', () => {
     })
   })
 
+  // ── scrollIntoView rAF 清理 ───────────────────────────────────────────────────
+  describe('scroll rAF cleanup', () => {
+    it('cancels the pending scrollIntoView rAF on unmount', async () => {
+      // happy-dom 的元素沒有 scrollIntoView，補 stub 讓 rAF 排程路徑生效
+      const originalScroll = HTMLElement.prototype.scrollIntoView
+      HTMLElement.prototype.scrollIntoView = vi.fn()
+      const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(42)
+      const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame')
+      try {
+        const wrapper = mountSelect({ filterable: true })
+        await open(wrapper)
+        // 方向鍵改變 activeIndex → watch 於 nextTick 後排程 scrollIntoView rAF
+        fireKeydown(searchEl()!, 'ArrowDown')
+        await nextTick()
+        await nextTick()
+        expect(rafSpy).toHaveBeenCalled()
+        wrapper.unmount()
+        // rAF 尚未 fire（mock 不執行 callback）→ 卸載時應取消，避免對已卸載節點操作
+        expect(cancelSpy).toHaveBeenCalledWith(42)
+      } finally {
+        HTMLElement.prototype.scrollIntoView = originalScroll
+        rafSpy.mockRestore()
+        cancelSpy.mockRestore()
+      }
+    })
+  })
+
   // ── 驗證 ──────────────────────────────────────────────────────────────────────
   describe('validation', () => {
     it('does not show an error before being touched', () => {
@@ -751,6 +826,45 @@ describe('BaseSelect', () => {
       const dupWarned = warn.mock.calls.some((args) => String(args[0]).includes('Duplicate keys'))
       expect(dupWarned).toBe(false)
       warn.mockRestore()
+    })
+  })
+})
+
+// ── combobox aria 自訂指令 SSR (v-combobox-aria) ──────────────────────────────
+//
+// applyComboboxAria 原本只掛 mounted/updated，SSR 首渲 HTML 水合前缺
+// aria-haspopup / aria-controls / aria-describedby，改用 getSSRProps 補上。
+// aria-haspopup 不受 expanded 狀態影響，可用 renderToString 直接驗證真實輸出。
+// aria-controls / aria-describedby 綁在 BaseSelect 內部的 `active` ref（預設
+// false，元件未提供可在掛載前強制展開的 prop），renderToString 對整個元件
+// 無法把它推進「展開」狀態，因此改為直接呼叫 getSSRProps 依賴的共用純函式
+// computeComboboxAriaAttrs 驗證該分支，兩者呼叫的是同一份計算，等同覆蓋。
+describe('combobox aria 自訂指令 SSR', () => {
+  it('SSR 首渲即輸出 aria-haspopup="listbox"（水合前既有語意）', async () => {
+    const html = await renderToString(createSSRApp(BaseSelect, { options: defaultOptions }))
+    expect(html).toContain('aria-haspopup="listbox"')
+  })
+
+  it('computeComboboxAriaAttrs：collapsed 且無 describedby 時只有 aria-haspopup', () => {
+    expect(computeComboboxAriaAttrs({ listboxId: 'x-listbox', expanded: false })).toEqual({
+      'aria-haspopup': 'listbox',
+    })
+  })
+
+  it('computeComboboxAriaAttrs：expanded 時帶 aria-controls 指向 listboxId', () => {
+    expect(computeComboboxAriaAttrs({ listboxId: 'x-listbox', expanded: true })).toEqual({
+      'aria-haspopup': 'listbox',
+      'aria-controls': 'x-listbox',
+    })
+  })
+
+  it('computeComboboxAriaAttrs：有 describedby 時一併帶出 aria-describedby', () => {
+    expect(
+      computeComboboxAriaAttrs({ listboxId: 'x-listbox', expanded: true, describedby: 'x-desc' }),
+    ).toEqual({
+      'aria-haspopup': 'listbox',
+      'aria-controls': 'x-listbox',
+      'aria-describedby': 'x-desc',
     })
   })
 })

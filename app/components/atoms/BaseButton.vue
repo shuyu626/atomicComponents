@@ -16,6 +16,7 @@
     :aria-controls="ariaControls || undefined"
     :aria-haspopup="isNativeButton ? (ariaHaspopup || undefined) : undefined"
     @click="handleClick"
+    @keydown="handleKeydown"
   >
     <!-- 主要內容（loading 中 visibility: hidden 保留佔位，避免 layout shift） -->
     <span :class="['base-button__content', { 'base-button__content--hidden': loading }]">
@@ -183,6 +184,27 @@ function handleClick(event: MouseEvent): void {
   }
 }
 
+/**
+ * 為連結（BaseLink / `<a>`）補上 Space 鍵操作。
+ * 原生 `<button>` 已支援 Space，不需額外處理；而 `<a>` 按 Space 只會捲動頁面，
+ * 不會觸發 click，因此手動補齊，讓按鈕外觀的連結也符合鍵盤操作預期。
+ *
+ * 保留連結語意（不加 `role="button"`），因此 Enter、右鍵選單、拖曳、開新分頁等
+ * 原生連結行為仍維持不變。
+ */
+function handleKeydown(event: KeyboardEvent): void {
+  if (isNativeButton.value || event.key !== ' ') return
+
+  // 一律先 preventDefault：防止 Space 造成頁面捲動。
+  event.preventDefault()
+
+  // inactive（disabled / loading）時與 click 攔截一致：不觸發導航。
+  if (isInactive.value) return
+
+  // 觸發元素自身的 click（等同啟動導航），走既有的原生 click 流程。
+  ;(event.currentTarget as HTMLElement).click()
+}
+
 // a11y：iconOnly 模式沒有可見文字，缺 `ariaLabel` 時 SR 只會報「button」，於開發期警告。
 if (import.meta.env.DEV) {
   watchEffect(() => {
@@ -283,6 +305,9 @@ if (import.meta.env.DEV) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  // 不可省略：原生 <button> 由 UA stylesheet 給 border-box，但 to / href 會改以
+  // BaseLink（<a>）渲染，<a> 預設 content-box，1px border 會讓高度變 38px。
+  box-sizing: border-box;
   gap: var(--btn-gap);
   height: var(--btn-height);
   min-height: var(--btn-height);
@@ -424,7 +449,7 @@ if (import.meta.env.DEV) {
     text-underline-offset: 2px;
 
     &:not(.is-disabled):hover {
-      opacity: 0.75;
+      filter: brightness(80%);
     }
   }
 
@@ -432,11 +457,15 @@ if (import.meta.env.DEV) {
   &--text {
     --btn-color:        var(--btn-accent);
     --btn-bg:           transparent;
-    --btn-bg-hover:     color-mix(in srgb, var(--btn-accent) 4%, transparent);
-    --btn-bg-active:    color-mix(in srgb, var(--btn-accent) 10%, transparent);
+    --btn-bg-hover:     transparent;
+    --btn-bg-active:    transparent;
     --btn-border-color: transparent;
 
     border: none;
+
+    &:not(.is-disabled):hover {
+      filter: brightness(80%);
+    }
   }
 
   // ── Color modifiers ───────────────────────────────────────

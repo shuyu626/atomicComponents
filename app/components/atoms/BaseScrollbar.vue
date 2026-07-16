@@ -49,6 +49,7 @@
           @pointerdown="onTrackPointerdown($event, 'vertical')"
           @pointerenter="onTrackPointerenter"
           @pointerleave="onTrackPointerleave"
+          @wheel="onTrackWheel($event, 'vertical')"
         >
           <div
             class="base-scrollbar__thumb"
@@ -75,6 +76,7 @@
           @pointerdown="onTrackPointerdown($event, 'horizontal')"
           @pointerenter="onTrackPointerenter"
           @pointerleave="onTrackPointerleave"
+          @wheel="onTrackWheel($event, 'horizontal')"
         >
           <div
             class="base-scrollbar__thumb"
@@ -96,6 +98,12 @@ const MIN_SIZE = 20
 
 /** 閒置多久後自動隱藏捲軸（ms）。 */
 const HIDE_DELAY = 1000
+
+/**
+ * deltaMode 為 line 時，一行約略換算的 px 高度。
+ * 瀏覽器未提供實際行高，取常見預設字體行高的近似值。
+ */
+const LINE_HEIGHT = 16
 
 /**
  * 把「垂直 / 水平」兩個方向需要讀寫的 DOM 屬性集中成查表，
@@ -249,6 +257,36 @@ const onTrackPointerdown = (event: PointerEvent, orientation: OrientationKey) =>
   viewport[scroll] = (position - thumbHalf) * (viewport[scrollSize] / track[size])
 }
 
+/**
+ * track 覆蓋在 viewport 之上但不屬於 viewport 內部，滑鼠停在 track 上滾滾輪時，
+ * 瀏覽器預設會捲動最近的可捲動祖先（通常是整個頁面）而非 viewport，形成死角。
+ * 這裡把 track 上的滾輪事件轉發成 viewport 的捲動，補上這塊死角。
+ */
+const onTrackWheel = (event: WheelEvent, orientation: OrientationKey) => {
+  const viewport = viewportRef.value
+  if (!viewport) return
+
+  const { scroll, scrollSize, size } = ORIENTATION_MAP[orientation]
+
+  // vertical track 固定吃 deltaY；horizontal track 優先吃 deltaX，
+  // 滑鼠多半只有縱向滾輪，deltaX 為 0 時退而求其次把 deltaY 當橫向捲動量。
+  const rawDelta = orientation === 'vertical'
+    ? event.deltaY
+    : (event.deltaX !== 0 ? event.deltaX : event.deltaY)
+
+  const delta = toPixelDelta(rawDelta, event.deltaMode, viewport[size])
+  if (delta === 0) return
+
+  const max = viewport[scrollSize] - viewport[size]
+  const current = viewport[scroll]
+  // 往正方向捲：還沒到底才吃事件；往負方向捲：還沒到頂才吃事件。
+  const canScroll = delta > 0 ? current < max : current > 0
+  if (!canScroll) return // 已到頂/到底，不阻擋，讓事件自然冒泡給頁面
+
+  event.preventDefault()
+  viewport[scroll] = Math.min(Math.max(current + delta, 0), max)
+}
+
 // ── thumb 尺寸 / 位置 ───────────────────────────────────────────────────────
 
 const thumbTop = ref(0)
@@ -347,6 +385,23 @@ function computeRatio(original: number, size: number, offset: number): number {
   const sizeGap = offset - size
   if (originalGap <= 0 || sizeGap <= 0) return 0
   return original / originalGap / (size / sizeGap)
+}
+
+/**
+ * 把 WheelEvent 的 delta 換算成 px：
+ * - DOM_DELTA_PIXEL（0）：原生已是 px，原樣回傳。
+ * - DOM_DELTA_LINE（1）：以 LINE_HEIGHT 概略換算。
+ * - DOM_DELTA_PAGE（2）：以 viewport 該方向的可視長度整頁換算。
+ */
+function toPixelDelta(delta: number, deltaMode: number, pageSize: number): number {
+  switch (deltaMode) {
+    case WheelEvent.DOM_DELTA_LINE:
+      return delta * LINE_HEIGHT
+    case WheelEvent.DOM_DELTA_PAGE:
+      return delta * pageSize
+    default:
+      return delta
+  }
 }
 
 // 容器（viewport）與內容（content）尺寸變化都重算 thumb。

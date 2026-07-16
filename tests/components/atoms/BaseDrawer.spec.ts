@@ -120,6 +120,14 @@ describe('BaseDrawer', () => {
       expect(panel.attributes('aria-label')).toBe('側邊面板')
       expect(panel.attributes('aria-labelledby')).toBeUndefined()
     })
+
+    it('links the panel to the body content via aria-describedby', () => {
+      const wrapper = track(createWrapper())
+      const panel = wrapper.find('.base-drawer__panel')
+      const bodyId = wrapper.find('.base-drawer__body').attributes('id')
+      expect(bodyId).toBeTruthy()
+      expect(panel.attributes('aria-describedby')).toBe(bodyId)
+    })
   })
 
   // ── Close button ──────────────────────────────────────────────────────────

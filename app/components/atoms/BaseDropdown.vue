@@ -66,10 +66,21 @@ export interface BaseDropdownItem<Value = string | number, Context = unknown> {
   /** 附帶資料，原封不動傳進 `#menuitem` slot props，方便自訂渲染（icon / 說明…） */
   context?: Context
   /**
-   * 點擊 / Enter / Space 時的回呼。
-   * - 宣告 **0–1 個參數**（如 `(value) => {}`）：執行後**自動關閉**選單
-   * - 宣告 **2 個參數**（`(value, close) => {}`）：交給你自己決定何時 `close()`（非同步流程適用）
-   * 未提供 `onClick` 時，點擊僅關閉選單。
+   * 點擊（或 Enter / Space）觸發後是否自動關閉選單。
+   * 設為 `false` 時元件不自動關閉，改由 `onClick` 收到的 `close` 在任意時機呼叫
+   * （非同步流程適用，見 `onClick` 範例）。
+   * @default true
+   */
+  closeOnClick?: boolean
+  /**
+   * 點擊 / Enter / Space 時的回呼，**一律**以 `(value, close)` 呼叫（不看宣告的參數個數）。
+   * - 預設（`closeOnClick !== false`）：handler 執行後元件自動 `close()`
+   * - `closeOnClick: false`：不自動關閉，由 handler 自行決定何時 `close()`，例如非同步完成後：
+   *   ```ts
+   *   { label: '存檔', value: 'save', closeOnClick: false,
+   *     onClick: async (value, close) => { await save(value); close() } }
+   *   ```
+   * 未提供 `onClick` 時，點擊依 `closeOnClick` 決定是否關閉（預設關閉）。
    */
   onClick?: (value: Value, close: () => void) => void
 }
@@ -81,7 +92,6 @@ import { computed, useTemplateRef } from 'vue'
 import BasePopover from '~/components/atoms/BasePopover.vue'
 import { moveFocus, nextItem, previousItem } from '~/utils/dom'
 import isFunction from '~/utils/isFunction'
-import noop from '~/utils/noop'
 
 import type { BasePopoverPlacement, BasePopoverTrigger } from '~/components/atoms/BasePopover.vue'
 
@@ -158,22 +168,15 @@ const itemsCompose = computed(() =>
     const onClick = () => {
       if (disabled) return
 
+      // 關閉時機純宣告式：closeOnClick !== false → handler 執行後自動關閉；
+      // closeOnClick: false → 不自動關，由 handler 用收到的 close 決定時機（含 async 完成後）。
+      const autoClose = item.closeOnClick !== false
       const handler = item.onClick
-      // 未提供 handler：點擊僅關閉選單。
-      if (!isFunction(handler)) {
-        close()
-        return
-      }
 
-      // 宣告 2 個（含）以上參數 → 期望自己掌控關閉時機（如非同步），把 close 交給它。
-      if (handler.length >= 2) {
-        handler(item.value, close)
-        return
-      }
+      // close 恆傳入，不再以 Function.length 猜測意圖（預設參數 / rest 會讓 length 失真）。
+      if (isFunction(handler)) handler(item.value, close)
 
-      // 只關心 value → 呼叫後自動關閉。
-      handler(item.value, noop)
-      close()
+      if (autoClose) close()
     }
 
     const onKeydown = (event: KeyboardEvent) => {

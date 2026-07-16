@@ -90,4 +90,29 @@ describe('BaseDivider', () => {
       expect(root.classes()).toContain('base-divider--end')
     })
   })
+
+  // ── decorative（純裝飾分隔線對輔助技術隱形）──────────────────────────────────
+  describe('decorative', () => {
+    it('does not set an explicit role on the <hr> when decorative is false (default)', () => {
+      expect(rootOf(mountDivider()).attributes('role')).toBeUndefined()
+    })
+
+    it('sets role="none" on the <hr> when decorative is true, overriding the implicit separator role', () => {
+      const root = rootOf(mountDivider({ decorative: true }))
+      expect(root.attributes('role')).toBe('none')
+      expect(root.attributes('aria-orientation')).toBe('horizontal')
+    })
+
+    it('keeps role="separator" on the with-text <div> when decorative is false (default)', () => {
+      const root = rootOf(mountDivider({}, { default: () => 'x' }))
+      expect(root.attributes('role')).toBe('separator')
+      expect(root.attributes('aria-orientation')).toBe('horizontal')
+    })
+
+    it('sets role="none" and omits aria-orientation on the with-text <div> when decorative is true', () => {
+      const root = rootOf(mountDivider({ decorative: true }, { default: () => 'x' }))
+      expect(root.attributes('role')).toBe('none')
+      expect(root.attributes('aria-orientation')).toBeUndefined()
+    })
+  })
 })

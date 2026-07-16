@@ -4,7 +4,13 @@
       用單一 <Transition> 包整個 overlay：open=false 時播完 leave 動畫才由 v-if 卸載。
       backdrop 淡入淡出、wrapper 依 transition 變體進出場。
     -->
-    <Transition appear :name="`base-dialog-${transition}`">
+    <Transition
+      appear
+      :name="`base-dialog-${transition}`"
+      @after-enter="emit('opened')"
+      @after-appear="emit('opened')"
+      @after-leave="onAfterLeave"
+    >
       <div
         v-if="open"
         class="base-dialog"
@@ -127,6 +133,7 @@ import { computed, useId, useTemplateRef, watch } from 'vue'
 import BaseButton from '~/components/atoms/BaseButton.vue'
 import useDrag from '~/composables/useDrag'
 import { useOverlay } from '~/composables/useOverlay'
+import { useOverlayLifecycle } from '~/composables/useOverlayLifecycle'
 import toUnit from '~/utils/toUnit'
 
 type DialogTransition = 'fade' | 'slide-up' | 'slide-down' | 'slide-left' | 'slide-right'
@@ -146,6 +153,12 @@ export interface BaseDialogProps {
   ariaLabel?: string
   /** 關閉鈕的無障礙名稱（`aria-label`）。多語系專案可覆寫。 @default '關閉' */
   closeLabel?: string
+  /**
+   * 關閉前攔截。提供時，所有關閉入口（Esc / 點外部 / 關閉鈕 / 內建取消鈕 / slot `close()`）
+   * 都會先呼叫它並暫不關閉；需在內部呼叫 `done()` 才真正關閉。適合「未儲存，確定離開？」確認流程。
+   * 透過 `v-model` 由父層直接改值（程式化關閉）不會觸發。
+   */
+  beforeClose?: (done: () => void) => void
   /** 面板寬度。數字補 `px`，字串原樣（如 `'60%'`）；`fullscreen` 時忽略。 @default 640 */
   width?: number | string
   /** 全螢幕模式（撐滿視窗、不可拖曳、預設顯示關閉鈕作為關閉入口）。 @default false */
@@ -190,9 +203,17 @@ export interface BaseDialogProps {
 }
 
 const emit = defineEmits<{
+  /** 開始開啟（進場動畫前）。 */
+  open: []
+  /** 開啟完成（進場動畫後）。 */
+  opened: []
+  /** 開始關閉（離場動畫前）。 */
+  close: []
+  /** 關閉完成（離場動畫後）。 */
+  closed: []
   /** 內建確認鈕點擊（不自動關閉，父層自行決定後續 / 關閉）。 */
   confirm: []
-  /** 內建取消鈕點擊（隨後關閉對話框）。 */
+  /** 內建取消鈕點擊（隨後關閉對話框，關閉仍會過 `beforeClose` 把關）。 */
   cancel: []
 }>()
 
@@ -200,6 +221,7 @@ const props = withDefaults(defineProps<BaseDialogProps>(), {
   title: undefined,
   ariaLabel: undefined,
   closeLabel: '關閉',
+  beforeClose: undefined,
   width: 640,
   fullscreen: false,
   draggable: false,
@@ -220,16 +242,23 @@ const props = withDefaults(defineProps<BaseDialogProps>(), {
 // 父層綁 v-model => 受控；沒綁 => 內部狀態（預設關閉）。
 const open = defineModel<boolean>({ default: false })
 
-function close() {
-  open.value = false
-}
+// 關閉把關（beforeClose）與生命週期 open / close 事件（動畫「前」）抽到
+// useOverlayLifecycle（與 BaseModal / BaseDrawer 共用同一套樣板）：所有「使用者觸發」的
+// 關閉路徑（Esc / 點外部 / 關閉鈕 / 內建取消鈕 / slot close）皆寫入 guardedOpen、
+// 會過 beforeClose；父層透過 v-model 直接改 open 屬於程式化關閉、不經此。
+// opened / closed（動畫「後」）由 <Transition> 的 after-enter / after-leave hook 發出。
+const { guardedOpen, close } = useOverlayLifecycle(open, {
+  beforeClose: () => props.beforeClose,
+  emitOpen: () => emit('open'),
+  emitClose: () => emit('close'),
+})
 
 /** 內建確認：僅 emit（不自動關閉），父層決定後續。 */
 function onConfirm() {
   emit('confirm')
 }
 
-/** 內建取消：emit 後關閉對話框。 */
+/** 內建取消：emit 後關閉對話框（經 guardedOpen、會過 `beforeClose` 把關）。 */
 function onCancel() {
   emit('cancel')
   close()
@@ -262,7 +291,8 @@ const hasHeader = computed(() => hasTitle.value || props.fullscreen)
 const panelRef = useTemplateRef<HTMLElement>('panelRef')
 
 // 共用浮層行為（與 BaseModal 同一套堆疊 / focus-trap 堆疊）。
-const { showBackdrop, zIndex, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, open, {
+// 傳入 guardedOpen：useOverlay 內部關閉（Esc / 點外部）也會過 beforeClose 把關。
+const { showBackdrop, zIndex, onOverlayMousedown, onOverlayClick } = useOverlay(panelRef, guardedOpen, {
   closeOnEscape: () => props.closeOnEscape,
   closeOnBackdrop: () => props.closeOnBackdrop,
   lockScroll: () => props.lockScroll,
@@ -280,9 +310,18 @@ const { translate, isDragging, onDragStart, reset } = useDrag(canDrag, {
 const dragViaHeader = computed(() => canDrag.value && hasHeader.value)
 const dragViaSensors = computed(() => canDrag.value && !hasHeader.value)
 
-// 關閉後把位置歸零 → 下次開啟回到置中，且讓 CSS 進出場動畫能正常接管 transform。
+// 離場動畫結束：先發 closed，再把拖曳位移歸零 → 下次開啟回到置中，且讓 CSS 進出場動畫
+// 能正常接管 transform。reset 必須延後到 after-leave 才執行——若在關閉指令當下就歸零，
+// 單層 wrapper 的 inline transform 會先消失，離場動畫起點跳回置中再淡出（一幀跳位）。
+function onAfterLeave() {
+  emit('closed')
+  reset()
+}
+
+// 補位保險：離場動畫進行中立即重開（leave 被 enter 中斷）時 after-leave 不會觸發，
+// 上面的 reset 會被跳過——開啟當下再歸零一次，確保重開永遠回到置中。
 watch(open, (value) => {
-  if (!value) reset()
+  if (value) reset()
 })
 
 const wrapperStyle = computed(() => {

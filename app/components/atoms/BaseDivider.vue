@@ -1,14 +1,15 @@
 <template>
   <!--
     有 default slot：渲染帶文字的分隔線（左右／上下各一段線，中間夾內容）。
-    role="separator" + aria-orientation 讓螢幕閱讀器知道這是方向性分隔。
+    role="separator" + aria-orientation 讓螢幕閱讀器知道這是方向性分隔；
+    decorative 時改為 role="none" 並省略 aria-orientation，對輔助技術隱形。
   -->
   <div
     v-if="slots.default"
     class="base-divider base-divider--with-text"
     :class="rootClass"
-    role="separator"
-    :aria-orientation="orientation"
+    :role="decorative ? 'none' : 'separator'"
+    :aria-orientation="decorative ? undefined : orientation"
   >
     <span class="base-divider__text">
       <slot />
@@ -17,12 +18,14 @@
 
   <!--
     無內容：用語意化的 <hr>（原生即 separator role）。
-    為 vertical 補上 aria-orientation（hr 預設為 horizontal）。
+    為 vertical 補上 aria-orientation（hr 預設為 horizontal）；
+    decorative 時顯式補 role="none"，覆蓋 hr 隱含的 separator 語意。
   -->
   <hr
     v-else
     class="base-divider"
     :class="rootClass"
+    :role="decorative ? 'none' : undefined"
     :aria-orientation="orientation"
   >
 </template>
@@ -49,6 +52,17 @@ export interface BaseDividerProps {
    * @default 'center'
    */
   textAlign?: 'start' | 'center' | 'end'
+  /**
+   * 是否為純裝飾性分隔線（不承載語義）。
+   * `true` 時對輔助技術隱形（`<hr>` 顯式補 `role="none"` 覆蓋原生隱含的
+   * separator 語意；帶文字 `<div>` 同樣改為 `role="none"` 並省略
+   * `aria-orientation`），適合純視覺裝飾、內容本身已能表達分隔關係的情境，
+   * 避免大量裝飾用分隔線在螢幕閱讀器中產生 separator 噪音。
+   * `false`（預設）保留語義化 `separator` 角色，用於確實分隔有意義內容區塊
+   * （例如區隔不同段落、選單分組）的情境。
+   * @default false
+   */
+  decorative?: boolean
 }
 
 interface BaseDividerSlots {
@@ -60,6 +74,7 @@ const props = withDefaults(defineProps<BaseDividerProps>(), {
   orientation: 'horizontal',
   lineStyle: 'solid',
   textAlign: 'center',
+  decorative: false,
 })
 
 const slots = defineSlots<BaseDividerSlots>()

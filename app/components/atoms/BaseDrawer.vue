@@ -37,6 +37,7 @@
           tabindex="-1"
           :aria-labelledby="hasTitle ? titleId : undefined"
           :aria-label="!hasTitle ? ariaLabel : undefined"
+          :aria-describedby="bodyId"
         >
           <!-- 背景圖層（純裝飾，墊在內容後方）。#image slot 可完全自訂。 -->
           <div
@@ -65,7 +66,7 @@
             </button>
           </header>
 
-          <div class="base-drawer__body">
+          <div :id="bodyId" class="base-drawer__body">
             <slot :close="close" />
           </div>
 
@@ -183,6 +184,8 @@ const slots = defineSlots<{
 
 const id = useId()
 const titleId = `${id}-title`
+// 內容區 id：接到 dialog 容器的 aria-describedby，讓 SR 進入時朗讀主體內容（與 BaseModal 同模式）。
+const bodyId = `${id}-body`
 
 // 有標題（prop 或 #title slot）才接 aria-labelledby，否則用 ariaLabel。
 const hasTitle = computed(() => !!props.title || !!slots.title)

@@ -135,7 +135,7 @@ const uploaded = ref(40)
 
 ## 5. A11y
 
-- 根節點為 `role="progressbar"`，並提供 `aria-valuemin="0"`、`aria-valuemax`（= `max`）、`aria-valuenow`（= `value`，夾在 `[0, max]`）。
+- 根節點為 `role="progressbar"`，並提供 `aria-valuemin="0"`、`aria-valuemax`（= `max`；`max` 非有限正數如 `<= 0` 或 NaN 時退回 ARIA 規範預設值 `100`，與 `percentage` 換算的防呆條件一致）、`aria-valuenow`（= `value`，夾在 `[0, max]`）。
 - 額外提供 `aria-valuetext`（= `"<百分比>%"`），讓螢幕閱讀器播報「百分之幾」而非原始數字。
 - `indeterminate` 時刻意省略 `aria-valuenow` / `aria-valuetext`，以「缺值」表示進度未知（ARIA 慣例）。
 - 環形 `<svg>` 標記 `aria-hidden="true"`，避免重複播報；語意完全由根節點的 progressbar role 承載。
@@ -153,7 +153,7 @@ const uploaded = ref(40)
 | 顏色來源 | 全域 SCSS `$color-map` + 寫死 `#F1F1F1` / `#1976D2` | scoped `--progress-*` token + `:where()` 低特異性 preset，無全域相依 |
 | 百分比換算 | 直接 `value / max`，`max = 0` 會 `Infinity` / `NaN` | 補 `max <= 0` 與 NaN 防呆並 clamp 至 `[0, 100]` |
 | 換算邏輯 | 抽到 `usePercentage` composable（僅一處使用） | 內聯為 `computed`（遵循「第二次用到才搬出去」） |
-| a11y | `aria-valuenow` 未取整 / 未 clamp、無 `aria-valuetext` | `aria-valuenow` 夾在 `[0, max]`、補 `aria-valuetext`，indeterminate 正確省略數值 |
+| a11y | `aria-valuenow` 未取整 / 未 clamp、無 `aria-valuetext` | `aria-valuenow` 夾在 `[0, max]`、補 `aria-valuetext`，indeterminate 正確省略數值；`aria-valuemax` 在 `max` 非有限正數時退回預設 `100`（與 `percentage` 防呆同步） |
 | 動態效果 | 無 reduced-motion 處理 | 補 `prefers-reduced-motion` 關閉動畫 |
 | 指示數字抖動 | 無 | `font-variant-numeric: tabular-nums` 等寬數字，跳動不位移 |
 
@@ -161,10 +161,10 @@ const uploaded = ref(40)
 
 ## 7. 測試與 Storybook
 
-- **測試**（`tests/components/atoms/BaseProgress.spec.ts`，30 cases）涵蓋：
+- **測試**（`tests/components/atoms/BaseProgress.spec.ts`，33 cases）涵蓋：
   - 結構：linear rail/track vs circular `<svg>` 雙圈；`value = 0` 時不渲染環形 track。
   - modifier class：`type` / `color`（含 `neutral`）/ `indeterminate`。
-  - a11y：`role="progressbar"`、`aria-valuemin/max/now/valuetext`；`aria-valuenow` 夾在 `[0, max]`（超出、負值、`max <= 0`）；indeterminate 時省略 `now`/`valuetext`；svg `aria-hidden`。
+  - a11y：`role="progressbar"`、`aria-valuemin/max/now/valuetext`；`aria-valuenow` 夾在 `[0, max]`（超出、負值、`max <= 0`）；`aria-valuemax` 在 `max <= 0` / NaN 時退回 `100`；indeterminate 時省略 `now`/`valuetext`；svg `aria-hidden`。
   - 百分比換算與 clamp（`value > max`、`value < 0`、`max <= 0`、數字字串）。
   - `indicator` 三種值（`true` / `'percentage'` / `'value'`）輸出與取整、circular 指示 class。
   - default scoped slot 收到正確 `percentage` / `value`；indeterminate 時不渲染。

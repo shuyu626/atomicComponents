@@ -87,6 +87,32 @@ describe('BaseCheckbox (standalone)', () => {
       expect(inputEl(wrapper).attributes('aria-checked')).toBe('mixed')
       expect(wrapper.classes()).toContain('base-checkbox--indeterminate')
     })
+
+    // ── 半受控：使用者實際點擊後離開半選（對齊原生 DOM 行為），即使父層 prop 仍為 true ──
+    it('leaves the indeterminate state after a real user click, even if the prop is still true', async () => {
+      const wrapper = mountCheckbox({ modelValue: false, indeterminate: true })
+      await inputEl(wrapper).setValue(true)
+
+      expect((inputEl(wrapper).element as HTMLInputElement).indeterminate).toBe(false)
+      expect(inputEl(wrapper).attributes('aria-checked')).not.toBe('mixed')
+      // dash（半選橫線）圖示的 path 消失，改繪 check（勾勾）圖示的 path。
+      expect(wrapper.find('.base-checkbox__mark path[d="M3.5 8h9"]').exists()).toBe(false)
+      expect(wrapper.find('.base-checkbox__mark path[d="M3.5 8.5l3 3 6-6.5"]').exists()).toBe(true)
+      expect(wrapper.classes()).not.toContain('base-checkbox--indeterminate')
+    })
+
+    it('re-enters the indeterminate state once the prop changes again after a click', async () => {
+      const wrapper = mountCheckbox({ modelValue: false, indeterminate: true })
+      await inputEl(wrapper).setValue(true) // 使用者點擊 → 內部狀態清為 false
+
+      // 父層之後重新把 prop 設為 true（即使先經過 false，或直接再設一次 true）都應重新進入半選。
+      await wrapper.setProps({ indeterminate: false })
+      await wrapper.setProps({ indeterminate: true })
+
+      expect((inputEl(wrapper).element as HTMLInputElement).indeterminate).toBe(true)
+      expect(inputEl(wrapper).attributes('aria-checked')).toBe('mixed')
+      expect(wrapper.classes()).toContain('base-checkbox--indeterminate')
+    })
   })
 
   // ── disabled ──────────────────────────────────────────────────────────────────

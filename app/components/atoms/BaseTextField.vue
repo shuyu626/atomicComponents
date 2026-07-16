@@ -120,7 +120,11 @@ export interface BaseTextFieldProps extends BaseFormFieldProps {
   append?: string | Component
   /** input `name`（送出表單 / 自動填入用）。 */
   name?: string
-  /** 最大字元數（HTML `maxlength`）；搭配 `showCount` 會顯示 `count/maxlength`。 */
+  /**
+   * 最大字元數（HTML `maxlength`）；搭配 `showCount` 會顯示 `count/maxlength`。
+   * 注意單位差：原生 `maxlength` 以 UTF-16 code unit 計、計數以 grapheme 計，
+   * emoji / astral 字元兩者會不一致（詳見 docs「maxlength 與計數單位差異」）。
+   */
   maxlength?: number
   /** 最小字元數（HTML `minlength`）。 */
   minlength?: number

@@ -95,7 +95,7 @@ export type BaseCheckboxColor = 'primary' | 'success' | 'warning' | 'danger' | '
 </script>
 
 <script setup lang="ts" generic="Value = boolean">
-import { computed, inject, onMounted, useId, useTemplateRef, watch } from 'vue'
+import { computed, inject, onMounted, ref, useId, useTemplateRef, watch } from 'vue'
 
 import { BASE_CHECKBOX_GROUP_INJECT_KEY } from '~/components/atoms/BaseCheckboxGroup.vue'
 import useValidation from '~/composables/useValidation'
@@ -185,7 +185,19 @@ const resolvedFalse = computed<Value | boolean>(() =>
 )
 
 const isDisabled = computed(() => props.disabled || (group?.disabled.value ?? false))
-const isIndeterminate = computed(() => props.indeterminate)
+
+// indeterminate 半受控：原生 DOM checkbox 的行為是「使用者一點擊就離開半選狀態」
+// （瀏覽器會自動清掉 .indeterminate property），若元件的 dash 圖示 / aria-checked="mixed"
+// 仍單純照 props.indeterminate 顯示，使用者點擊後父層沒同步改 prop 就會造成視覺 / aria 與
+// 實際 DOM 狀態脫鉤。改用內部 ref 保存狀態：watch prop 同步進來（父層之後重新設定 indeterminate
+// 仍可再次進入半選），並在 onChange（使用者實際互動）時強制清 false，對齊原生行為。
+const internalIndeterminate = ref(props.indeterminate)
+watch(
+  () => props.indeterminate,
+  (v) => { internalIndeterminate.value = v },
+  { immediate: true },
+)
+const isIndeterminate = computed(() => internalIndeterminate.value)
 // 群組模式：勾選 = value ∈ 群組值；獨立模式：model === trueValue。
 const isChecked = computed(() =>
   group ? group.isSelected(props.value) : model.value === resolvedTrue.value,
@@ -230,6 +242,9 @@ function onChange(event: Event) {
     model.value = checked ? resolvedTrue.value : resolvedFalse.value
     validation?.touch()
   }
+  // 使用者實際點擊 → 離開半選狀態（半受控，對齊原生 DOM 行為）；
+  // 父層之後若重新把 indeterminate 設為 true，會經上方 watch 重新進入半選。
+  internalIndeterminate.value = false
   emit('change', event)
 }
 

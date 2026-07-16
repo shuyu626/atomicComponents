@@ -2,7 +2,7 @@
 
 > **歸屬**：`Base*` 通用元件家族（`app/components/atoms/BaseDialog.vue`）。
 > **配套**：`docs/components/BaseModal.md`（同家族、共用 overlay 基底）、`docs/components/component-design-spec.md`。
-> **共用工具**：`app/composables/useOverlay.ts`（焦點 / Esc / 點外部 / scroll-lock / 堆疊 / 遮罩，**與 BaseModal 共用**）、`app/composables/useDrag.ts`（指標拖曳）、`app/composables/usePopupsManager.ts`、`app/utils/toUnit.ts`。
+> **共用工具**：`app/composables/useOverlay.ts`（焦點 / Esc / 點外部 / scroll-lock / 堆疊 / 遮罩，**與 BaseModal 共用**）、`app/composables/useOverlayLifecycle.ts`（`beforeClose` 把關 + 生命週期 emit，**與 BaseModal / BaseDrawer 共用**）、`app/composables/useDrag.ts`（指標拖曳）、`app/composables/usePopupsManager.ts`、`app/utils/toUnit.ts`。
 > **外部依賴**：`focus-trap`（焦點陷阱，經 useOverlay）。
 > **參考改寫**：[Mini-ghost/16th-ithelp-vue-components `AtomicDialog.vue` / `useDrag.ts` / `useMouse.ts`](https://github.com/Mini-ghost/16th-ithelp-vue-components)。
 
@@ -36,6 +36,7 @@ BaseDialog 是「**可拖曳 / 全螢幕對話框**」元件。它與 [`BaseModa
 | `title` | `string` | — | 標題文字。設定後渲染標題列並接 `aria-labelledby` |
 | `ariaLabel` | `string` | — | 無 `title` 也無 `#title` slot 時用作 `aria-label`（避免無名對話框） |
 | `closeLabel` | `string` | `'關閉'` | 關閉鈕的無障礙名稱（`aria-label`）。多語系專案可覆寫 |
+| `beforeClose` | `(done: () => void) => void` | — | 關閉前攔截。提供時，所有關閉入口（Esc / 點外部 / 關閉鈕 / 內建取消鈕 / slot `close()`）都會先呼叫它並暫不關閉，需在內部呼叫 `done()` 才真正關閉；`v-model` 程式化關閉不觸發。與 BaseModal / BaseDrawer 同一契約（`useOverlayLifecycle`） |
 | `width` | `number \| string` | `640` | 面板寬度。數字補 `px`（經 `toUnit`），字串原樣（如 `'60%'`）；`fullscreen` 時忽略 |
 | `fullscreen` | `boolean` | `false` | 全螢幕模式（撐滿視窗、停用拖曳；fullscreen 時 header 一律渲染並預設顯示關閉鈕，仍可被 `hideCloseButton` 隱藏） |
 | `draggable` | `boolean` | `false` | 可拖曳移動（`fullscreen` 時停用）。把手依有無標題列自動切換：**有標題列（預設）→ 拖標題列**（避開捲軸 / 按鈕）；**無標題列 → 退回拖四邊感應區** |
@@ -56,10 +57,14 @@ BaseDialog 是「**可拖曳 / 全螢幕對話框**」元件。它與 [`BaseModa
 
 | Event | 說明 |
 |---|---|
+| `open` | 開始開啟（進場動畫前） |
+| `opened` | 開啟完成（進場動畫後，`<Transition>` after-enter / after-appear） |
+| `close` | 開始關閉（離場動畫前） |
+| `closed` | 關閉完成（離場動畫後，`<Transition>` after-leave） |
 | `confirm` | 內建確認鈕點擊。**不自動關閉** —— 由父層在流程完成後改 `v-model`（支援非同步 / 驗證，期間用 `confirmLoading` 保持開啟） |
-| `cancel` | 內建取消鈕點擊，隨後關閉對話框 |
+| `cancel` | 內建取消鈕點擊，隨後關閉對話框（關閉仍經 `beforeClose` 把關） |
 
-> 仍**沒有** BaseModal / BaseDrawer 的 `open` / `opened` / `close` / `closed` 生命週期 emit 與 `beforeClose`（見 §9）；`confirm` / `cancel` 僅來自內建動作按鈕。
+> 生命週期四段事件與 `beforeClose` 和 BaseModal / BaseDrawer **完全對稱**（共用 `useOverlayLifecycle`）；`confirm` / `cancel` 僅來自內建動作按鈕，為 BaseDialog 獨有。
 
 ---
 
@@ -166,7 +171,7 @@ async function onConfirm() {
 
 ### 5.1 共用 overlay 基底（useOverlay）
 
-`focus-trap`、Esc / 點外部關閉、scroll-lock、多層堆疊、`showBackdrop`（`isBottom` 渲染）皆委派 `useOverlay(panelRef, open, options)`，與 BaseModal **共用同一個 module 層級 `trapStack` 與 `usePopupsManager` 單例** —— 這是把邏輯抽到 composable 的關鍵：BaseModal 疊 BaseDialog（或反之）時，focus-trap 仍會自動暫停下層、只讓最上層作用，scroll-lock 也用引用計數避免提早釋放。詳見 `BaseModal.md` §5.2–5.4。
+`focus-trap`、Esc / 點外部關閉、scroll-lock、多層堆疊、`showBackdrop`（`isBottom` 渲染）皆委派 `useOverlay(panelRef, guardedOpen, options)`（傳入 `useOverlayLifecycle` 的 `guardedOpen`，Esc / 點外部的內部關閉也會過 `beforeClose` 把關），與 BaseModal **共用同一個 module 層級 `trapStack` 與 `usePopupsManager` 單例** —— 這是把邏輯抽到 composable 的關鍵：BaseModal 疊 BaseDialog（或反之）時，focus-trap 仍會自動暫停下層、只讓最上層作用，scroll-lock 也用引用計數避免提早釋放。詳見 `BaseModal.md` §5.2–5.4。
 
 ### 5.2 拖曳（useDrag）
 
@@ -176,7 +181,7 @@ async function onConfirm() {
 - **無標題列（`dragViaSensors`）** → 退回四邊 `&__sensor` 感應區（各綁 `@pointerdown="onDragStart"`），讓沒有標題的對話框也能拖曳，同時不擋中央內容。
 - `useDrag(canDrag, { target })` 以 **Pointer Events** 追蹤位移，**僅在拖曳期間**監聽 `pointermove/up/cancel`（閒置零開銷），並把位移 **clamp 在視窗範圍內**（避免拖出畫面消失）
 - 位移以 inline `transform: translate(x, y)` 套在 `&__wrapper`；**未位移（x=y=0）時不下 inline transform**，讓 CSS 進出場動畫的 transform 能生效（inline 樣式優先序高於 class，會蓋掉動畫）
-- `watch(open)`：關閉時 `reset()` 把位移歸零 → 下次開啟回到置中、leave 動畫從原點播放
+- 位移歸零延後到 **`<Transition>` after-leave**（發完 `closed` 後 `reset()`）→ 下次開啟回到置中；若在關閉指令當下就 reset，inline transform 先消失會讓離場動畫起點跳回置中（一幀跳位）
 - 拖曳中 overlay 加 `--dragging`（`user-select:none`、`touch-action:none`）
 
 ### 5.3 渲染與卸載
@@ -253,7 +258,7 @@ async function onConfirm() {
 | 焦點陷阱 | 連按 Tab 不跑出；關閉還焦 |
 | 與 BaseModal 疊開 | Esc 只關最上層；兩者皆關才解鎖捲動 |
 
-> **與 BaseModal / BaseDrawer 的差異**：BaseDialog 透過 `defineModel` 暴露 `v-model`，並在使用內建動作按鈕時提供 `confirm` / `cancel` emit；但**沒有** BaseModal / BaseDrawer 具備的 `open` / `opened` / `close` / `closed` 生命週期 emit 與 `beforeClose` prop。需要「關閉前攔截確認」或「進出場完成事件」時請改用 BaseModal / BaseDrawer，或在父層自行包裝。
+> **與 BaseModal / BaseDrawer 的差異**：BaseDialog 透過 `defineModel` 暴露 `v-model`，生命週期 `open` / `opened` / `close` / `closed` emit 與 `beforeClose` prop 已與 BaseModal / BaseDrawer **完全對稱**（共用 `useOverlayLifecycle`）；額外在使用內建動作按鈕時提供 `confirm` / `cancel` emit。
 
 ---
 

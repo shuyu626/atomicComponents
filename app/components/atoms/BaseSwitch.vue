@@ -202,12 +202,13 @@ defineExpose({
 const displayError = computed(() => props.error || validation.error.value)
 const displayMessage = computed(() => validation.message.value ?? props.message)
 
+// 不輸出 --checked modifier class：選中態視覺一律由原生 `:checked` 偽類驅動（見 <style> 區塊說明）。
+// isChecked 仍保留給 input 的 :checked 綁定（DOM 為唯一狀態來源）。
 const rootClass = computed(() => [
   `base-switch--${props.color}`,
   `base-switch--label-${props.labelPlacement}`,
   {
     'base-switch--disabled': isDisabled.value,
-    'base-switch--checked': isChecked.value,
     'base-switch--error': displayError.value,
   },
 ])
@@ -306,12 +307,16 @@ const rootClass = computed(() => [
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  // ── 開啟態 ────────────────────────────────────────────
+  // 選中態視覺由原生 `:checked` 偽類（sr-only input 的兄弟選擇器）驅動，而非 JS 的
+  // --checked class：狀態來源單一（DOM 的 input.checked），原生 `form.reset()`
+  // 還原 checked 時視覺才會跟動（JS class 不會收到 reset 通知）。
   // 開啟：軌道上色、滑塊平移到右側（位移 = 軌道寬 - 軌道高）。
-  &--checked &__track {
+  &__input:checked + &__track {
     background-color: var(--switch-color);
   }
 
-  &--checked &__thumb {
+  &__input:checked + &__track &__thumb {
     transform: translateX(calc(var(--switch-width) - var(--switch-height)));
   }
 
@@ -333,9 +338,11 @@ const rootClass = computed(() => [
     transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  // 啟用側文字隨狀態上色。
-  &--checked &__text--active,
-  &:not(&--checked) &__text--inactive {
+  // 啟用側文字隨狀態上色（同樣由原生 :checked 驅動）。
+  // inactiveText 在 DOM 中位於 input 之前，兄弟選擇器（+ / ~）只能向後選，
+  // 故未選中側改用 :has() 從 __field 容器判斷（狀態來源仍是 DOM 的 input.checked）。
+  &__input:checked ~ &__text--active,
+  &__field:has(&__input:not(:checked)) &__text--inactive {
     color: var(--switch-color);
   }
 

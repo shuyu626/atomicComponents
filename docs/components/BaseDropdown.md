@@ -3,7 +3,7 @@
 > **歸屬**：`Base*` 通用元件家族（`app/components/atoms/BaseDropdown.vue`）。
 > **配套**：`docs/components/component-design-spec.md`（跨元件通用原則）、`docs/components/BasePopover.md`（底層浮層）。
 > **底座**：`app/components/atoms/BasePopover.vue`（觸發 / 定位 / 開關 / focus-trap / Esc / click-outside 全交給它）。
-> **共用工具**：`app/utils/dom.ts`（`moveFocus` / `nextItem` / `previousItem` 鍵盤導覽）、`app/utils/isFunction.ts`、`app/utils/noop.ts`。
+> **共用工具**：`app/utils/dom.ts`（`moveFocus` / `nextItem` / `previousItem` 鍵盤導覽）、`app/utils/isFunction.ts`。
 
 BaseDropdown 是「資料驅動的選單（menu）」元件：傳入 `items` 陣列 + 一個 `#reference` 觸發錨點，點擊 / hover 後彈出一份 `role="menu"` 的選項清單，並內建 WAI-ARIA menu 的鍵盤導覽（↑↓ / Home / End / Enter / Space / Esc / Tab）。
 
@@ -17,7 +17,7 @@ BaseDropdown 是「資料驅動的選單（menu）」元件：傳入 `items` 陣
 
 | 介面 | 型別 | 預設 | 為什麼必要 |
 |---|---|---|---|
-| `items` | `BaseDropdownItem<Value, Context>[]` | `[]` | 選單資料來源；每項含 `label` / `value` / 可選 `onClick` / `disabled` / `context` |
+| `items` | `BaseDropdownItem<Value, Context>[]` | `[]` | 選單資料來源；每項含 `label` / `value` / 可選 `onClick` / `closeOnClick` / `disabled` / `context` |
 | `#reference` slot | 單一可聚焦元素 | **required** | 觸發錨點，透傳給 BasePopover；純文字會自動包成 `<span role="button" tabindex="0">` |
 | `v-model`（對應 `modelValue`） | `boolean` | `false` | 開關狀態。**未綁定亦可運作**（內部狀態）；綁定後即受控 |
 
@@ -27,7 +27,8 @@ BaseDropdown 是「資料驅動的選單（menu）」元件：傳入 `items` 陣
 |---|---|---|---|
 | `label` | `string` | ✓ | 顯示文字，可被 `#menuitem` slot 覆寫 |
 | `value` | `Value` | ✓ | 該項的值，回傳於 `onClick` 與 slot props；同時是 `v-for` 的 key，**需唯一** |
-| `onClick` | `(value, close) => void` | — | 點擊回呼，依宣告參數數量決定關閉時機（見 §5.3） |
+| `onClick` | `(value, close) => void` | — | 點擊回呼，**一律**以 `(value, close)` 呼叫（見 §5.3） |
+| `closeOnClick` | `boolean`（預設 `true`） | — | 點擊後是否自動關閉；設 `false` 由 handler 呼叫收到的 `close()` 決定時機（見 §5.3） |
 | `disabled` | `boolean` | — | 禁用此項：不可點、鍵盤導覽跳過、標 `aria-disabled` |
 | `context` | `Context` | — | 附帶資料，原封不動傳進 `#menuitem` slot props（icon / 說明…） |
 
@@ -117,7 +118,8 @@ const items: BaseDropdownItem<string>[] = [
   {
     label: '存檔並關閉',
     value: 'save',
-    // 宣告第二參數 close → 元件不自動關閉，等 await 完成再手動關
+    // closeOnClick: false → 元件不自動關閉，等 await 完成再呼叫收到的 close()
+    closeOnClick: false,
     onClick: async (value, close) => {
       await save(value)
       close()
@@ -158,16 +160,18 @@ const items: BaseDropdownItem<string>[] = [
 - `aria-disabled`：禁用項標 `true`，讓 `moveFocus` 跳過（見 §5.4）
 - `onClick` / `onKeydown`（Enter / Space）事件處理
 
-### 5.3 點擊行為（`onClick` 的參數契約）
+### 5.3 點擊行為（`closeOnClick` 宣告式契約）
 
-| `item.onClick` | 行為 |
+`onClick` **一律**以 `(value, close)` 呼叫；關閉時機只看 `closeOnClick`，與 handler 的宣告參數個數無關：
+
+| `item.closeOnClick` | 行為 |
 |---|---|
-| 未提供 | 點擊僅 `close()` 關閉選單 |
-| 宣告 **0–1 個參數**（`(value) => {}`） | 執行 handler 後**自動 `close()`** |
-| 宣告 **2 個參數**（`(value, close) => {}`） | 把 `close` 交給 handler，**不自動關閉**（非同步流程適用） |
+| 未設定 / `true`（預設） | handler 執行後**自動 `close()`**（對齊設計準則「點擊選項後自動關閉」） |
+| `false` | **不自動關閉**，handler 可在任意時機（含 async 完成後）呼叫收到的 `close()` |
 
-- 判斷依據是函式的 `Function.length`（不含預設值 / rest 之後的參數）。
+- 未提供 `onClick` 時，點擊依 `closeOnClick` 決定是否關閉（預設關閉）。
 - 禁用項的 `onClick` 直接 return，不觸發。
+- **不做 arity 檢查**：曾用 `Function.length >= 2` 判斷「handler 接管關閉」，但預設參數 / rest 參數（如 `(value, close = noop) =>`）會讓 `length` 失真而誤判成自動關閉，契約脆弱，已改為明確的 `closeOnClick`。
 
 ### 5.4 鍵盤導覽（WAI-ARIA menu 模式）
 
@@ -201,7 +205,7 @@ const items: BaseDropdownItem<string>[] = [
 | `disabled`（元件層） | 不可觸發；所有項目視為 disabled、標 `aria-disabled`、無 `tabindex=0` |
 | 首項 `disabled` | `tabindex=0` 落在第一個未禁用項，Tab 不卡在禁用項 |
 | 全部項目 `disabled` | 無可聚焦項，不啟用 focus-trap，鍵盤導覽無作用對象 |
-| `onClick` 為非同步 | 宣告 `(value, close)` 兩參數，`await` 後自行 `close()` |
+| `onClick` 為非同步 | 設 `closeOnClick: false`，`await` 後自行呼叫收到的 `close()` |
 | `#reference` 傳純文字 | 由 BasePopover 自動包成 `<span role="button" tabindex="0">` |
 | 未綁 `v-model` | 用內部狀態，照常開關 |
 | 元件卸載時選單仍開 | BasePopover 於 `onUnmounted` 卸監聽、清 timer、`deactivate` trap |
@@ -227,7 +231,7 @@ const items: BaseDropdownItem<string>[] = [
 | 禁用項只設 `disabled` 不設 `aria-disabled` | `moveFocus` 靠 `aria-disabled` 判斷，鍵盤會停在禁用項 | 用本元件（已自動標）或務必補 `aria-disabled` |
 | roving tabindex 固定第 0 項拿 `tabindex=0` | 首項 disabled 時 Tab 焦點卡在禁用項 | 改用「第一個未禁用項」當進入點（本元件已處理） |
 | 用 BaseDropdown 做單 / 複選「選值」 | menu 語意是「執行動作」，非選值 | 選值請用 listbox / select 類元件（`aria-selected`） |
-| 非同步動作卻用 `(value) => {}` 單參數 | 會在 `await` 前就自動關閉選單 | 宣告 `(value, close)` 兩參數，自行 `close()` |
+| 非同步動作卻未設 `closeOnClick: false` | 會在 `await` 前就自動關閉選單 | 設 `closeOnClick: false`，完成後自行 `close()` |
 | 在父層加 `overflow`/`position` 想裁切選單 | 選單已由 BasePopover `Teleport` 到 body | 用 `--dropdown-*` / `--popover-*` token 或 `#menuitem` slot |
 | `value` 重複 | `v-for` key 衝突、選取對應錯亂 | `value` 在同組內必須唯一 |
 
@@ -244,7 +248,7 @@ const items: BaseDropdownItem<string>[] = [
 | 選取項目 | Enter / Space / 點擊觸發 `onClick`，預設自動關閉 |
 | 跳過禁用項 | 含 `disabled` 項，↓↑ 自動略過 |
 | 首項禁用 | 第一項 `disabled`，Tab 焦點落在第二項（首個可聚焦） |
-| 非同步動作 | `(value, close)` 兩參數，await 後手動關閉 |
+| 非同步動作 | `closeOnClick: false`，await 後手動 `close()` |
 | 自訂渲染 | `#menuitem` slot 加 icon / 配色 |
 | 寬度貼齊 | `auto-fit`，選單寬度 = reference 寬度 |
 | 受控 | `v-model="open"`，外部按鈕也能開關 |
@@ -262,11 +266,11 @@ const items: BaseDropdownItem<string>[] = [
 | 觸發 | `trigger`(hover/click/contextmenu) | `trigger` | 固定 click | `trigger`（透傳 BasePopover，可陣列複選） |
 | 定位 | Popper.js | dom-align | floating-ui | floating-ui（委派 BasePopover） |
 | 鍵盤導覽 | 內建 | 內建 | 內建（roving） | roving tabindex + `moveFocus`（共用 `dom.ts`） |
-| 關閉控制 | `hide-on-click` | `menu.onClick` | 自動 | `onClick` 參數數量決定（0–1 自動 / 2 手動） |
+| 關閉控制 | `hide-on-click` | `menu.onClick` | 自動 | `items[].closeOnClick`（預設自動 / `false` 手動） |
 | 焦點管理 | 部分 | 部分 | 完整 | 委派 BasePopover focus-trap |
 
 **觀察**：
 
 - **薄包 BasePopover**：定位 / 開關 / 焦點 / Esc / click-outside 不重造，dropdown 只專注「items → menu + 鍵盤導覽」，避免雙處 drift。
-- **`onClick` 參數契約**：用 `Function.length` 區分「自動關閉」與「手動關閉」，非同步動作不需額外 prop。
+- **`closeOnClick` 宣告式契約**：關閉時機用明確欄位宣告（對齊 Element Plus 的 `hide-on-click`），不靠 `Function.length` 猜測意圖 —— 預設參數 / rest 會讓 `length` 失真，arity 檢查是脆弱契約。
 - **roving tabindex 修正**：進入點取「第一個未禁用項」而非固定第 0 項；禁用項補 `aria-disabled` 讓 `moveFocus` 正確跳過 —— 這兩點是參考實作常見的 a11y 疏漏。

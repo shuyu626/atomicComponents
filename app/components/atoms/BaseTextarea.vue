@@ -35,6 +35,7 @@
           :id="id"
           ref="inputRef"
           class="base-textarea__input"
+          :style="{ '--textarea-resize': resolvedResize }"
           :value="inputRef?.value ?? initialModelValue"
           :name="name"
           :placeholder="placeholder"
@@ -120,7 +121,12 @@ export interface BaseTextareaProps extends BaseFormFieldProps {
   append?: string | Component
   /** textarea `name`（送出表單 / 自動填入用）。 */
   name?: string
-  /** 最大字元數（HTML `maxlength`）；搭配 `showCount` 會顯示 `count/maxlength`。 */
+  /**
+   * 最大字元數（HTML `maxlength`）；搭配 `showCount` 會顯示 `count/maxlength`。
+   * 注意單位差：原生 `maxlength` 以 UTF-16 code unit 計、計數以 grapheme 計，
+   * emoji / astral 字元兩者會不一致；多行文字的換行在計數為 1（`\n`），
+   * 表單「送出」時卻按規範正規化為 CRLF 以 2 計（詳見 docs「maxlength 與計數單位差異」）。
+   */
   maxlength?: number
   /** 最小字元數（HTML `minlength`）。 */
   minlength?: number
@@ -137,6 +143,11 @@ export interface BaseTextareaProps extends BaseFormFieldProps {
   autosize?: boolean | 'cacheMeasurements'
   /** 顯示字數計數（以 grapheme cluster 計，emoji / 中日韓算 1 字）。 @default false */
   showCount?: boolean
+  /**
+   * 使用者可手動拖曳調整的方向（原生 CSS `resize`）。`autosize` 啟用時一律視為
+   * `'none'`（見下方 `resolvedResize`），此 prop 僅在 `autosize` 為 `false` 時生效。 @default 'vertical'
+   */
+  resize?: 'none' | 'vertical' | 'horizontal' | 'both'
   /**
    * 驗證規則陣列；每條規則回傳 `true`（通過）或字串（錯誤訊息）。採 touched-gated：
    * 第一次 blur 後才開始逐字即時驗證。常用規則見 `~/utils/validators`（`required` / `minLength`…）。
@@ -157,6 +168,7 @@ const props = withDefaults(defineProps<BaseTextareaProps>(), {
   maxRows: undefined,
   autosize: false,
   showCount: false,
+  resize: 'vertical',
   rules: undefined,
 })
 
@@ -243,6 +255,13 @@ const shouldShowCount = computed(() => props.showCount)
 const count = useStringLength(() =>
   shouldShowCount.value ? String(model.value ?? '') : '',
 )
+
+/**
+ * resize 優先序：autosize 啟用時高度由 JS（scrollHeight 量測）控制，若同時允許使用者
+ * 手動拖曳，拖曳撐高的高度會被下一次量測（見 calcTextareaHeight 開頭的 `node.rows = props.rows`
+ * 還原）立刻蓋掉，兩者互打造成高度抖動；故 autosize 優先於 `resize` prop，強制 `'none'`。
+ */
+const resolvedResize = computed(() => (props.autosize ? 'none' : props.resize))
 
 // ── autosize（自動高度）────────────────────────────────────────────────────────
 //
@@ -364,8 +383,9 @@ watch(
     background: transparent;
     border: 0;
     outline: none;
-    // 預設可垂直拖拉調整；autosize 時改由 JS 控制高度，停用手動拖拉（見下）。
-    resize: vertical;
+    // resize 方向讀 JS 注入的 --textarea-resize（見 resolvedResize）；autosize 時
+    // JS 端已把值強制收斂為 none，故這裡的 fallback 只在 CSS 變數缺席時（理論上不會）生效。
+    resize: var(--textarea-resize, vertical);
 
     &::placeholder {
       color: #9ca3af;
@@ -381,11 +401,6 @@ watch(
     &[readonly] {
       color: #6b7280;
     }
-  }
-
-  // autosize：高度由 JS 算出，停用使用者手動拖拉避免衝突。
-  &--autosize &__input {
-    resize: none;
   }
 
   // prepend / append 已自帶 padding，input 該側不再補，避免雙重間距。

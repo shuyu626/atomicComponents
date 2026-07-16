@@ -123,7 +123,7 @@ const rules: ValidationRule<boolean | undefined>[] = [(v) => v === true || '必�
 | 1 | `useControlled` + 手寫 `modelValueLocal` / `modelValueWritable` | 受控樣板，`defineModel` 已原生提供 | 改用 `defineModel`（免額外相依） |
 | 2 | 依賴 `AtomicFormLabelField` + `useFormLabelFieldProps`（另一套 field 包裝） | 多一個欄位包裝元件 | BaseSwitch 自渲染 inline `<label>`，與 BaseCheckbox 一致 |
 | 3 | 全域 `$color-map` / `@include sr-only` | 強綁全域 SCSS | scoped + 自宣告 `--switch-*` token + 自寫 sr-only |
-| 4 | `:has(&__input:checked)` 切文字色 / `--switch-thumb-translate` 由 `:checked + track` 設定 | 依賴 `:has` 且狀態散落 selector | 以 `--checked` modifier class 統一驅動軌道 / 滑塊 / 文字 |
+| 4 | `:has(&__input:checked)` 切文字色 / `--switch-thumb-translate` 由 `:checked + track` 設定 | 混用 token 中介，狀態散落 selector | 選中態統一由原生 `:checked` 偽類 + 兄弟選擇器驅動軌道 / 滑塊 / 文字（狀態來源單一＝DOM，`form.reset()` 還原 `input.checked` 時視覺同步；僅 inactiveText 因位於 input 之前需 `:has()` 反向判斷），**不輸出** JS 的 `--checked` modifier class |
 | 5 | 無驗證 | 與庫內表單元件不一致 | 整合 `useValidation` + `rules` + `validate()` / `reset()` |
 | 6 | input 用 `@click.stop`、無 `aria-describedby` / `aria-invalid` | a11y 接線不足 | 補 `aria-describedby` / `aria-invalid`（checked 由 `role="switch"` 原生映射，不加冗餘 `aria-checked`），停用時不送值 |
 

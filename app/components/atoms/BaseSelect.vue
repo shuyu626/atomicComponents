@@ -291,18 +291,41 @@ function toLowerCase(value: string) {
   return value.toLowerCase()
 }
 
-/** 把作用中選項捲入可視範圍；環境（如測試）無 scrollIntoView 時安全略過。 */
-function scrollIntoView(element: HTMLElement | null | undefined) {
-  if (!element || typeof element.scrollIntoView !== 'function') return
-  requestAnimationFrame(() => {
+/** `v-combobox-aria` 指令值（見 `<script setup>` 內指令定義處的說明）。 */
+export interface ComboboxAriaValue {
+  listboxId: string
+  expanded: boolean
+  /** BaseFormField 傳入的 describedby（指向訊息 / 說明節點）。 */
+  describedby?: string
+}
+
+/**
+ * 純函式：combobox 指令值 → aria 屬性物件。
+ * client 端 mounted/updated（setAttribute 覆蓋 patch）與 SSR 端 getSSRProps
+ * （首渲直出）共用同一份計算，避免三份邏輯漂移。
+ */
+export function computeComboboxAriaAttrs(value: ComboboxAriaValue): Record<string, string> {
+  const attrs: Record<string, string> = { 'aria-haspopup': 'listbox' }
+  if (value.expanded) attrs['aria-controls'] = value.listboxId
+  if (value.describedby) attrs['aria-describedby'] = value.describedby
+  return attrs
+}
+
+/**
+ * 把作用中選項捲入可視範圍；環境（如測試）無 scrollIntoView 時安全略過。
+ * 回傳 rAF id 供呼叫端於卸載時取消（避免對已卸載節點操作）。
+ */
+function scrollIntoView(element: HTMLElement | null | undefined): number | undefined {
+  if (!element || typeof element.scrollIntoView !== 'function') return undefined
+  return requestAnimationFrame(() => {
     element.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   })
 }
 </script>
 
 <script setup lang="ts" generic="T = string | number">
-import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
-import type { DirectiveBinding } from 'vue'
+import { computed, nextTick, onUnmounted, ref, useId, useTemplateRef, watch } from 'vue'
+import type { DirectiveBinding, ObjectDirective } from 'vue'
 
 import BaseChip from '~/components/atoms/BaseChip.vue'
 import BaseFormField from '~/components/atoms/BaseFormField.vue'
@@ -429,32 +452,32 @@ const menuRef = useTemplateRef<HTMLElement>('menuRef')
 
 /**
  * 在 combobox 控制項上硬寫 listbox 關聯，覆蓋 BasePopover fallthrough 帶下的泛用值。
- * fallthrough 屬性合併時會勝過模板綁定，故改在 mounted / updated（patch 之後）以
- * setAttribute 寫入：aria-haspopup 固定 'listbox'；aria-controls 僅在展開（listbox <ul>
- * 實際存在於 DOM）時指向其 id，收合時移除以免指向不存在的元素。
+ * fallthrough 屬性合併時會勝過模板綁定，故 client 端在 mounted / updated（patch 之後）
+ * 以 setAttribute 寫入：aria-haspopup 固定 'listbox'；aria-controls 僅在展開（listbox
+ * <ul> 實際存在於 DOM）時指向其 id，收合時移除以免指向不存在的元素。describedby
+ * （BaseFormField 傳入，指向訊息 / 說明節點）同樣需走指令於 patch 後寫入 ——
+ * BasePopover 的 fallthrough 會把 reference 上的 aria-describedby 覆蓋成 undefined
+ * （非 tooltip role 時），純模板綁定會被清掉，導致有錯誤 / 說明訊息時螢幕閱讀器讀不到。
+ *
+ * SSR：mounted / updated 僅在 client 執行，getSSRProps 讓 server 首渲 HTML 直出相同
+ * aria 屬性，水合前即具 combobox 語意。屬性計算集中於 computeComboboxAriaAttrs
+ * （一般 <script> 區塊），mounted / updated 與 getSSRProps 共用，避免三份漂移。
  */
-interface ComboboxAriaValue {
-  listboxId: string
-  expanded: boolean
-  /**
-   * BaseFormField 傳入的 describedby（指向訊息 / 說明節點）。
-   * 同樣需走指令於 patch 後寫入 —— BasePopover 的 fallthrough 會把 reference 上的
-   * aria-describedby 覆蓋成 undefined（非 tooltip role 時），純模板綁定會被清掉，
-   * 導致有錯誤 / 說明訊息時螢幕閱讀器讀不到。
-   */
-  describedby?: string
-}
-function applyComboboxAria(el: HTMLElement, binding: DirectiveBinding<ComboboxAriaValue>) {
-  el.setAttribute('aria-haspopup', 'listbox')
-  if (binding.value.expanded) el.setAttribute('aria-controls', binding.value.listboxId)
-  else el.removeAttribute('aria-controls')
+const MANAGED_COMBOBOX_ARIA_ATTRS = ['aria-haspopup', 'aria-controls', 'aria-describedby'] as const
 
-  if (binding.value.describedby) el.setAttribute('aria-describedby', binding.value.describedby)
-  else el.removeAttribute('aria-describedby')
+function applyComboboxAria(el: HTMLElement, binding: DirectiveBinding<ComboboxAriaValue>) {
+  const attrs = computeComboboxAriaAttrs(binding.value)
+  for (const name of MANAGED_COMBOBOX_ARIA_ATTRS) {
+    const value = attrs[name]
+    // 共用計算未給值代表該屬性不應存在（收合時的 aria-controls 等），需主動移除
+    if (value != null) el.setAttribute(name, value)
+    else el.removeAttribute(name)
+  }
 }
-const vComboboxAria = {
+const vComboboxAria: ObjectDirective<HTMLElement, ComboboxAriaValue> = {
   mounted: applyComboboxAria,
   updated: applyComboboxAria,
+  getSSRProps: (binding) => computeComboboxAriaAttrs(binding.value),
 }
 
 const allOptions = computed<BaseSelectOption<T>[]>(() => props.options ?? [])
@@ -604,6 +627,7 @@ function selectOption(option: BaseSelectOption<T>) {
   // 多選：toggle 該值，維持原容器型別（Set 進 Set 出、Array 進 Array 出）。
   const current = model.value
   if (isSet<T>(current)) {
+    // Set 本身無序語意 → 不做 options 順序重建，維持插入順序即可。
     const next = new Set(current)
     if (next.has(option.value)) next.delete(option.value)
     else next.add(option.value)
@@ -612,9 +636,28 @@ function selectOption(option: BaseSelectOption<T>) {
   }
 
   const arr = Array.isArray(current) ? (current as T[]) : []
-  model.value = arr.includes(option.value)
-    ? arr.filter((value) => value !== option.value)
-    : [...arr, option.value]
+  if (arr.includes(option.value)) {
+    model.value = arr.filter((value) => value !== option.value)
+    return
+  }
+  // 設計準則：Array model 的選中值依 options 順序排列 —— 新增時不直接 push，
+  // 而是以「加入後的值集合」逐一比對 options 順序重建整個陣列。
+  const pending = new Set<T>([...arr, option.value])
+  const ordered: T[] = []
+  for (const item of allOptions.value) {
+    if (pending.has(item.value)) {
+      ordered.push(item.value)
+      pending.delete(item.value)
+    }
+  }
+  // 防禦情境：不在 options 內的殘值（如父層塞入的過期值）保留在尾端、維持原相對順序。
+  for (const value of arr) {
+    if (pending.has(value)) {
+      ordered.push(value)
+      pending.delete(value)
+    }
+  }
+  model.value = ordered
 }
 
 /** 清除已選：單選回 undefined；多選依原容器型別回空陣列 / 空 Set。 */
@@ -783,12 +826,20 @@ watch(filter, () => {
 })
 
 // 作用中索引變動：把該選項捲入可視範圍。
+// 保存待執行的捲動 rAF id：重排程前先取消舊的，卸載時一併取消（避免對已卸載節點操作）。
+let scrollRafId: number | undefined
+
 watch(activeIndex, (index) => {
   if (index < 0) return
   nextTick(() => {
+    if (scrollRafId != null) cancelAnimationFrame(scrollRafId)
     const el = menuRef.value?.querySelectorAll<HTMLElement>('.base-select__option')[index]
-    scrollIntoView(el)
+    scrollRafId = scrollIntoView(el)
   })
+})
+
+onUnmounted(() => {
+  if (scrollRafId != null) cancelAnimationFrame(scrollRafId)
 })
 
 // ── 驗證 ────────────────────────────────────────────────────────────────────
